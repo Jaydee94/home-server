@@ -40,3 +40,13 @@
     name: dnsmasq
     enabled: true
     state: started
+
+- name: Set resolv.conf — dnsmasq primary, Fritz!Box fallback
+  ansible.builtin.copy:
+    content: |
+      nameserver {{ network_static_ip }}
+      nameserver {{ network_gateway }}
+    dest: /etc/resolv.conf
+    owner: root
+    group: root
+    mode: "0644"
