@@ -1,17 +1,17 @@
 # Managed by Ansible — do not edit manually.
-# Wildcard DNS for *.homeserver on the local network.
+# Wildcard DNS für *.homeserver — hört nur auf der LAN-IP.
+# Der Server selbst nutzt weiterhin systemd-resolved.
 
 # Upstream DNS: Fritz!Box
 no-resolv
 server={{ network_gateway }}
 
-# Resolve *.homeserver to this server's IP
+# *.homeserver → dieser Server
 address=/.homeserver/{{ network_static_ip }}
 
-# Listen on loopback and the server's LAN IP
-listen-address=127.0.0.1,{{ network_static_ip }}
+# Nur auf der LAN-IP lauschen (nicht 127.0.0.1 — das gehört systemd-resolved)
+listen-address={{ network_static_ip }}
 bind-interfaces
 
-# Security: don't forward bare hostnames or private reverse lookups
 domain-needed
 bogus-priv

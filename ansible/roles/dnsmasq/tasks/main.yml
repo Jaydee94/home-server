@@ -1,20 +1,14 @@
 ---
 # ============================================================
-# dnsmasq role — wildcard DNS for *.homeserver
+# dnsmasq role — wildcard DNS für *.homeserver
 # ============================================================
-# Ubuntu 24.04 uses systemd-resolved with a stub listener on
-# 127.0.0.53:53. We disable the stub so dnsmasq can own :53.
+# dnsmasq hört NUR auf der LAN-IP des Servers (nicht 127.0.0.1).
+# Der Server selbst nutzt weiterhin systemd-resolved (127.0.0.53).
+# LAN-Geräte bekommen die Server-IP per Fritz!Box DHCP als DNS-Server.
+# Dadurch gibt es kein Henne-Ei-Problem mit Port 53 und die
+# DNS-Auflösung des Servers selbst bleibt während des Ansible-Runs
+# unverändert.
 # ============================================================
-
-- name: Disable systemd-resolved stub listener
-  ansible.builtin.lineinfile:
-    path: /etc/systemd/resolved.conf
-    regexp: "^#?DNSStubListener="
-    line: "DNSStubListener=no"
-  notify: Restart systemd-resolved
-
-- name: Flush handlers to apply resolved config before installing dnsmasq
-  ansible.builtin.meta: flush_handlers
 
 - name: Install dnsmasq
   ansible.builtin.apt:
@@ -30,14 +24,6 @@
     group: root
     mode: "0644"
   notify: Restart dnsmasq
-
-- name: Point /etc/resolv.conf at local dnsmasq
-  ansible.builtin.copy:
-    content: "nameserver 127.0.0.1\n"
-    dest: /etc/resolv.conf
-    owner: root
-    group: root
-    mode: "0644"
 
 - name: Allow DNS from local subnet (UFW)
   community.general.ufw:
