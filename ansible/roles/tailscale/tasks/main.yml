@@ -1,0 +1,126 @@
+---
+# ============================================================
+# tailscale/tasks/main.yml — Tailscale VPN installation
+# ============================================================
+
+# ---- Add Tailscale Repository -------------------------------
+- name: Create directory for APT keyrings
+  ansible.builtin.file:
+    path: /usr/share/keyrings
+    state: directory
+    mode: '0755'
+
+- name: Download Tailscale GPG signing key
+  ansible.builtin.get_url:
+    url: https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg
+    dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
+    mode: '0644'
+    force: false
+
+- name: Add Tailscale APT repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
+      https://pkgs.tailscale.com/stable/ubuntu jammy main
+    filename: tailscale
+    state: present
+    update_cache: true
+
+# ---- Install Tailscale --------------------------------------
+- name: Install tailscale package
+  ansible.builtin.apt:
+    name: tailscale
+    state: present
+    update_cache: false
+
+# ---- Enable tailscaled service ------------------------------
+- name: Enable and start tailscaled service
+  ansible.builtin.systemd:
+    name: tailscaled
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Wait for tailscaled to be ready
+  ansible.builtin.wait_for:
+    path: /var/run/tailscale/tailscaled.sock
+    state: present
+    timeout: 30
+
+# ---- Check Existing Connection ------------------------------
+- name: Check current Tailscale connection status
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_status_raw
+  changed_when: false
+  failed_when: false
+
+- name: Parse Tailscale status
+  ansible.builtin.set_fact:
+    tailscale_connected: >-
+      {{
+        (tailscale_status_raw.stdout | from_json).BackendState == 'Running'
+        if tailscale_status_raw.rc == 0 and tailscale_status_raw.stdout | length > 0
+        else false
+      }}
+
+- name: Display current Tailscale state
+  ansible.builtin.debug:
+    msg: "Tailscale connected: {{ tailscale_connected }}"
+
+# ---- Connect to Tailscale -----------------------------------
+- name: Connect to Tailscale with auth key and advertise routes
+  ansible.builtin.command: >
+    tailscale up
+    --authkey={{ tailscale_auth_key }}
+    --hostname={{ tailscale_hostname }}
+    --advertise-routes={{ local_subnet }}
+    --accept-dns=true
+    --accept-routes=false
+  register: tailscale_up_result
+  changed_when: tailscale_up_result.rc == 0
+  no_log: true
+  when: not tailscale_connected
+
+- name: Refresh Tailscale options (already connected — update routes/hostname)
+  ansible.builtin.command: >
+    tailscale set
+    --hostname={{ tailscale_hostname }}
+    --advertise-routes={{ local_subnet }}
+  register: tailscale_set_result
+  changed_when: tailscale_set_result.rc == 0
+  failed_when: false
+  when: tailscale_connected
+
+# ---- Enable IP Forwarding for Subnet Routing ----------------
+- name: Enable IP forwarding in kernel (for subnet routing)
+  ansible.posix.sysctl:
+    name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_file: /etc/sysctl.d/99-tailscale.conf
+    reload: true
+    state: present
+
+# ---- Verify Connection --------------------------------------
+- name: Get final Tailscale status
+  ansible.builtin.command: tailscale status
+  register: tailscale_final_status
+  changed_when: false
+  retries: 6
+  delay: 5
+  until: tailscale_final_status.rc == 0
+
+- name: Get Tailscale IP address
+  ansible.builtin.command: tailscale ip -4
+  register: tailscale_ip
+  changed_when: false
+  failed_when: false
+
+- name: Display Tailscale connection info
+  ansible.builtin.debug:
+    msg:
+      - "Tailscale status: Connected"
+      - "Tailscale IP: {{ tailscale_ip.stdout | default('unknown') }}"
+      - "Hostname: {{ tailscale_hostname }}"
+      - "Advertised subnet: {{ local_subnet }}"
+      - "NOTE: Approve subnet routes in Tailscale admin panel:"
+      - "      https://login.tailscale.com/admin/machines"

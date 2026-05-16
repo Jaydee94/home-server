@@ -1,0 +1,37 @@
+---
+- name: Home Server Setup
+  hosts: homeserver
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Display server info
+      ansible.builtin.debug:
+        msg:
+          - "Setting up home server: {{ inventory_hostname }}"
+          - "IP: {{ ansible_default_ipv4.address }}"
+          - "OS: {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "CPU: {{ ansible_processor_count }} cores"
+          - "RAM: {{ ansible_memtotal_mb }} MB"
+
+  roles:
+    - role: common
+      tags: [common, base]
+    - role: tailscale
+      tags: [tailscale, vpn]
+    - role: k3s
+      tags: [k3s, kubernetes]
+    - role: argocd
+      tags: [argocd, gitops]
+
+  post_tasks:
+    - name: Display setup summary
+      ansible.builtin.debug:
+        msg:
+          - "======================================"
+          - "Home Server Setup Complete!"
+          - "======================================"
+          - "ArgoCD UI: http://{{ ansible_default_ipv4.address }}:30080"
+          - "ArgoCD via Tailscale: http://{{ hostname }}:30080"
+          - "kubectl: kubectl get nodes"
+          - "======================================"

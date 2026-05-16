@@ -1,0 +1,29 @@
+---
+# Server
+hostname: homeserver
+timezone: Europe/Berlin
+
+# k3s
+k3s_version: v1.29.3+k3s1
+k3s_server_ip: "{{ ansible_default_ipv4.address }}"
+
+# ArgoCD
+argocd_version: "7.3.11"
+argocd_namespace: argocd
+argocd_server_insecure: true
+argocd_repo_url: "https://github.com/YOUR_USER/home-server.git"  # CHANGE THIS
+argocd_repo_revision: HEAD
+
+# Tailscale - use ansible-vault for the auth key!
+# Encrypt with: ansible-vault encrypt_string 'tskey-auth-...' --name 'tailscale_auth_key'
+# Then replace the value below with the vault-encrypted block.
+tailscale_auth_key: "CHANGE_ME_USE_VAULT"
+tailscale_hostname: "{{ hostname }}"
+
+# Helm version
+helm_version: "v3.14.4"
+
+# Network
+k3s_pod_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
+local_subnet: "192.168.1.0/24"  # CHANGE to your local subnet

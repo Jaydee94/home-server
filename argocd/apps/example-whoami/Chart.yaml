@@ -1,0 +1,16 @@
+apiVersion: v2
+name: example-whoami
+description: Example whoami application for testing ArgoCD GitOps pipeline
+type: application
+version: 0.1.0
+appVersion: "1.0"
+keywords:
+  - whoami
+  - example
+  - argocd
+  - testing
+home: https://github.com/traefik/whoami
+sources:
+  - https://github.com/traefik/whoami
+maintainers:
+  - name: home-server-admin

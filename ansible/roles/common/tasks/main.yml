@@ -1,0 +1,240 @@
+---
+# ============================================================
+# common/tasks/main.yml — Base OS configuration
+# ============================================================
+
+# ---- Hostname -----------------------------------------------
+- name: Set system hostname
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+    use: systemd
+
+- name: Update /etc/hosts with hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1'
+    line: "127.0.1.1 {{ hostname }}"
+    state: present
+
+# ---- Package Management ------------------------------------
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Upgrade all packages to latest
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: true
+    autoclean: true
+
+- name: Install required system packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - git
+      - apt-transport-https
+      - ca-certificates
+      - gnupg
+      - lsb-release
+      - python3-pip
+      - python3-kubernetes
+      - nfs-common
+      - open-iscsi
+      - chrony
+      - jq
+      - unzip
+      - net-tools
+      - htop
+      - vim
+      - bash-completion
+      - ufw
+    state: present
+
+# ---- Timezone -----------------------------------------------
+- name: Set system timezone
+  community.general.timezone:
+    name: "{{ timezone }}"
+  notify: restart chrony
+
+# ---- Chrony (NTP) -------------------------------------------
+- name: Ensure chrony is enabled and running
+  ansible.builtin.service:
+    name: chrony
+    state: started
+    enabled: true
+
+# ---- Swap ---------------------------------------------------
+- name: Disable swap immediately
+  ansible.builtin.command: swapoff -a
+  changed_when: false
+
+- name: Remove swap entries from /etc/fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\s+swap\s+.*)$'
+    replace: '# \1'
+
+- name: Ensure swap is not re-enabled by systemd
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+    masked: true
+  loop:
+    - swap.target
+  failed_when: false
+
+# ---- Kernel Modules -----------------------------------------
+- name: Create modules-load.d config for k3s/Kubernetes
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/k3s.conf
+    content: |
+      br_netfilter
+      overlay
+    mode: '0644'
+
+- name: Load br_netfilter kernel module
+  community.general.modprobe:
+    name: br_netfilter
+    state: present
+
+- name: Load overlay kernel module
+  community.general.modprobe:
+    name: overlay
+    state: present
+
+# ---- sysctl -------------------------------------------------
+- name: Configure sysctl parameters for Kubernetes
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-k3s.conf
+    reload: true
+    state: present
+  loop:
+    - { key: "net.ipv4.ip_forward", value: "1" }
+    - { key: "net.bridge.bridge-nf-call-iptables", value: "1" }
+    - { key: "net.bridge.bridge-nf-call-ip6tables", value: "1" }
+    - { key: "net.ipv6.conf.all.forwarding", value: "1" }
+    - { key: "fs.inotify.max_user_watches", value: "524288" }
+    - { key: "fs.inotify.max_user_instances", value: "512" }
+    - { key: "vm.swappiness", value: "0" }
+  notify: reload sysctl
+
+# ---- UFW Firewall -------------------------------------------
+- name: Reset UFW to default (allow outgoing, deny incoming)
+  community.general.ufw:
+    state: reset
+  changed_when: false
+
+- name: Set UFW default incoming policy to deny
+  community.general.ufw:
+    default: deny
+    direction: incoming
+
+- name: Set UFW default outgoing policy to allow
+  community.general.ufw:
+    default: allow
+    direction: outgoing
+
+- name: Allow SSH (port 22)
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    comment: "SSH"
+
+- name: Allow HTTP (port 80)
+  community.general.ufw:
+    rule: allow
+    port: "80"
+    proto: tcp
+    comment: "HTTP Traefik ingress"
+
+- name: Allow HTTPS (port 443)
+  community.general.ufw:
+    rule: allow
+    port: "443"
+    proto: tcp
+    comment: "HTTPS Traefik ingress"
+
+- name: Allow k3s API server (port 6443)
+  community.general.ufw:
+    rule: allow
+    port: "6443"
+    proto: tcp
+    comment: "k3s Kubernetes API"
+
+- name: Allow ArgoCD NodePort HTTP (port 30080)
+  community.general.ufw:
+    rule: allow
+    port: "30080"
+    proto: tcp
+    comment: "ArgoCD web UI HTTP"
+
+- name: Allow ArgoCD NodePort HTTPS (port 30443)
+  community.general.ufw:
+    rule: allow
+    port: "30443"
+    proto: tcp
+    comment: "ArgoCD web UI HTTPS"
+
+- name: Allow Tailscale WireGuard (UDP 41641)
+  community.general.ufw:
+    rule: allow
+    port: "41641"
+    proto: udp
+    comment: "Tailscale WireGuard VPN"
+
+- name: Allow Flannel VXLAN overlay network (UDP 8472)
+  community.general.ufw:
+    rule: allow
+    port: "8472"
+    proto: udp
+    comment: "Flannel VXLAN pod overlay network"
+
+- name: Allow kubelet API (port 10250)
+  community.general.ufw:
+    rule: allow
+    port: "10250"
+    proto: tcp
+    comment: "k3s kubelet API"
+
+- name: Allow all traffic from k3s pod CIDR
+  community.general.ufw:
+    rule: allow
+    src: "{{ k3s_pod_cidr }}"
+    comment: "k3s pod CIDR traffic"
+
+- name: Allow all traffic from k3s service CIDR
+  community.general.ufw:
+    rule: allow
+    src: "{{ k3s_service_cidr }}"
+    comment: "k3s service CIDR traffic"
+
+- name: Allow all traffic from local LAN subnet
+  community.general.ufw:
+    rule: allow
+    src: "{{ local_subnet }}"
+    comment: "Local LAN subnet access"
+
+- name: Allow all traffic from Tailscale network
+  community.general.ufw:
+    rule: allow
+    src: "100.64.0.0/10"
+    comment: "Tailscale VPN network"
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+- name: Verify UFW is active
+  ansible.builtin.command: ufw status verbose
+  register: ufw_status
+  changed_when: false
+
+- name: Display UFW status
+  ansible.builtin.debug:
+    var: ufw_status.stdout_lines

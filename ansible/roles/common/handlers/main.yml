@@ -1,0 +1,9 @@
+---
+- name: restart chrony
+  ansible.builtin.service:
+    name: chrony
+    state: restarted
+
+- name: reload sysctl
+  ansible.builtin.command: sysctl --system
+  changed_when: false

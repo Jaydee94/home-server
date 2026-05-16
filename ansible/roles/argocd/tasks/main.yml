@@ -1,0 +1,172 @@
+---
+# ============================================================
+# argocd/tasks/main.yml — ArgoCD GitOps installation
+# ============================================================
+
+# ---- Namespace ----------------------------------------------
+- name: Create argocd namespace (idempotent)
+  ansible.builtin.shell: >
+    kubectl create namespace {{ argocd_namespace }} --dry-run=client -o yaml |
+    kubectl apply -f -
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: ns_apply_result
+  changed_when: "'created' in ns_apply_result.stdout"
+
+# ---- Helm Repository ----------------------------------------
+- name: Add Argo Helm repository
+  ansible.builtin.command: helm repo add argo https://argoproj.github.io/argo-helm
+  register: helm_repo_add
+  changed_when: "'\"argo\" has been added' in helm_repo_add.stdout"
+  failed_when:
+    - helm_repo_add.rc != 0
+    - "'already exists' not in helm_repo_add.stderr"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Update Helm repositories
+  ansible.builtin.command: helm repo update
+  changed_when: false
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+# ---- ArgoCD Helm Values -------------------------------------
+- name: Template ArgoCD Helm values to /tmp
+  ansible.builtin.template:
+    src: argocd-values.yaml.j2
+    dest: /tmp/argocd-values.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+# ---- Install ArgoCD -----------------------------------------
+- name: Install or upgrade ArgoCD via Helm
+  ansible.builtin.command: >
+    helm upgrade --install argocd argo/argo-cd
+    --version {{ argocd_version }}
+    --namespace {{ argocd_namespace }}
+    --values /tmp/argocd-values.yaml
+    --wait
+    --timeout 10m
+    --create-namespace
+  register: argocd_helm_result
+  changed_when: "'deployed' in argocd_helm_result.stdout or 'upgraded' in argocd_helm_result.stdout"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Display Helm release status
+  ansible.builtin.debug:
+    var: argocd_helm_result.stdout_lines
+
+# ---- Wait for ArgoCD Server ---------------------------------
+- name: Wait for ArgoCD server deployment to be available
+  ansible.builtin.command: >
+    kubectl rollout status deployment/argocd-server
+    --namespace {{ argocd_namespace }}
+    --timeout=5m
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: argocd_rollout
+  changed_when: false
+
+- name: Wait for all ArgoCD pods to be ready
+  ansible.builtin.command: >
+    kubectl wait --for=condition=Ready pods
+    --all
+    --namespace {{ argocd_namespace }}
+    --timeout=300s
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: argocd_pods_ready
+  changed_when: false
+
+# ---- Retrieve Initial Admin Password -------------------------
+- name: Check if initial admin secret exists
+  ansible.builtin.command: >
+    kubectl get secret argocd-initial-admin-secret
+    --namespace {{ argocd_namespace }}
+    --ignore-not-found
+    -o name
+  register: argocd_secret_check
+  changed_when: false
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Get ArgoCD initial admin password
+  ansible.builtin.shell: >
+    kubectl -n {{ argocd_namespace }} get secret argocd-initial-admin-secret
+    -o jsonpath="{.data.password}" | base64 -d
+  register: argocd_initial_password
+  changed_when: false
+  no_log: false
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: argocd_secret_check.stdout | length > 0
+
+- name: Display ArgoCD initial credentials
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "ArgoCD Initial Credentials"
+      - "=================================================="
+      - "URL:      http://{{ ansible_default_ipv4.address }}:30080"
+      - "Username: admin"
+      - "Password: {{ argocd_initial_password.stdout | default('secret already deleted or changed') }}"
+      - "=================================================="
+      - "IMPORTANT: Change this password after first login!"
+      - "=================================================="
+
+# ---- Bootstrap ApplicationSet ------------------------------
+- name: Template bootstrap ApplicationSet
+  ansible.builtin.template:
+    src: bootstrap-applicationset.yaml.j2
+    dest: /tmp/argocd-bootstrap-applicationset.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Apply bootstrap ApplicationSet
+  ansible.builtin.command: >
+    kubectl apply -f /tmp/argocd-bootstrap-applicationset.yaml
+  register: appset_apply
+  changed_when: "'created' in appset_apply.stdout or 'configured' in appset_apply.stdout"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Display ApplicationSet status
+  ansible.builtin.debug:
+    var: appset_apply.stdout
+
+- name: Wait for ApplicationSet to be processed
+  ansible.builtin.command: >
+    kubectl get applicationsets home-server-apps
+    --namespace {{ argocd_namespace }}
+    -o jsonpath='{.status.conditions[?(@.type=="ErrorOccurred")].status}'
+  register: appset_status
+  changed_when: false
+  failed_when: false
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  retries: 5
+  delay: 10
+
+- name: List created Applications
+  ansible.builtin.command: >
+    kubectl get applications
+    --namespace {{ argocd_namespace }}
+    --no-headers
+  register: argocd_apps_list
+  changed_when: false
+  failed_when: false
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Display Applications
+  ansible.builtin.debug:
+    msg: "{{ argocd_apps_list.stdout_lines | default(['No applications found yet — ArgoCD is polling Git']) }}"
+
+# ---- Clean up temp files -----------------------------------
+- name: Remove temporary Helm values file
+  ansible.builtin.file:
+    path: /tmp/argocd-values.yaml
+    state: absent

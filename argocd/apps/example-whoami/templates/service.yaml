@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "example-whoami.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "example-whoami.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "example-whoami.selectorLabels" . | nindent 4 }}
