@@ -12,7 +12,7 @@
 
 - name: Download Tailscale GPG signing key
   ansible.builtin.get_url:
-    url: https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg
+    url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     mode: '0644'
     force: false
@@ -21,7 +21,7 @@
   ansible.builtin.apt_repository:
     repo: >-
       deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
-      https://pkgs.tailscale.com/stable/ubuntu jammy main
+      https://pkgs.tailscale.com/stable/ubuntu noble main
     filename: tailscale
     state: present
     update_cache: true

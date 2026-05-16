@@ -13,7 +13,7 @@
 ╚══════════════════════════════════════════════════════════════════╝
 ```
 
-![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white)
+![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white)
 ![k3s](https://img.shields.io/badge/k3s-v1.29.3-FFC61C?style=flat-square&logo=k3s&logoColor=black)
 ![ArgoCD](https://img.shields.io/badge/ArgoCD-7.3.11-EF7B4D?style=flat-square&logo=argo&logoColor=white)
 ![Tailscale](https://img.shields.io/badge/Tailscale-VPN-246FDB?style=flat-square&logo=tailscale&logoColor=white)
@@ -25,7 +25,7 @@
 
 A fully automated home server setup using **Ansible** to provision:
 
-- **Ubuntu 22.04 LTS** as the base OS
+- **Ubuntu 24.04 LTS** as the base OS
 - **k3s** — lightweight Kubernetes for edge/home use
 - **ArgoCD** — GitOps continuous delivery with ApplicationSets
 - **Tailscale** — zero-config VPN for secure remote access
@@ -37,7 +37,7 @@ Everything is managed as code. Push to git → ArgoCD picks it up → your clust
 
 ## Quick Start
 
-> **Neu hier?** Zuerst Ubuntu Server 22.04 LTS installieren: [docs/00-ubuntu-server-install.md](docs/00-ubuntu-server-install.md)
+> **Neu hier?** Zuerst Ubuntu Server 24.04 LTS installieren: [docs/00-ubuntu-server-install.md](docs/00-ubuntu-server-install.md)
 >
 > Prerequisites: Ansible >= 2.14, SSH key access to your server, Tailscale account.
 > Full details in [docs/02-prerequisites.md](docs/02-prerequisites.md).
@@ -131,7 +131,7 @@ home-server/
 
 | Component       | Technology           | Version    | Purpose                               |
 |-----------------|----------------------|------------|---------------------------------------|
-| Operating System| Ubuntu Server        | 22.04 LTS  | Base OS                               |
+| Operating System| Ubuntu Server        | 24.04 LTS  | Base OS                               |
 | Orchestration   | k3s                  | v1.29.3    | Lightweight Kubernetes                |
 | GitOps          | ArgoCD               | 7.3.11     | Continuous delivery from Git          |
 | App Delivery    | ApplicationSets      | built-in   | Multi-app GitOps via directory scan   |
@@ -152,7 +152,7 @@ home-server/
 | RAM       | 32 GB                          |
 | Storage   | 512 GB NVMe SSD                |
 | Network   | 1 Gbps Ethernet                |
-| OS        | Ubuntu 22.04 LTS (fresh install)|
+| OS        | Ubuntu 24.04 LTS (fresh install)|
 
 ---
 

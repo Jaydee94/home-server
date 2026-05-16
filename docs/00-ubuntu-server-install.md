@@ -1,6 +1,6 @@
-# Ubuntu Server 22.04 LTS — Installationsanleitung
+# Ubuntu Server 24.04 LTS — Installationsanleitung
 
-Diese Anleitung beschreibt die Installation von **Ubuntu Server 22.04 LTS** auf dem Home-Server.
+Diese Anleitung beschreibt die Installation von **Ubuntu Server 24.04 LTS** auf dem Home-Server.
 Ubuntu Server (kein Desktop!) ist die Basis für den k3s-Cluster.
 
 ---
@@ -12,7 +12,7 @@ Ubuntu Server (kein Desktop!) ist die Basis für den k3s-Cluster.
 | CPU        | Intel Core i5         |
 | RAM        | 32 GB                 |
 | Storage    | 512 GB NVMe SSD       |
-| OS         | Ubuntu Server 22.04 LTS (Jammy Jellyfish) |
+| OS         | Ubuntu Server 24.04 LTS (Noble Numbat) |
 
 ---
 
@@ -26,16 +26,16 @@ https://ubuntu.com/download/server
 
 **Wichtig:** Ubuntu **Server** herunterladen, nicht Ubuntu Desktop.
 
-Aktuelle LTS-Version: **22.04.x LTS (Jammy Jellyfish)**
+Aktuelle LTS-Version: **24.04.x LTS (Noble Numbat)**
 
 SHA256-Checksumme verifizieren (optional aber empfohlen):
 
 ```bash
 # Linux/macOS
-sha256sum ubuntu-22.04.*-live-server-amd64.iso
+sha256sum ubuntu-24.04.*-live-server-amd64.iso
 
 # Vergleich mit der offiziellen Checksumme unter:
-# https://releases.ubuntu.com/22.04/SHA256SUMS
+# https://releases.ubuntu.com/24.04/SHA256SUMS
 ```
 
 ---
@@ -49,7 +49,7 @@ sha256sum ubuntu-22.04.*-live-server-amd64.iso
 lsblk
 
 # ISO auf USB schreiben (ACHTUNG: USB-Stick wird gelöscht!)
-sudo dd if=ubuntu-22.04.*-live-server-amd64.iso of=/dev/sdX bs=4M status=progress conv=fsync
+sudo dd if=ubuntu-24.04.*-live-server-amd64.iso of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
 ### macOS
@@ -60,7 +60,7 @@ diskutil list
 
 # ISO auf USB schreiben
 diskutil unmountDisk /dev/diskX
-sudo dd if=ubuntu-22.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
+sudo dd if=ubuntu-24.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 ```
 
 ### Windows
@@ -282,7 +282,7 @@ sudo reboot
 
 Alle Punkte müssen erfüllt sein:
 
-- [ ] Ubuntu Server 22.04 LTS installiert (nicht Desktop)
+- [ ] Ubuntu Server 24.04 LTS installiert (nicht Desktop)
 - [ ] Benutzername ist `ubuntu`
 - [ ] Hostname ist `homeserver` (oder entsprechend in `group_vars/all.yml` angepasst)
 - [ ] SSH-Key-Authentifizierung funktioniert (`ssh -i ~/.ssh/id_home_server ubuntu@<ip>`)
