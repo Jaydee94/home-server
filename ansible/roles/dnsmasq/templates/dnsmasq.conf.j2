@@ -1,13 +1,15 @@
 # Managed by Ansible — do not edit manually.
-# Wildcard DNS für *.homeserver — hört nur auf der LAN-IP.
-# Der Server selbst nutzt weiterhin systemd-resolved.
+# Explizite DNS-Einträge für *.homeserver — hört nur auf der LAN-IP.
+# Neue Services in group_vars/all.yml unter dnsmasq_hosts eintragen.
 
 # Upstream DNS: Fritz!Box
 no-resolv
 server={{ network_gateway }}
 
-# *.homeserver → dieser Server
-address=/.homeserver/{{ network_static_ip }}
+# Pro Service ein expliziter DNS-Eintrag → {{ network_static_ip }}
+{% for host in dnsmasq_hosts %}
+address=/{{ host }}.homeserver/{{ network_static_ip }}
+{% endfor %}
 
 # Nur auf der LAN-IP lauschen (nicht 127.0.0.1 — das gehört systemd-resolved)
 listen-address={{ network_static_ip }}
