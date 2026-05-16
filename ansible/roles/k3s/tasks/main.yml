@@ -216,6 +216,7 @@
     --all
     -n kube-system
     --timeout=300s
+    --field-selector=status.phase!=Succeeded
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   register: k3s_core_pods_ready
