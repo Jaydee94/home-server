@@ -16,5 +16,5 @@ maintainers:
   - name: home-server-admin
 dependencies:
   - name: headlamp
-    repository: https://headlamp-k8s.github.io/headlamp/
+    repository: https://kubernetes-sigs.github.io/headlamp/
     version: "*"

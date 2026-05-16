@@ -12,7 +12,7 @@ headlamp:
       - host: headlamp.homeserver
         paths:
           - path: /
-            pathType: Prefix
+            type: Prefix
     tls: []
 
   resources:
