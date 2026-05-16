@@ -58,18 +58,20 @@ ssh -V
 
 ### SSH Key Authentication Configured
 
-The control machine must be able to SSH to the server using a key (not password):
+The control machine must be able to SSH to the server using a key (not a password):
 
 ```bash
 # Generate a key pair if you don't have one
-ssh-keygen -t ed25519 -C "home-server-ansible" -f ~/.ssh/id_home_server
+ssh-keygen -t ed25519 -C "home-server-ansible" -f ~/.ssh/id_ed25519
 
-# Copy public key to server (you'll be prompted for the password once)
-ssh-copy-id -i ~/.ssh/id_home_server.pub ubuntu@192.168.1.100
+# Copy the public key to the server (one-time password login)
+ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@192.168.1.100
 
-# Test key-based login
-ssh -i ~/.ssh/id_home_server ubuntu@192.168.1.100 "echo 'SSH key auth works'"
+# Test passwordless login
+ssh -i ~/.ssh/id_ed25519 ubuntu@192.168.1.100 "echo 'SSH key auth works'"
 ```
+
+If your private key lives elsewhere, update `ansible_ssh_private_key_file` in `ansible/inventory/hosts.yml` accordingly.
 
 ### Python 3 on the Server
 

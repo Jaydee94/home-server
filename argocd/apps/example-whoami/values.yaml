@@ -1,9 +1,12 @@
+---
 replicaCount: 1
 
 image:
   repository: traefik/whoami
   pullPolicy: IfNotPresent
-  tag: "latest"
+  # Pinned for reproducibility. Bump to track upstream releases:
+  # https://hub.docker.com/r/traefik/whoami/tags
+  tag: "v1.10.3"
 
 nameOverride: ""
 fullnameOverride: ""

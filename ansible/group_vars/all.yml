@@ -1,42 +1,71 @@
 ---
-# Server
+# ============================================================
+# Configuration knobs for the home-server playbook.
+# Every value with a "CHANGE" comment must be set before running.
+# ============================================================
+
+# ---- Server identity ---------------------------------------
 hostname: homeserver
-timezone: Europe/Berlin
+timezone: Europe/Berlin                # CHANGE: your timezone
 
-# k3s
-k3s_version: v1.29.3+k3s1
+# ---- Upgrade strategy --------------------------------------
+# When true (default), every Ansible run keeps the OS and all installed
+# components on the latest available stable version, and enables
+# unattended-upgrades for background security patches between runs.
+# Set to false to pin everything for reproducibility/CI.
+auto_upgrade: true
+
+# Reboot the server at the end of the `common` role if a kernel/libc update
+# placed `/var/run/reboot-required` on disk.
+auto_reboot_if_required: true
+
+# ---- k3s ---------------------------------------------------
+# When `k3s_version` is empty, the role follows `k3s_channel` (always latest
+# release in that channel). Set to a concrete version like "v1.30.2+k3s1" to pin.
+# See https://github.com/k3s-io/k3s/releases and
+# https://update.k3s.io/v1-release/channels for available channels.
+k3s_version: ""
+k3s_channel: stable
 k3s_server_ip: "{{ ansible_default_ipv4.address }}"
+k3s_pod_cidr: "10.42.0.0/16"
+k3s_service_cidr: "10.43.0.0/16"
 
-# ArgoCD
-argocd_version: "7.3.11"
+# ---- Helm --------------------------------------------------
+# Empty = always install the latest Helm 3 release. Pin to e.g. "v3.16.0" if needed.
+helm_version: ""
+
+# ---- ArgoCD ------------------------------------------------
+# Argo Helm chart version. Empty + auto_upgrade=true ⇒ chart is upgraded to
+# latest on every run. Pin to a concrete chart version (e.g. "7.3.11") for
+# reproducibility — see https://artifacthub.io/packages/helm/argo/argo-cd
+argocd_version: ""
 argocd_namespace: argocd
 argocd_server_insecure: true
-argocd_repo_url: "https://github.com/YOUR_USER/home-server.git"  # CHANGE THIS
+# Git repo ArgoCD pulls from. Must be reachable by argocd-repo-server pod.
+argocd_repo_url: "https://github.com/Jaydee94/home-server.git"   # CHANGE if you forked
 argocd_repo_revision: HEAD
 
-# Tailscale - use ansible-vault for the auth key!
-# Encrypt with: ansible-vault encrypt_string 'tskey-auth-...' --name 'tailscale_auth_key'
-# Then replace the value below with the vault-encrypted block.
+# ---- Tailscale ---------------------------------------------
+# Generate the auth key at https://login.tailscale.com/admin/settings/keys
+# and ALWAYS store it vault-encrypted, e.g.:
+#   ansible-vault encrypt_string 'tskey-auth-...' --name 'tailscale_auth_key'
+# then paste the resulting `!vault |` block over the value below.
 tailscale_auth_key: "CHANGE_ME_USE_VAULT"
 tailscale_hostname: "{{ hostname }}"
 
-# Helm version
-helm_version: "v3.14.4"
+# ---- Local network ----------------------------------------
+local_subnet: "192.168.1.0/24"         # CHANGE: your home LAN CIDR
 
-# Network — k3s internal
-k3s_pod_cidr: "10.42.0.0/16"
-k3s_service_cidr: "10.43.0.0/16"
-local_subnet: "192.168.1.0/24"  # CHANGE: your home LAN subnet
-
-# Network — static IP via Netplan (Ubuntu Server)
-# Set network_configure_static_ip: true to apply a static IP via Ansible.
-# WARNING: the SSH connection will briefly drop while Netplan applies the new IP.
-# After this, update ansible_host in inventory/hosts.yml to the new static IP.
+# ---- Optional: configure a static IP via Netplan ----------
+# Set to true to have Ansible deploy /etc/netplan/99-static.yaml.
+# WARNING: the SSH session will briefly drop while the new IP is applied.
+# Make sure `ansible_host` in the inventory matches `network_static_ip`
+# (or update it after the first run).
 network_configure_static_ip: false
-network_interface: "eno1"          # CHANGE: run 'ip link show' to find your interface name
-network_static_ip: "192.168.1.100" # CHANGE: desired static IP for the server
-network_prefix_length: 24          # 24 = /24 = 255.255.255.0
-network_gateway: "192.168.1.1"     # CHANGE: your router/gateway IP
+network_interface: "eno1"              # CHANGE: run `ip link show` on the server
+network_static_ip: "192.168.1.100"     # CHANGE: desired static IP
+network_prefix_length: 24              # 24 = /24 = 255.255.255.0
+network_gateway: "192.168.1.1"         # CHANGE: your router's IP
 network_dns:
   - "1.1.1.1"
   - "8.8.8.8"

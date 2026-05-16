@@ -1,0 +1,12 @@
+---
+exclude_paths:
+  - .git/
+  - argocd/
+
+skip_list:
+  # We deliberately use the upstream curl-pipe install method documented by k3s and helm.
+  - command-instead-of-module
+  - risky-shell-pipe
+
+warn_list:
+  - experimental

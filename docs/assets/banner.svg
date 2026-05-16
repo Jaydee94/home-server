@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 400" role="img" aria-label="Home Server — k3s · ArgoCD · Tailscale">
+  <title>Home Server — k3s · ArgoCD · Tailscale GitOps Stack</title>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#0B1220"/>
+      <stop offset="55%" stop-color="#101A33"/>
+      <stop offset="100%" stop-color="#0A1A2F"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#7C3AED"/>
+      <stop offset="50%"  stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="hex-fill" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"   stop-color="#1E293B"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%"   stop-color="#3B82F6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1E2A47" stroke-width="0.5" opacity="0.5"/>
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1600" height="400" fill="url(#bg)"/>
+  <rect width="1600" height="400" fill="url(#grid)"/>
+  <circle cx="280" cy="200" r="320" fill="url(#glow)"/>
+  <circle cx="1350" cy="200" r="260" fill="url(#glow)" opacity="0.6"/>
+
+  <!-- Hexagon logo -->
+  <g transform="translate(180,200)">
+    <!-- outer hex gradient ring -->
+    <polygon points="0,-140 121,-70 121,70 0,140 -121,70 -121,-70"
+             fill="none" stroke="url(#accent)" stroke-width="4"/>
+    <!-- inner hex fill -->
+    <polygon points="0,-115 100,-57 100,57 0,115 -100,57 -100,-57"
+             fill="url(#hex-fill)" stroke="#334155" stroke-width="1.5"/>
+
+    <!-- House / server glyph -->
+    <g stroke="url(#accent)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <!-- roof -->
+      <path d="M -58 -8 L 0 -56 L 58 -8"/>
+      <!-- house body -->
+      <path d="M -48 -8 L -48 56 L 48 56 L 48 -8"/>
+      <!-- server rack lines inside -->
+      <line x1="-30" y1="14" x2="30" y2="14"/>
+      <line x1="-30" y1="32" x2="30" y2="32"/>
+      <!-- status dots -->
+      <circle cx="24" cy="14" r="3" fill="#22D3EE" stroke="none"/>
+      <circle cx="24" cy="32" r="3" fill="#A78BFA" stroke="none"/>
+    </g>
+  </g>
+
+  <!-- Title -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Inter, Roboto, Helvetica, Arial, sans-serif">
+    <text x="380" y="180"
+          font-size="110" font-weight="800" letter-spacing="-3"
+          fill="#F8FAFC">home<tspan fill="url(#accent)">·</tspan>server</text>
+
+    <text x="384" y="240"
+          font-size="28" font-weight="500" letter-spacing="6"
+          fill="#94A3B8">GITOPS HOME LAB · k3s · ARGOCD · TAILSCALE</text>
+
+    <!-- chip row -->
+    <g transform="translate(384,278)" font-size="20" font-weight="600">
+      <g>
+        <rect x="0"   y="0" rx="14" ry="14" width="148" height="40" fill="#0F172A" stroke="#1E40AF" stroke-width="1.5"/>
+        <text x="74"  y="27" text-anchor="middle" fill="#93C5FD">Ubuntu 24.04</text>
+      </g>
+      <g transform="translate(160,0)">
+        <rect x="0"   y="0" rx="14" ry="14" width="78"  height="40" fill="#0F172A" stroke="#0E7490" stroke-width="1.5"/>
+        <text x="39"  y="27" text-anchor="middle" fill="#67E8F9">k3s</text>
+      </g>
+      <g transform="translate(250,0)">
+        <rect x="0"   y="0" rx="14" ry="14" width="112" height="40" fill="#0F172A" stroke="#9333EA" stroke-width="1.5"/>
+        <text x="56"  y="27" text-anchor="middle" fill="#C4B5FD">ArgoCD</text>
+      </g>
+      <g transform="translate(374,0)">
+        <rect x="0"   y="0" rx="14" ry="14" width="128" height="40" fill="#0F172A" stroke="#2563EB" stroke-width="1.5"/>
+        <text x="64"  y="27" text-anchor="middle" fill="#93C5FD">Tailscale</text>
+      </g>
+      <g transform="translate(514,0)">
+        <rect x="0"   y="0" rx="14" ry="14" width="108" height="40" fill="#0F172A" stroke="#DC2626" stroke-width="1.5"/>
+        <text x="54"  y="27" text-anchor="middle" fill="#FCA5A5">Ansible</text>
+      </g>
+    </g>
+  </g>
+
+  <!-- subtle bottom accent line -->
+  <rect x="0" y="396" width="1600" height="4" fill="url(#accent)"/>
+</svg>

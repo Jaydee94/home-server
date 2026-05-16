@@ -1,170 +1,200 @@
-```
-╔══════════════════════════════════════════════════════════════════╗
-║                                                                  ║
-║   ██╗  ██╗ ██████╗ ███╗   ███╗███████╗    ██╗      █████╗ ██████╗  ║
-║   ██║  ██║██╔═══██╗████╗ ████║██╔════╝    ██║     ██╔══██╗██╔══██╗ ║
-║   ███████║██║   ██║██╔████╔██║█████╗      ██║     ███████║██████╔╝ ║
-║   ██╔══██║██║   ██║██║╚██╔╝██║██╔══╝      ██║     ██╔══██║██╔══██╗ ║
-║   ██║  ██║╚██████╔╝██║ ╚═╝ ██║███████╗    ███████╗██║  ██║██████╔╝ ║
-║   ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝    ╚══════╝╚═╝  ╚═╝╚═════╝  ║
-║                                                                  ║
-║           k3s · ArgoCD · Tailscale · GitOps                     ║
-║                                                                  ║
-╚══════════════════════════════════════════════════════════════════╝
-```
+<p align="center">
+  <img src="docs/assets/banner.svg" alt="home-server — GitOps Home Lab on k3s, ArgoCD, Tailscale" width="100%" />
+</p>
 
-![Ubuntu](https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=flat-square&logo=ubuntu&logoColor=white)
-![k3s](https://img.shields.io/badge/k3s-v1.29.3-FFC61C?style=flat-square&logo=k3s&logoColor=black)
-![ArgoCD](https://img.shields.io/badge/ArgoCD-7.3.11-EF7B4D?style=flat-square&logo=argo&logoColor=white)
-![Tailscale](https://img.shields.io/badge/Tailscale-VPN-246FDB?style=flat-square&logo=tailscale&logoColor=white)
-![Ansible](https://img.shields.io/badge/Ansible-2.14+-EE0000?style=flat-square&logo=ansible&logoColor=white)
+<p align="center">
+  <a href="https://ubuntu.com/server"><img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
+  <a href="https://k3s.io"><img alt="k3s" src="https://img.shields.io/badge/k3s-v1.29-FFC61C?style=for-the-badge&logo=k3s&logoColor=black"></a>
+  <a href="https://argo-cd.readthedocs.io"><img alt="ArgoCD" src="https://img.shields.io/badge/ArgoCD-GitOps-EF7B4D?style=for-the-badge&logo=argo&logoColor=white"></a>
+  <a href="https://tailscale.com"><img alt="Tailscale" src="https://img.shields.io/badge/Tailscale-VPN-246FDB?style=for-the-badge&logo=tailscale&logoColor=white"></a>
+  <a href="https://www.ansible.com"><img alt="Ansible" src="https://img.shields.io/badge/Ansible-IaC-EE0000?style=for-the-badge&logo=ansible&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <b>A fully automated, GitOps-driven home server on a single machine.</b><br/>
+  One Ansible run gives you a hardened Ubuntu host, a lightweight Kubernetes cluster (<a href="https://k3s.io">k3s</a>), continuous delivery from Git (<a href="https://argo-cd.readthedocs.io">ArgoCD</a>), and zero-config remote access (<a href="https://tailscale.com">Tailscale</a>).
+</p>
 
 ---
 
-## Overview
+## TL;DR
 
-A fully automated home server setup using **Ansible** to provision:
-
-- **Ubuntu 24.04 LTS** as the base OS
-- **k3s** — lightweight Kubernetes for edge/home use
-- **ArgoCD** — GitOps continuous delivery with ApplicationSets
-- **Tailscale** — zero-config VPN for secure remote access
-- **Traefik** — ingress controller (bundled with k3s)
-
-Everything is managed as code. Push to git → ArgoCD picks it up → your cluster is updated.
-
----
-
-## Quick Start
-
-> **Neu hier?** Zuerst Ubuntu Server 24.04 LTS installieren: [docs/00-ubuntu-server-install.md](docs/00-ubuntu-server-install.md)
->
-> Prerequisites: Ansible >= 2.14, SSH key access to your server, Tailscale account.
-> Full details in [docs/02-prerequisites.md](docs/02-prerequisites.md).
-
-**Step 1 — Clone this repository**
 ```bash
-git clone https://github.com/YOUR_USER/home-server.git
+# 1) Clone
+git clone https://github.com/Jaydee94/home-server.git && cd home-server
+
+# 2) Fill in your details (server IP, repo URL, Tailscale key)
+$EDITOR ansible/inventory/hosts.yml
+$EDITOR ansible/group_vars/all.yml
+
+# 3) Install collections, then run it
+make install   # or: ansible-galaxy collection install -r ansible/requirements.yml \
+               #     && ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
+```
+
+When the playbook finishes you'll see the ArgoCD URL and admin password. That's it.
+
+---
+
+## What you get
+
+| Layer            | Component                              | Notes                                                      |
+|------------------|----------------------------------------|------------------------------------------------------------|
+| Operating System | **Ubuntu Server 24.04 LTS**            | Hardened, UFW firewall, NTP-synced, swap off               |
+| Kubernetes       | **k3s** (latest stable channel)        | Single-node, bundles Traefik, CoreDNS, local-path, metrics |
+| GitOps           | **ArgoCD** + ApplicationSets           | Drop a folder under `argocd/apps/`, push, it deploys       |
+| Remote access    | **Tailscale**                          | WireGuard mesh VPN — no port forwarding, no public IP      |
+| Ingress          | **Traefik v2** (bundled with k3s)      | HTTP/HTTPS routing into the cluster                        |
+| Provisioning     | **Ansible** (≥ 2.14)                   | Fully idempotent, role-per-concern, vault for secrets      |
+
+Hardware target: a small box with ≥ 4 GB RAM and ≥ 20 GB disk. Reference build: Intel i5, 32 GB RAM, 512 GB NVMe.
+
+### Always up to date
+
+`auto_upgrade: true` (default) makes every playbook run keep the entire stack current:
+
+- **APT packages** — `apt dist-upgrade` on every run, plus `unattended-upgrades` configured for daily background security patches.
+- **Tailscale** — `state: latest` for the `tailscale` package.
+- **k3s** — follows `k3s_channel` (default `stable`), so the upstream installer pulls the latest release on every run. Pin by setting `k3s_version`.
+- **Helm** — re-runs the official installer; replaces the binary when a newer Helm 3 release exists.
+- **ArgoCD** — `helm upgrade --install` with no `--version` flag pulls the latest chart. Pin by setting `argocd_version`.
+- **Reboot-if-required** — if APT marks `/var/run/reboot-required`, the playbook reboots the host and waits for it to come back (toggle with `auto_reboot_if_required`).
+
+Set `auto_upgrade: false` in `ansible/group_vars/all.yml` to freeze everything at the pinned versions for reproducibility.
+
+---
+
+## Quick Start (5 steps)
+
+> First time on the machine? Start with **[Ubuntu Server Install](docs/00-ubuntu-server-install.md)**.
+> Full prerequisites are in **[docs/02-prerequisites.md](docs/02-prerequisites.md)**.
+
+**1. Clone the repo**
+
+```bash
+git clone https://github.com/Jaydee94/home-server.git
 cd home-server
 ```
 
-**Step 2 — Configure your server IP**
+**2. Point the inventory at your server**
+
 ```bash
-# Edit the inventory file and replace 192.168.1.100 with your server's IP
 $EDITOR ansible/inventory/hosts.yml
+# Change ansible_host (server IP) and ansible_ssh_private_key_file if needed.
 ```
 
-**Step 3 — Configure variables and secrets**
+**3. Set your variables**
+
 ```bash
-# Review and update variables (repo URL, timezone, subnet, etc.)
 $EDITOR ansible/group_vars/all.yml
+# Required: argocd_repo_url, local_subnet, timezone.
+# Tailscale key must be vault-encrypted (next step).
+```
 
-# Encrypt your Tailscale auth key with Ansible Vault
+**4. Encrypt the Tailscale auth key**
+
+```bash
 ansible-vault encrypt_string 'tskey-auth-YOUR_KEY_HERE' --name 'tailscale_auth_key'
-# Paste the output into ansible/group_vars/all.yml replacing the tailscale_auth_key value
+# Paste the !vault block over the existing tailscale_auth_key value in all.yml.
 ```
 
-**Step 4 — Install Ansible dependencies**
+**5. Run it**
+
 ```bash
+make install
+# or, without make:
 ansible-galaxy collection install -r ansible/requirements.yml
-```
-
-**Step 5 — Run the playbook**
-```bash
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
 ```
 
-After the playbook completes, ArgoCD is available at `http://<server-ip>:30080`.
+After completion the playbook prints:
+
+```
+ArgoCD UI:  http://<server-ip>:30080
+Username:   admin
+Password:   <auto-generated>
+```
 
 ---
 
-## Directory Structure
+## Repository Layout
 
 ```
 home-server/
-├── README.md                          # This file
+├── README.md
+├── Makefile                          # Convenience targets: install, lint, ping, check
 ├── docs/
-│   ├── 01-overview.md                 # Architecture overview
-│   ├── 02-prerequisites.md            # Requirements & pre-flight checklist
-│   ├── 03-installation.md             # Step-by-step installation guide
-│   ├── 04-k3s.md                      # k3s configuration reference
-│   ├── 05-argocd.md                   # ArgoCD GitOps guide
-│   ├── 06-tailscale.md                # Tailscale VPN guide
-│   └── 07-troubleshooting.md          # Troubleshooting guide
+│   ├── 00-ubuntu-server-install.md   # Bare-metal Ubuntu install
+│   ├── 01-overview.md                # Architecture diagrams
+│   ├── 02-prerequisites.md           # Requirements & pre-flight checks
+│   ├── 03-installation.md            # Step-by-step setup
+│   ├── 04-k3s.md                     # k3s + kubectl reference
+│   ├── 05-argocd.md                  # GitOps usage
+│   ├── 06-tailscale.md               # VPN setup
+│   ├── 07-troubleshooting.md         # Common issues
+│   └── assets/banner.svg
 ├── ansible/
-│   ├── site.yml                       # Main playbook entry point
-│   ├── requirements.yml               # Ansible Galaxy collections
-│   ├── inventory/
-│   │   └── hosts.yml                  # Server inventory
-│   ├── group_vars/
-│   │   └── all.yml                    # All configurable variables
-│   └── roles/
-│       ├── common/                    # Base OS configuration
-│       │   ├── tasks/main.yml
-│       │   └── handlers/main.yml
-│       ├── k3s/                       # k3s installation
-│       │   ├── tasks/main.yml
-│       │   └── templates/k3s-config.yaml.j2
-│       ├── tailscale/                 # Tailscale VPN setup
-│       │   └── tasks/main.yml
-│       └── argocd/                    # ArgoCD installation
-│           ├── tasks/main.yml
-│           └── templates/
-│               ├── argocd-values.yaml.j2
-│               └── bootstrap-applicationset.yaml.j2
+│   ├── site.yml                      # Entry point
+│   ├── requirements.yml              # Galaxy collections
+│   ├── ansible.cfg                   # Sensible defaults
+│   ├── inventory/hosts.yml           # Your server
+│   ├── group_vars/all.yml            # All knobs
+│   └── roles/{common,tailscale,k3s,argocd}/
 └── argocd/
-    ├── bootstrap/
-    │   └── root-applicationset.yaml   # Bootstrap ApplicationSet (committed to git)
-    └── apps/
-        └── example-whoami/            # Example Helm chart (whoami echo server)
-            ├── Chart.yaml
-            ├── values.yaml
-            └── templates/
-                ├── deployment.yaml
-                ├── service.yaml
-                └── ingress.yaml
+    ├── bootstrap/root-applicationset.yaml  # Reference manifest
+    └── apps/example-whoami/                # Example Helm chart
 ```
 
 ---
 
-## Tech Stack
+## Adding an Application (the GitOps way)
 
-| Component       | Technology           | Version    | Purpose                               |
-|-----------------|----------------------|------------|---------------------------------------|
-| Operating System| Ubuntu Server        | 24.04 LTS  | Base OS                               |
-| Orchestration   | k3s                  | v1.29.3    | Lightweight Kubernetes                |
-| GitOps          | ArgoCD               | 7.3.11     | Continuous delivery from Git          |
-| App Delivery    | ApplicationSets      | built-in   | Multi-app GitOps via directory scan   |
-| VPN             | Tailscale            | latest     | Zero-config WireGuard VPN             |
-| Ingress         | Traefik              | v2.x       | HTTP/HTTPS reverse proxy (k3s bundled)|
-| Automation      | Ansible              | >= 2.14    | Infrastructure as Code                |
-| Package Manager | Helm                 | v3.14.4    | Kubernetes application packaging      |
-| Storage         | local-path           | built-in   | Host-path based PersistentVolumes     |
-| Networking      | Flannel (VXLAN)      | built-in   | Pod-to-pod networking                 |
+```bash
+mkdir -p argocd/apps/my-app
+# Drop plain Kubernetes YAML, kustomization.yaml, or a Helm chart inside.
+git add argocd/apps/my-app && git commit -m "feat(apps): add my-app" && git push
+```
+
+Within ~3 minutes ArgoCD picks up the new directory, creates an `Application` named `my-app` in a `my-app` namespace, and syncs it. See **[docs/05-argocd.md](docs/05-argocd.md)** for details.
 
 ---
 
-## Hardware Specs
+## Networking & Security
 
-| Component | Specification                  |
-|-----------|--------------------------------|
-| CPU       | Intel Core i5                  |
-| RAM       | 32 GB                          |
-| Storage   | 512 GB NVMe SSD                |
-| Network   | 1 Gbps Ethernet                |
-| OS        | Ubuntu 24.04 LTS (fresh install)|
+- **No public ports.** Internet-facing access is via Tailscale only.
+- **UFW** allows just what the stack needs: SSH, HTTP/HTTPS, k3s API, ArgoCD NodePort, kubelet, Flannel VXLAN, Tailscale UDP, plus full trust for LAN, Tailnet, pod and service CIDRs.
+- **Ansible Vault** encrypts the Tailscale auth key at rest.
+- **ArgoCD** uses read-only access to the Git repository.
+
+| Port  | Proto | Scope             | Purpose                  |
+|-------|-------|-------------------|--------------------------|
+| 22    | TCP   | LAN + Tailnet     | SSH                      |
+| 80    | TCP   | LAN + Tailnet     | Traefik HTTP             |
+| 443   | TCP   | LAN + Tailnet     | Traefik HTTPS            |
+| 6443  | TCP   | LAN + Tailnet     | k3s API                  |
+| 30080 | TCP   | LAN + Tailnet     | ArgoCD UI (HTTP)         |
+| 30443 | TCP   | LAN + Tailnet     | ArgoCD UI (HTTPS)        |
+| 41641 | UDP   | Internet          | Tailscale WireGuard      |
+
+Full architecture in **[docs/01-overview.md](docs/01-overview.md)**.
 
 ---
 
-## Documentation Links
+## Documentation
 
-| Document                                                      | Description                              |
-|---------------------------------------------------------------|------------------------------------------|
-| [Ubuntu Server Installation](docs/00-ubuntu-server-install.md)| ISO herunterladen, installieren, vorbereiten |
-| [Architecture Overview](docs/01-overview.md)                  | System design and component diagram      |
-| [Prerequisites](docs/02-prerequisites.md)                     | Requirements and pre-flight checklist    |
-| [Installation Guide](docs/03-installation.md)                 | Full step-by-step setup walkthrough      |
-| [k3s Reference](docs/04-k3s.md)                               | k3s config, kubectl cheatsheet           |
-| [ArgoCD GitOps Guide](docs/05-argocd.md)                      | Managing apps with ArgoCD                |
-| [Tailscale VPN Guide](docs/06-tailscale.md)                   | VPN setup and client connection          |
-| [Troubleshooting](docs/07-troubleshooting.md)                 | Common issues and debug commands         |
+| Doc                                                             | What it covers                              |
+|-----------------------------------------------------------------|---------------------------------------------|
+| [Ubuntu Server Install](docs/00-ubuntu-server-install.md)       | ISO, USB stick, install wizard, first boot  |
+| [Architecture Overview](docs/01-overview.md)                    | Components and how traffic flows            |
+| [Prerequisites](docs/02-prerequisites.md)                       | What you need before running Ansible        |
+| [Installation Guide](docs/03-installation.md)                   | Full step-by-step walkthrough               |
+| [k3s Reference](docs/04-k3s.md)                                 | Config, kubectl cheat-sheet, upgrades       |
+| [ArgoCD GitOps](docs/05-argocd.md)                              | App workflow, CLI, sync policies            |
+| [Tailscale VPN](docs/06-tailscale.md)                           | Auth keys, MagicDNS, subnet routes          |
+| [Troubleshooting](docs/07-troubleshooting.md)                   | Diagnostic playbook for common failures     |
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
