@@ -20,7 +20,7 @@ spec:
       source:
         repoURL: "{{ argocd_repo_url }}"
         targetRevision: "{{ argocd_repo_revision }}"
-        path: "{{ '{{' }}.path{{ '}}' }}"
+        path: "{{ '{{' }}.path.path{{ '}}' }}"
       destination:
         server: https://kubernetes.default.svc
         namespace: "{{ '{{' }}.path.basename{{ '}}' }}"
