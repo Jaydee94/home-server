@@ -27,11 +27,13 @@
     update_cache: true
 
 # ---- Install Tailscale --------------------------------------
-- name: Install tailscale package
+# `state: latest` when auto_upgrade is on so we always run the most recent
+# Tailscale client; `state: present` otherwise to honour any local pin.
+- name: Install (or upgrade) tailscale package
   ansible.builtin.apt:
     name: tailscale
-    state: present
-    update_cache: false
+    state: "{{ 'latest' if auto_upgrade | bool else 'present' }}"
+    update_cache: true
 
 # ---- Enable tailscaled service ------------------------------
 - name: Enable and start tailscaled service

@@ -73,12 +73,17 @@ $EDITOR ansible/group_vars/all.yml
 
 **Optional changes:**
 
-| Variable        | Default          | Notes                                      |
-|-----------------|------------------|--------------------------------------------|
-| `k3s_version`   | `v1.29.3+k3s1`   | See https://github.com/k3s-io/k3s/releases |
-| `argocd_version`| `7.3.11`         | See https://artifacthub.io/packages/helm/argo/argo-cd |
-| `helm_version`  | `v3.14.4`        | See https://github.com/helm/helm/releases  |
-| `hostname`      | `homeserver`     | Hostname for the machine                   |
+| Variable                    | Default       | Notes                                                                  |
+|-----------------------------|---------------|------------------------------------------------------------------------|
+| `auto_upgrade`              | `true`        | Keep OS + every component on the latest stable on every run            |
+| `auto_reboot_if_required`   | `true`        | Auto-reboot when APT marks `/var/run/reboot-required`                  |
+| `k3s_version`               | `""` (empty)  | Empty ⇒ follow `k3s_channel`. Pin to e.g. `v1.30.2+k3s1`               |
+| `k3s_channel`               | `stable`      | Used when `k3s_version` is empty                                       |
+| `helm_version`              | `""` (empty)  | Empty ⇒ latest Helm 3                                                  |
+| `argocd_version`            | `""` (empty)  | Empty ⇒ latest Argo Helm chart                                         |
+| `hostname`                  | `homeserver`  | Hostname for the machine                                               |
+
+> **Tip.** Set `auto_upgrade: false` if you need reproducible builds (CI, lab snapshots) — Ansible will then only install missing packages and honour every pin.
 
 ---
 

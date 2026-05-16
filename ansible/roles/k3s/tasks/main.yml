@@ -21,6 +21,12 @@
     mode: '0644'
 
 # ---- k3s Installation ---------------------------------------
+# Strategy:
+#   - If `k3s_version` is set, pin to that exact version.
+#   - Otherwise follow `k3s_channel` (e.g. "stable") and let the upstream
+#     installer place the latest release in that channel on each run.
+# The k3s install script is itself idempotent: if the binary already matches
+# the requested version, it skips the download.
 - name: Check if k3s is already installed
   ansible.builtin.stat:
     path: /usr/local/bin/k3s
@@ -28,10 +34,19 @@
 
 - name: Get current k3s version (if installed)
   ansible.builtin.command: k3s --version
-  register: k3s_check_version
+  register: k3s_current_version
   changed_when: false
   failed_when: false
   when: k3s_binary.stat.exists
+
+- name: Decide whether to (re)run the k3s installer
+  ansible.builtin.set_fact:
+    k3s_run_installer: >-
+      {{
+        (not k3s_binary.stat.exists)
+        or (k3s_version | length > 0 and k3s_version not in (k3s_current_version.stdout | default('')))
+        or (k3s_version | length == 0 and auto_upgrade | bool)
+      }}
 
 - name: Download k3s install script
   ansible.builtin.get_url:
@@ -39,15 +54,19 @@
     dest: /tmp/get-k3s.sh
     mode: '0755'
     force: true
-  when: not k3s_binary.stat.exists or k3s_version not in (k3s_check_version.stdout | default(''))
+  when: k3s_run_installer
 
-- name: Install or upgrade k3s
+- name: Install or upgrade k3s (pinned version or latest in channel)
   ansible.builtin.command: /tmp/get-k3s.sh server
   environment:
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
+    INSTALL_K3S_CHANNEL: "{{ k3s_channel | default('stable') }}"
   register: k3s_install
-  changed_when: k3s_install.rc == 0
-  when: not k3s_binary.stat.exists or k3s_version not in (k3s_check_version.stdout | default(''))
+  # The script prints "Skipping binary download" when already current.
+  changed_when:
+    - k3s_install.rc == 0
+    - "'Skipping' not in (k3s_install.stdout | default(''))"
+  when: k3s_run_installer
 
 - name: Remove k3s install script
   ansible.builtin.file:
@@ -137,26 +156,42 @@
     mode: '0644'
 
 # ---- Helm Installation -------------------------------------
+# Strategy:
+#   - If `helm_version` is set, install that exact version.
+#   - Else: install the latest Helm 3 release. With `auto_upgrade: true`
+#     the install script re-runs on every play, replacing the binary in
+#     place when a newer release exists (no-op otherwise).
 - name: Check if Helm is already installed
   ansible.builtin.stat:
     path: /usr/local/bin/helm
   register: k3s_helm_binary
+
+- name: Decide whether to (re)install Helm
+  ansible.builtin.set_fact:
+    k3s_install_helm: >-
+      {{
+        (not k3s_helm_binary.stat.exists)
+        or (helm_version | length > 0)
+        or (auto_upgrade | bool)
+      }}
 
 - name: Download Helm install script
   ansible.builtin.get_url:
     url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
     dest: /tmp/get-helm-3.sh
     mode: '0755'
-  when: not k3s_helm_binary.stat.exists
+  when: k3s_install_helm
 
-- name: Install Helm
-  ansible.builtin.command:
-    cmd: /tmp/get-helm-3.sh
-    creates: /usr/local/bin/helm
+- name: Install (or upgrade) Helm
+  ansible.builtin.command: /tmp/get-helm-3.sh
   environment:
     DESIRED_VERSION: "{{ helm_version }}"
     HELM_INSTALL_DIR: /usr/local/bin
-  when: not k3s_helm_binary.stat.exists
+  register: k3s_helm_install
+  changed_when:
+    - k3s_helm_install.rc == 0
+    - "'is already' not in (k3s_helm_install.stdout | default(''))"
+  when: k3s_install_helm
 
 - name: Remove Helm install script
   ansible.builtin.file:

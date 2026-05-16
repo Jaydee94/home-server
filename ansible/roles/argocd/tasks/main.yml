@@ -43,10 +43,12 @@
     mode: '0644'
 
 # ---- Install ArgoCD -----------------------------------------
+# When `argocd_version` is set, that exact chart is installed; when empty,
+# Helm pulls the latest chart from the repo (already refreshed above).
 - name: Install or upgrade ArgoCD via Helm
   ansible.builtin.command: >
     helm upgrade --install argocd argo/argo-cd
-    --version {{ argocd_version }}
+    {% if argocd_version | length > 0 %}--version {{ argocd_version }}{% endif %}
     --namespace {{ argocd_namespace }}
     --values /tmp/argocd-values.yaml
     --wait

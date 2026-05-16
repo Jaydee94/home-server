@@ -41,13 +41,26 @@ When the playbook finishes you'll see the ArgoCD URL and admin password. That's 
 | Layer            | Component                              | Notes                                                      |
 |------------------|----------------------------------------|------------------------------------------------------------|
 | Operating System | **Ubuntu Server 24.04 LTS**            | Hardened, UFW firewall, NTP-synced, swap off               |
-| Kubernetes       | **k3s** (v1.29)                        | Single-node, bundles Traefik, CoreDNS, local-path, metrics |
+| Kubernetes       | **k3s** (latest stable channel)        | Single-node, bundles Traefik, CoreDNS, local-path, metrics |
 | GitOps           | **ArgoCD** + ApplicationSets           | Drop a folder under `argocd/apps/`, push, it deploys       |
 | Remote access    | **Tailscale**                          | WireGuard mesh VPN — no port forwarding, no public IP      |
 | Ingress          | **Traefik v2** (bundled with k3s)      | HTTP/HTTPS routing into the cluster                        |
 | Provisioning     | **Ansible** (≥ 2.14)                   | Fully idempotent, role-per-concern, vault for secrets      |
 
 Hardware target: a small box with ≥ 4 GB RAM and ≥ 20 GB disk. Reference build: Intel i5, 32 GB RAM, 512 GB NVMe.
+
+### Always up to date
+
+`auto_upgrade: true` (default) makes every playbook run keep the entire stack current:
+
+- **APT packages** — `apt dist-upgrade` on every run, plus `unattended-upgrades` configured for daily background security patches.
+- **Tailscale** — `state: latest` for the `tailscale` package.
+- **k3s** — follows `k3s_channel` (default `stable`), so the upstream installer pulls the latest release on every run. Pin by setting `k3s_version`.
+- **Helm** — re-runs the official installer; replaces the binary when a newer Helm 3 release exists.
+- **ArgoCD** — `helm upgrade --install` with no `--version` flag pulls the latest chart. Pin by setting `argocd_version`.
+- **Reboot-if-required** — if APT marks `/var/run/reboot-required`, the playbook reboots the host and waits for it to come back (toggle with `auto_reboot_if_required`).
+
+Set `auto_upgrade: false` in `ansible/group_vars/all.yml` to freeze everything at the pinned versions for reproducibility.
 
 ---
 

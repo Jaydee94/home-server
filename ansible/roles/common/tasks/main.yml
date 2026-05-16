@@ -22,11 +22,12 @@
     update_cache: true
     cache_valid_time: 3600
 
-- name: Upgrade all packages to latest
+- name: Upgrade all packages to latest (dist-upgrade)
   ansible.builtin.apt:
     upgrade: dist
     autoremove: true
     autoclean: true
+  when: auto_upgrade | bool
 
 - name: Install required system packages
   ansible.builtin.apt:
@@ -50,7 +51,47 @@
       - vim
       - bash-completion
       - ufw
-    state: present
+      - unattended-upgrades
+      - update-notifier-common   # provides /var/run/reboot-required
+    state: "{{ 'latest' if auto_upgrade | bool else 'present' }}"
+
+# ---- Unattended upgrades (background security patches) -----
+- name: Enable unattended-upgrades (security patches between Ansible runs)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      // Managed by Ansible — controls unattended-upgrades cadence.
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Download-Upgradeable-Packages "1";
+      APT::Periodic::AutocleanInterval "7";
+      APT::Periodic::Unattended-Upgrade "1";
+
+- name: Configure unattended-upgrades to also pull "updates" and clean up
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/51unattended-upgrades-home-server
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      // Managed by Ansible.
+      Unattended-Upgrade::Allowed-Origins {
+          "${distro_id}:${distro_codename}";
+          "${distro_id}:${distro_codename}-security";
+          "${distro_id}ESMApps:${distro_codename}-apps-security";
+          "${distro_id}ESM:${distro_codename}-infra-security";
+          "${distro_id}:${distro_codename}-updates";
+      };
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+      Unattended-Upgrade::Automatic-Reboot "false";
+
+- name: Ensure unattended-upgrades service is enabled
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    enabled: true
+    state: started
 
 # ---- Timezone -----------------------------------------------
 - name: Set system timezone
@@ -283,3 +324,31 @@
         timeout: 60
       delegate_to: localhost
       become: false
+
+# ---- Reboot if package upgrades require it -----------------
+- name: Check whether a reboot is required (kernel/libc updates)
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: common_reboot_required
+
+- name: Reboot the server because /var/run/reboot-required is set
+  ansible.builtin.reboot:
+    msg: "Reboot triggered by Ansible: kernel/libc update applied"
+    connect_timeout: 5
+    reboot_timeout: 600
+    pre_reboot_delay: 5
+    post_reboot_delay: 30
+    test_command: uptime
+  when:
+    - common_reboot_required.stat.exists
+    - auto_reboot_if_required | bool
+
+- name: Reboot required but auto_reboot_if_required is false — warn the operator
+  ansible.builtin.debug:
+    msg: >
+      A reboot is required (/var/run/reboot-required exists) but
+      `auto_reboot_if_required` is false. Reboot the server manually with
+      `sudo reboot` to finalize kernel/libc updates.
+  when:
+    - common_reboot_required.stat.exists
+    - not (auto_reboot_if_required | bool)

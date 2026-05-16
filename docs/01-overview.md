@@ -88,9 +88,11 @@ Developer                Git Repo               ArgoCD              k3s Cluster
 ### Ubuntu 24.04 LTS (Base OS)
 
 The foundation of the entire stack. Configured by the `common` Ansible role with:
-- Automatic security updates
+- Full `apt dist-upgrade` on every Ansible run (controlled by `auto_upgrade`)
+- `unattended-upgrades` enabled for daily background security patches
+- Reboot triggered automatically when `/var/run/reboot-required` is present
 - UFW firewall with minimal open ports
-- Kernel modules for container networking (`br_netfilter`)
+- Kernel modules for container networking (`br_netfilter`, `overlay`)
 - sysctl tuning for Kubernetes requirements
 - Chrony for NTP time synchronization
 - Swap disabled (required for Kubernetes)

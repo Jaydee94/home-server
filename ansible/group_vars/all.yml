@@ -8,17 +8,37 @@
 hostname: homeserver
 timezone: Europe/Berlin                # CHANGE: your timezone
 
+# ---- Upgrade strategy --------------------------------------
+# When true (default), every Ansible run keeps the OS and all installed
+# components on the latest available stable version, and enables
+# unattended-upgrades for background security patches between runs.
+# Set to false to pin everything for reproducibility/CI.
+auto_upgrade: true
+
+# Reboot the server at the end of the `common` role if a kernel/libc update
+# placed `/var/run/reboot-required` on disk.
+auto_reboot_if_required: true
+
 # ---- k3s ---------------------------------------------------
-k3s_version: v1.29.3+k3s1
+# When `k3s_version` is empty, the role follows `k3s_channel` (always latest
+# release in that channel). Set to a concrete version like "v1.30.2+k3s1" to pin.
+# See https://github.com/k3s-io/k3s/releases and
+# https://update.k3s.io/v1-release/channels for available channels.
+k3s_version: ""
+k3s_channel: stable
 k3s_server_ip: "{{ ansible_default_ipv4.address }}"
 k3s_pod_cidr: "10.42.0.0/16"
 k3s_service_cidr: "10.43.0.0/16"
 
 # ---- Helm --------------------------------------------------
-helm_version: "v3.14.4"
+# Empty = always install the latest Helm 3 release. Pin to e.g. "v3.16.0" if needed.
+helm_version: ""
 
 # ---- ArgoCD ------------------------------------------------
-argocd_version: "7.3.11"
+# Argo Helm chart version. Empty + auto_upgrade=true ⇒ chart is upgraded to
+# latest on every run. Pin to a concrete chart version (e.g. "7.3.11") for
+# reproducibility — see https://artifacthub.io/packages/helm/argo/argo-cd
+argocd_version: ""
 argocd_namespace: argocd
 argocd_server_insecure: true
 # Git repo ArgoCD pulls from. Must be reachable by argocd-repo-server pod.
