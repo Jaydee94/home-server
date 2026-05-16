@@ -68,20 +68,23 @@
     msg: "Tailscale connected: {{ tailscale_connected }}"
 
 # ---- Connect to Tailscale -----------------------------------
-- name: Connect to Tailscale with auth key and advertise routes
+# Pass the auth key via the TS_AUTHKEY env var so the secret never ends up
+# in the process list (unlike --authkey=tskey-auth-... on the command line).
+- name: Connect to Tailscale and advertise the local subnet
   ansible.builtin.command: >
     tailscale up
-    --authkey={{ tailscale_auth_key }}
     --hostname={{ tailscale_hostname }}
     --advertise-routes={{ local_subnet }}
     --accept-dns=true
     --accept-routes=false
+  environment:
+    TS_AUTHKEY: "{{ tailscale_auth_key }}"
   register: tailscale_up_result
   changed_when: tailscale_up_result.rc == 0
   no_log: true
   when: not tailscale_connected
 
-- name: Refresh Tailscale options (already connected — update routes/hostname)
+- name: Refresh Tailscale options (already connected — update hostname/routes)
   ansible.builtin.command: >
     tailscale set
     --hostname={{ tailscale_hostname }}
@@ -92,9 +95,17 @@
   when: tailscale_connected
 
 # ---- Enable IP Forwarding for Subnet Routing ----------------
-- name: Enable IP forwarding in kernel (for subnet routing)
+- name: Enable IPv4 forwarding (required for subnet routing)
   ansible.posix.sysctl:
     name: net.ipv4.ip_forward
+    value: "1"
+    sysctl_file: /etc/sysctl.d/99-tailscale.conf
+    reload: true
+    state: present
+
+- name: Enable IPv6 forwarding (required for subnet routing)
+  ansible.posix.sysctl:
+    name: net.ipv6.conf.all.forwarding
     value: "1"
     sysctl_file: /etc/sysctl.d/99-tailscale.conf
     reload: true
@@ -122,5 +133,5 @@
       - "Tailscale IP: {{ tailscale_ip.stdout | default('unknown') }}"
       - "Hostname: {{ tailscale_hostname }}"
       - "Advertised subnet: {{ local_subnet }}"
-      - "NOTE: Approve subnet routes in Tailscale admin panel:"
+      - "NOTE: Approve the advertised subnet route in the admin panel:"
       - "      https://login.tailscale.com/admin/machines"

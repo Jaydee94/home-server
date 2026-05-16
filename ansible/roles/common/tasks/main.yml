@@ -56,7 +56,7 @@
 - name: Set system timezone
   community.general.timezone:
     name: "{{ timezone }}"
-  notify: restart chrony
+  notify: Restart chrony
 
 # ---- Chrony (NTP) -------------------------------------------
 - name: Ensure chrony is enabled and running
@@ -114,20 +114,24 @@
     reload: true
     state: present
   loop:
-    - { key: "net.ipv4.ip_forward", value: "1" }
-    - { key: "net.bridge.bridge-nf-call-iptables", value: "1" }
-    - { key: "net.bridge.bridge-nf-call-ip6tables", value: "1" }
-    - { key: "net.ipv6.conf.all.forwarding", value: "1" }
-    - { key: "fs.inotify.max_user_watches", value: "524288" }
-    - { key: "fs.inotify.max_user_instances", value: "512" }
-    - { key: "vm.swappiness", value: "0" }
-  notify: reload sysctl
+    - {key: "net.ipv4.ip_forward", value: "1"}
+    - {key: "net.bridge.bridge-nf-call-iptables", value: "1"}
+    - {key: "net.bridge.bridge-nf-call-ip6tables", value: "1"}
+    - {key: "net.ipv6.conf.all.forwarding", value: "1"}
+    - {key: "fs.inotify.max_user_watches", value: "524288"}
+    - {key: "fs.inotify.max_user_instances", value: "512"}
+    - {key: "vm.swappiness", value: "0"}
+  notify: Reload sysctl
 
 # ---- UFW Firewall -------------------------------------------
-- name: Reset UFW to default (allow outgoing, deny incoming)
+# NOTE: we never call `state: reset` — that would wipe SSH access mid-playbook.
+# Allow SSH FIRST so enabling UFW later cannot lock us out.
+- name: Allow SSH (port 22) before any other firewall changes
   community.general.ufw:
-    state: reset
-  changed_when: false
+    rule: allow
+    port: "22"
+    proto: tcp
+    comment: "SSH"
 
 - name: Set UFW default incoming policy to deny
   community.general.ufw:
@@ -139,14 +143,7 @@
     default: allow
     direction: outgoing
 
-- name: Allow SSH (port 22)
-  community.general.ufw:
-    rule: allow
-    port: "22"
-    proto: tcp
-    comment: "SSH"
-
-- name: Allow HTTP (port 80)
+- name: Allow HTTP (port 80) for Traefik ingress
   community.general.ufw:
     rule: allow
     port: "80"
@@ -232,21 +229,37 @@
 
 - name: Verify UFW is active
   ansible.builtin.command: ufw status verbose
-  register: ufw_status
+  register: common_ufw_status
   changed_when: false
 
 - name: Display UFW status
   ansible.builtin.debug:
-    var: ufw_status.stdout_lines
+    var: common_ufw_status.stdout_lines
 
 # ---- Static IP via Netplan ----------------------------------
+# Configures /etc/netplan/99-static.yaml and applies it. The SSH session will
+# move to the new IP, so make sure `ansible_host` matches `network_static_ip`
+# (or update the inventory after the first run).
 - name: Configure static IP via Netplan
   when: network_configure_static_ip | bool
   block:
+    - name: Find existing Netplan configs
+      ansible.builtin.find:
+        paths: /etc/netplan
+        patterns:
+          - "*.yaml"
+          - "*.yml"
+        excludes:
+          - "99-static.yaml"
+      register: common_netplan_existing
+
     - name: Remove existing Netplan DHCP configs
-      ansible.builtin.shell: >
-        find /etc/netplan -name '*.yaml' -o -name '*.yml' | xargs rm -f
-      changed_when: true
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ common_netplan_existing.files }}"
+      loop_control:
+        label: "{{ item.path }}"
 
     - name: Deploy static Netplan configuration
       ansible.builtin.template:
@@ -262,7 +275,7 @@
       poll: 0
       changed_when: true
 
-    - name: Wait for server to be reachable at new IP ({{ network_static_ip }})
+    - name: Wait for server to be reachable at the new static IP
       ansible.builtin.wait_for:
         host: "{{ network_static_ip }}"
         port: 22

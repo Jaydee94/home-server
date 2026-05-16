@@ -5,22 +5,25 @@
 
 # ---- Namespace ----------------------------------------------
 - name: Create argocd namespace (idempotent)
-  ansible.builtin.shell: >
-    kubectl create namespace {{ argocd_namespace }} --dry-run=client -o yaml |
-    kubectl apply -f -
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl create namespace {{ argocd_namespace }} --dry-run=client -o yaml |
+        kubectl apply -f -
+    executable: /bin/bash
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  register: ns_apply_result
-  changed_when: "'created' in ns_apply_result.stdout"
+  register: argocd_ns_apply
+  changed_when: "'created' in argocd_ns_apply.stdout"
 
 # ---- Helm Repository ----------------------------------------
 - name: Add Argo Helm repository
   ansible.builtin.command: helm repo add argo https://argoproj.github.io/argo-helm
-  register: helm_repo_add
-  changed_when: "'\"argo\" has been added' in helm_repo_add.stdout"
+  register: argocd_helm_repo_add
+  changed_when: '"has been added" in argocd_helm_repo_add.stdout'
   failed_when:
-    - helm_repo_add.rc != 0
-    - "'already exists' not in helm_repo_add.stderr"
+    - argocd_helm_repo_add.rc != 0
+    - "'already exists' not in argocd_helm_repo_add.stderr"
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
@@ -93,12 +96,14 @@
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
 - name: Get ArgoCD initial admin password
-  ansible.builtin.shell: >
-    kubectl -n {{ argocd_namespace }} get secret argocd-initial-admin-secret
-    -o jsonpath="{.data.password}" | base64 -d
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl -n {{ argocd_namespace }} get secret argocd-initial-admin-secret \
+        -o jsonpath="{.data.password}" | base64 -d
+    executable: /bin/bash
   register: argocd_initial_password
   changed_when: false
-  no_log: false
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: argocd_secret_check.stdout | length > 0
@@ -128,21 +133,21 @@
 - name: Apply bootstrap ApplicationSet
   ansible.builtin.command: >
     kubectl apply -f /tmp/argocd-bootstrap-applicationset.yaml
-  register: appset_apply
-  changed_when: "'created' in appset_apply.stdout or 'configured' in appset_apply.stdout"
+  register: argocd_appset_apply
+  changed_when: "'created' in argocd_appset_apply.stdout or 'configured' in argocd_appset_apply.stdout"
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
 - name: Display ApplicationSet status
   ansible.builtin.debug:
-    var: appset_apply.stdout
+    var: argocd_appset_apply.stdout
 
 - name: Wait for ApplicationSet to be processed
   ansible.builtin.command: >
     kubectl get applicationsets home-server-apps
     --namespace {{ argocd_namespace }}
     -o jsonpath='{.status.conditions[?(@.type=="ErrorOccurred")].status}'
-  register: appset_status
+  register: argocd_appset_status
   changed_when: false
   failed_when: false
   environment:

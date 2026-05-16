@@ -33,27 +33,26 @@
   failed_when: false
   when: k3s_binary.stat.exists
 
-- name: Download and install k3s via official install script
-  ansible.builtin.shell:
-    cmd: >
-      curl -sfL https://get.k3s.io |
-      INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server
-    creates: /usr/local/bin/k3s
-  environment:
-    INSTALL_K3S_VERSION: "{{ k3s_version }}"
-  when: not k3s_binary.stat.exists
+- name: Download k3s install script
+  ansible.builtin.get_url:
+    url: https://get.k3s.io
+    dest: /tmp/get-k3s.sh
+    mode: '0755'
+    force: true
+  when: not k3s_binary.stat.exists or k3s_version not in (k3s_check_version.stdout | default(''))
 
-- name: Upgrade k3s if version has changed
-  ansible.builtin.shell:
-    cmd: >
-      curl -sfL https://get.k3s.io |
-      INSTALL_K3S_VERSION="{{ k3s_version }}" sh -s - server
+- name: Install or upgrade k3s
+  ansible.builtin.command: /tmp/get-k3s.sh server
   environment:
     INSTALL_K3S_VERSION: "{{ k3s_version }}"
-  when:
-    - k3s_binary.stat.exists
-    - k3s_version not in k3s_check_version.stdout | default('')
-  changed_when: true
+  register: k3s_install
+  changed_when: k3s_install.rc == 0
+  when: not k3s_binary.stat.exists or k3s_version not in (k3s_check_version.stdout | default(''))
+
+- name: Remove k3s install script
+  ansible.builtin.file:
+    path: /tmp/get-k3s.sh
+    state: absent
 
 # ---- k3s Service Management ---------------------------------
 - name: Enable and start k3s service
@@ -73,17 +72,17 @@
 
 - name: Wait for k3s node to be in Ready state
   ansible.builtin.command: kubectl get nodes --no-headers
-  register: kubectl_nodes
+  register: k3s_nodes_status
   retries: 30
   delay: 10
-  until: "'Ready' in kubectl_nodes.stdout"
+  until: "'Ready' in k3s_nodes_status.stdout"
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   changed_when: false
 
 - name: Display node status
   ansible.builtin.debug:
-    var: kubectl_nodes.stdout_lines
+    var: k3s_nodes_status.stdout_lines
 
 # ---- kubeconfig Setup for ubuntu user ----------------------
 - name: Create .kube directory for ubuntu user
@@ -121,7 +120,7 @@
     group: ubuntu
     mode: '0644'
 
-- name: Add kubectl completion to ubuntu user's .bashrc
+- name: Add kubectl completion and `k` alias to ubuntu user's .bashrc
   ansible.builtin.blockinfile:
     path: /home/ubuntu/.bashrc
     marker: "# {mark} ANSIBLE MANAGED BLOCK — kubectl"
@@ -141,14 +140,14 @@
 - name: Check if Helm is already installed
   ansible.builtin.stat:
     path: /usr/local/bin/helm
-  register: helm_binary
+  register: k3s_helm_binary
 
 - name: Download Helm install script
   ansible.builtin.get_url:
     url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
     dest: /tmp/get-helm-3.sh
     mode: '0755'
-  when: not helm_binary.stat.exists
+  when: not k3s_helm_binary.stat.exists
 
 - name: Install Helm
   ansible.builtin.command:
@@ -157,7 +156,7 @@
   environment:
     DESIRED_VERSION: "{{ helm_version }}"
     HELM_INSTALL_DIR: /usr/local/bin
-  when: not helm_binary.stat.exists
+  when: not k3s_helm_binary.stat.exists
 
 - name: Remove Helm install script
   ansible.builtin.file:
@@ -166,14 +165,14 @@
 
 - name: Verify Helm installation
   ansible.builtin.command: helm version --short
-  register: helm_version_check
+  register: k3s_helm_version
   changed_when: false
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
 - name: Display Helm version
   ansible.builtin.debug:
-    msg: "Helm installed: {{ helm_version_check.stdout }}"
+    msg: "Helm installed: {{ k3s_helm_version.stdout }}"
 
 # ---- Verify k3s System Pods --------------------------------
 - name: Wait for core system pods to be ready
@@ -184,17 +183,17 @@
     --timeout=300s
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  register: core_pods_ready
+  register: k3s_core_pods_ready
   changed_when: false
   failed_when: false
 
-- name: Display system pod status
+- name: Get system pod status
   ansible.builtin.command: kubectl get pods -n kube-system --no-headers
-  register: system_pods
+  register: k3s_system_pods
   changed_when: false
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
 - name: Show system pod status
   ansible.builtin.debug:
-    var: system_pods.stdout_lines
+    var: k3s_system_pods.stdout_lines

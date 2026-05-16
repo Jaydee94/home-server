@@ -15,7 +15,7 @@ The full installation is automated by a single Ansible playbook run. This guide 
 ## Step 1 — Clone This Repository
 
 ```bash
-git clone https://github.com/YOUR_USER/home-server.git
+git clone https://github.com/Jaydee94/home-server.git
 cd home-server
 ```
 
@@ -37,14 +37,13 @@ Change `192.168.1.100` to your server's IP:
 homeserver:
   hosts:
     homeserver:
-      ansible_host: 192.168.1.100   # <-- CHANGE THIS
+      ansible_host: 192.168.1.100        # <-- CHANGE THIS
       ansible_user: ubuntu
-      ansible_ssh_private_key_file: ~/.ssh/id_rsa
+      ansible_ssh_private_key_file: ~/.ssh/id_ed25519
 ```
 
-If your SSH user is different from `ubuntu`, update `ansible_user` too.
-
-If your SSH key is not at `~/.ssh/id_rsa`, update `ansible_ssh_private_key_file`.
+If your SSH user is different from `ubuntu`, update `ansible_user`.
+If your private key lives elsewhere, update `ansible_ssh_private_key_file` to match.
 
 Verify connectivity:
 
@@ -146,7 +145,13 @@ ansible-galaxy collection list | grep -E "ansible.posix|community.general|kubern
 
 ## Step 6 — Run the Playbook
 
-Execute the main playbook:
+Easiest path — use the Makefile:
+
+```bash
+make install            # runs `ansible-galaxy install` + the playbook
+```
+
+Or invoke Ansible directly:
 
 ```bash
 ansible-playbook \

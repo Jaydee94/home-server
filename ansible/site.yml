@@ -1,6 +1,6 @@
 ---
 - name: Home Server Setup
-  hosts: homeserver
+  hosts: homeservers
   become: true
   gather_facts: true
 
