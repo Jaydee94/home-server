@@ -1,0 +1,20 @@
+---
+apiVersion: v2
+name: headlamp
+description: Headlamp Kubernetes web UI deployed via ArgoCD.
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - headlamp
+  - kubernetes
+  - dashboard
+home: https://headlamp.dev
+sources:
+  - https://github.com/headlamp-k8s/headlamp
+maintainers:
+  - name: home-server-admin
+dependencies:
+  - name: headlamp
+    repository: https://headlamp-k8s.github.io/headlamp/
+    version: "*"
