@@ -1,0 +1,17 @@
+# Managed by Ansible — do not edit manually.
+# Wildcard DNS for *.homeserver on the local network.
+
+# Upstream DNS: Fritz!Box
+no-resolv
+server={{ network_gateway }}
+
+# Resolve *.homeserver to this server's IP
+address=/.homeserver/{{ network_static_ip }}
+
+# Listen on loopback and the server's LAN IP
+listen-address=127.0.0.1,{{ network_static_ip }}
+bind-interfaces
+
+# Security: don't forward bare hostnames or private reverse lookups
+domain-needed
+bogus-priv
