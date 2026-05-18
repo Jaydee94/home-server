@@ -17,6 +17,13 @@ spec:
       labels:
         {{- include "semaphore.selectorLabels" . | nindent 8 }}
     spec:
+      # The Semaphore image creates /etc/semaphore as UID 1001. Without
+      # fsGroup the persistent volume mounts as root-only and the pod
+      # fails to write its BoltDB. Matches the official upstream chart.
+      securityContext:
+        fsGroup: 1001
+        runAsUser: 1001
+        runAsGroup: 1001
       containers:
         - name: semaphore
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -27,12 +34,12 @@ spec:
               protocol: TCP
           env:
             # Embedded BoltDB — no external Postgres/MySQL needed for a home setup.
+            # For BoltDB, SEMAPHORE_DB_HOST holds the full path to the .boltdb
+            # file (the variable is reused — the Semaphore source confirms this).
             - name: SEMAPHORE_DB_DIALECT
               value: "bolt"
-            - name: SEMAPHORE_DB_PATH
-              value: "/etc/semaphore"
-            - name: SEMAPHORE_CONFIG_PATH
-              value: "/etc/semaphore"
+            - name: SEMAPHORE_DB_HOST
+              value: "/etc/semaphore/database.boltdb"
             - name: SEMAPHORE_TMP_PATH
               value: "/tmp/semaphore"
 
@@ -73,14 +80,18 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /etc/semaphore
+            - name: tmp
+              mountPath: /tmp/semaphore
             - name: vault-password
               mountPath: {{ .Values.vaultPasswordMountPath | quote }}
               subPath: ansible_vault_password
               readOnly: true
 
+          # Use "/" like the official semaphoreui chart — /api/ping is not
+          # guaranteed to exist across versions, the web root always returns 200.
           readinessProbe:
             httpGet:
-              path: /api/ping
+              path: /
               port: http
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -88,7 +99,7 @@ spec:
             failureThreshold: 6
           livenessProbe:
             httpGet:
-              path: /api/ping
+              path: /
               port: http
             initialDelaySeconds: 60
             periodSeconds: 30
@@ -104,6 +115,8 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        - name: tmp
+          emptyDir: {}
         - name: vault-password
           secret:
             secretName: {{ .Values.bootstrapSecretName }}
