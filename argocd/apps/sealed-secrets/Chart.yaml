@@ -1,0 +1,20 @@
+---
+apiVersion: v2
+name: sealed-secrets
+description: Sealed Secrets controller deployed via ArgoCD.
+type: application
+version: 0.1.0
+appVersion: "0.36.6"
+keywords:
+  - sealed-secrets
+  - kubernetes
+  - secrets
+home: https://github.com/bitnami-labs/sealed-secrets
+sources:
+  - https://github.com/bitnami-labs/sealed-secrets
+maintainers:
+  - name: home-server-admin
+dependencies:
+  - name: sealed-secrets
+    repository: https://bitnami-labs.github.io/sealed-secrets
+    version: "2.18.5"

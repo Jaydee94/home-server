@@ -1,0 +1,40 @@
+---
+# Values passed through to the kubeseal-webgui sub-chart.
+# All keys live under `kubeseal-webgui:` because that is the dependency name.
+kubeseal-webgui:
+  replicaCount: 1
+
+  image:
+    pullPolicy: Always
+
+  # URL the browser uses to reach the API backend.
+  # Must match the Ingress hostname so the UI works correctly.
+  api:
+    url: "http://kubeseal-webgui.homeserver"
+
+  # Connection to the Sealed Secrets controller.
+  # autoFetchCert lets the app retrieve the public key automatically on startup
+  # instead of requiring a static cert to be embedded here.
+  sealedSecrets:
+    autoFetchCert: true
+    controllerName: sealed-secrets-controller
+    controllerNamespace: sealed-secrets
+
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    annotations: {}
+    hostname: "kubeseal-webgui.homeserver"
+    tls:
+      enabled: false
+      secretName: ""
+
+  resources:
+    limits:
+      memory: 256Mi
+    requests:
+      cpu: 20m
+      memory: 256Mi
+
+  serviceAccount:
+    create: true

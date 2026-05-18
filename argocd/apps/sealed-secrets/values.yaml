@@ -1,0 +1,41 @@
+---
+# Values passed through to the sealed-secrets sub-chart.
+# All keys live under `sealed-secrets:` because that is the dependency name.
+sealed-secrets:
+  # Predictable service name so kubeseal CLI and kubeseal-webgui find the
+  # controller without extra flags.
+  fullnameOverride: sealed-secrets-controller
+
+  image:
+    registry: docker.io
+    repository: bitnami/sealed-secrets-controller
+    tag: "0.36.6"
+    pullPolicy: IfNotPresent
+
+  resources:
+    limits:
+      cpu: 150m
+      memory: 256Mi
+    requests:
+      cpu: 50m
+      memory: 128Mi
+
+  podSecurityContext:
+    enabled: true
+    fsGroup: 65534
+
+  containerSecurityContext:
+    enabled: true
+    readOnlyRootFilesystem: true
+    runAsNonRoot: true
+    runAsUser: 1001
+    capabilities:
+      drop:
+        - ALL
+
+  rbac:
+    create: true
+    clusterRole: true
+
+  serviceAccount:
+    create: true
