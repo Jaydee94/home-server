@@ -2,12 +2,14 @@
 # ============================================================
 # dnsmasq role — wildcard DNS für *.homeserver
 # ============================================================
-# dnsmasq hört NUR auf der LAN-IP des Servers (nicht 127.0.0.1).
-# Der Server selbst nutzt weiterhin systemd-resolved (127.0.0.53).
-# LAN-Geräte bekommen die Server-IP per Fritz!Box DHCP als DNS-Server.
-# Dadurch gibt es kein Henne-Ei-Problem mit Port 53 und die
-# DNS-Auflösung des Servers selbst bleibt während des Ansible-Runs
-# unverändert.
+# dnsmasq lauscht auf der LAN-IP und auf tailscale0 (bind-dynamic).
+# Der Server selbst nimmt dnsmasq als primary + Fritz!Box als Fallback.
+#
+# ACHTUNG: Diese Rolle macht den Home-Server NICHT automatisch zum
+# DNS-Server für dein gesamtes LAN — das wäre ein Single Point of
+# Failure. Stattdessen ist *.homeserver-Auflösung *opt-in* pro Gerät.
+# Empfohlener Weg: Tailscale Split DNS. Details und Alternativen in
+# docs/09-dns-architecture.md.
 # ============================================================
 
 - name: Install dnsmasq

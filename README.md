@@ -194,6 +194,7 @@ Full architecture in **[docs/01-overview.md](docs/01-overview.md)**.
 | [Tailscale VPN](docs/06-tailscale.md)                           | Auth keys, MagicDNS, subnet routes          |
 | [Troubleshooting](docs/07-troubleshooting.md)                   | Diagnostic playbook for common failures     |
 | [Semaphore UI](docs/08-semaphore.md)                            | Web UI to run playbooks against Raspi/NAS   |
+| [DNS Architecture](docs/09-dns-architecture.md)                 | Why the home-server is NOT your LAN DNS     |
 
 ---
 
