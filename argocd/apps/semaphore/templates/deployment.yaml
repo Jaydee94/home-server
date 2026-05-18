@@ -46,9 +46,9 @@ spec:
                 || true
           env:
             - name: SEMAPHORE_DB_DIALECT
-              value: "bolt"
+              value: "sqlite3"
             - name: SEMAPHORE_DB_HOST
-              value: "/etc/semaphore/database.boltdb"
+              value: "/etc/semaphore/database.db"
             - name: SEMAPHORE_ADMIN
               valueFrom:
                 secretKeyRef:
