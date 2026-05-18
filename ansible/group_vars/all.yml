@@ -71,6 +71,7 @@ dnsmasq_hosts:
   - headlamp
   - argocd
   - semaphore
+  - kubeseal-webgui
 
 # ---- Semaphore UI -----------------------------------------
 # Master Ansible-Vault password — same value you type when running

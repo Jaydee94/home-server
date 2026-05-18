@@ -1,0 +1,20 @@
+---
+apiVersion: v2
+name: kubeseal-webgui
+description: kubeseal-webgui web UI for Sealed Secrets deployed via ArgoCD.
+type: application
+version: 0.1.0
+appVersion: "4.9.0"
+keywords:
+  - kubeseal-webgui
+  - sealed-secrets
+  - kubernetes
+home: https://github.com/Jaydee94/kubeseal-webgui
+sources:
+  - https://github.com/Jaydee94/kubeseal-webgui
+maintainers:
+  - name: home-server-admin
+dependencies:
+  - name: kubeseal-webgui
+    repository: https://jaydee94.github.io/kubeseal-webgui/
+    version: "6.0.10"
