@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://ubuntu.com/server"><img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-24.04_LTS-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
+  <a href="https://ubuntu.com/server"><img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-26.04_LTS-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
   <a href="https://k3s.io"><img alt="k3s" src="https://img.shields.io/badge/k3s-v1.29-FFC61C?style=for-the-badge&logo=k3s&logoColor=black"></a>
   <a href="https://argo-cd.readthedocs.io"><img alt="ArgoCD" src="https://img.shields.io/badge/ArgoCD-GitOps-EF7B4D?style=for-the-badge&logo=argo&logoColor=white"></a>
   <a href="https://tailscale.com"><img alt="Tailscale" src="https://img.shields.io/badge/Tailscale-VPN-246FDB?style=for-the-badge&logo=tailscale&logoColor=white"></a>
@@ -40,7 +40,7 @@ When the playbook finishes you'll see the ArgoCD URL and admin password. That's 
 
 | Layer            | Component                              | Notes                                                      |
 |------------------|----------------------------------------|------------------------------------------------------------|
-| Operating System | **Ubuntu Server 24.04 LTS**            | Hardened, UFW firewall, NTP-synced, swap off               |
+| Operating System | **Ubuntu Server 26.04 LTS**            | Hardened, UFW firewall, NTP-synced, swap off               |
 | Kubernetes       | **k3s** (latest stable channel)        | Single-node, bundles Traefik, CoreDNS, local-path, metrics |
 | GitOps           | **ArgoCD** + ApplicationSets           | Drop a folder under `argocd/apps/`, push, it deploys       |
 | Web Ansible      | **Semaphore UI**                       | One-click `git pull && ansible-playbook` against your LAN  |
