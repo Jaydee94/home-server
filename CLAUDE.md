@@ -24,6 +24,7 @@ make semaphore-targets  # Push Semaphore SSH key to all managed targets
 
 make lint           # yamllint + ansible-lint + helm lint
 make vault-edit     # Edit vault-encrypted vars (ansible/group_vars/all.yml)
+make clean          # Remove cached Ansible collections and temp artifacts
 ```
 
 ## Architecture
@@ -54,6 +55,32 @@ mkdir -p argocd/apps/my-app
 # Add Kubernetes YAML, kustomization.yaml, or a Helm chart (Chart.yaml + values.yaml)
 git add argocd/apps/my-app && git commit -m "feat(apps): add my-app" && git push
 # ArgoCD picks it up within ~3 minutes; namespace "my-app" is created automatically
+```
+
+## Server Access
+
+```bash
+# SSH into the server
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127
+
+# kubectl (local context may point elsewhere — always go via SSH)
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
+```
+
+## Service URLs
+
+| Service   | URL                         | Notes                   |
+|-----------|-----------------------------|-------------------------|
+| Grafana   | http://grafana.homeserver   | user: `admin`           |
+| ArgoCD    | http://\<server-ip\>:30080  | HTTPS on 30443          |
+| Headlamp  | http://headlamp.homeserver  | Kubernetes dashboard    |
+| Semaphore | http://semaphore.homeserver | Ansible UI              |
+
+```bash
+# Retrieve Grafana admin password:
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+  'sudo kubectl -n monitoring get secret monitoring-grafana \
+   -o jsonpath="{.data.admin-password}" | base64 -d; echo'
 ```
 
 ## Secrets
@@ -95,6 +122,13 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Cluster metrics** — kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS; scheduler/controller-manager/etcd scrapes are disabled (k3s runs them in a single process)
 - **Alerts** — default kube-prometheus rule set; routed to a `blackhole` receiver until Discord/Slack/Gotify is wired in `values.yaml`
 - **Grafana** — available at `http://grafana.homeserver` (LAN + Tailnet via dnsmasq); ships Node Exporter Full, VictoriaMetrics, and Kubernetes Views dashboards
+
+## Gotchas
+
+- **kubectl context**: Your local kubeconfig may point to a different cluster (e.g. `kind`). Always run `kubectl` via SSH or explicitly set `--kubeconfig`.
+- **Helm OCI charts**: Some apps (e.g. `kubeseal-webgui`) use OCI registries (`oci://ghcr.io/...`). The `repository:` field must use the `oci://` prefix — HTTP Helm repo URLs will 404 even if the chart exists at the OCI registry.
+- **Grafana sidecar + dashboards conflict**: Setting both `grafana.sidecar.dashboards.enabled: true` and `grafana.dashboards:` in the same values file causes a Helm template error. Use the sidecar only; default dashboards are shipped via labeled ConfigMaps.
+- **Grafana fresh DB**: If Grafana crashes with `no such column: is_service_account`, delete the corrupt `grafana.db` directly from the PVC on the host and restart the deployment. The PVC path is `/var/lib/rancher/k3s/storage/<pvc-name>_monitoring_monitoring-grafana/`.
 
 ## Networking
 
