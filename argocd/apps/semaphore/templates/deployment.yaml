@@ -27,6 +27,48 @@ spec:
         fsGroup: 1001
         runAsUser: 1001
         runAsGroup: 1001
+      initContainers:
+        - name: bootstrap-admin
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # SEMAPHORE_ADMIN* env vars are not auto-applied by the server in 2.18.x.
+          # Running user add here (DB unlocked, before server starts) is idempotent.
+          command:
+            - sh
+            - -c
+            - |
+              semaphore user add \
+                --admin \
+                --login    "$SEMAPHORE_ADMIN" \
+                --name     "$SEMAPHORE_ADMIN_NAME" \
+                --email    "$SEMAPHORE_ADMIN_EMAIL" \
+                --password "$SEMAPHORE_ADMIN_PASSWORD" \
+                || true
+          env:
+            - name: SEMAPHORE_DB_DIALECT
+              value: "bolt"
+            - name: SEMAPHORE_DB_HOST
+              value: "/etc/semaphore/database.boltdb"
+            - name: SEMAPHORE_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bootstrapSecretName }}
+                  key: admin_username
+            - name: SEMAPHORE_ADMIN_NAME
+              value: "Home Server Admin"
+            - name: SEMAPHORE_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bootstrapSecretName }}
+                  key: admin_email
+            - name: SEMAPHORE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bootstrapSecretName }}
+                  key: admin_password
+          volumeMounts:
+            - name: data
+              mountPath: /etc/semaphore
       containers:
         - name: semaphore
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -46,7 +88,7 @@ spec:
             - name: SEMAPHORE_TMP_PATH
               value: "/tmp/semaphore"
 
-            # Admin credentials — created on first start, then ignored.
+            # Admin credentials — used by the bootstrap initContainer only.
             - name: SEMAPHORE_ADMIN
               valueFrom:
                 secretKeyRef:
