@@ -25,6 +25,8 @@
       tags: [k3s, kubernetes]
     - role: argocd
       tags: [argocd, gitops]
+    - role: semaphore_secrets
+      tags: [semaphore, semaphore-secrets]
 
   post_tasks:
     - name: Display setup summary
@@ -33,7 +35,21 @@
           - "======================================"
           - "Home Server Setup Complete!"
           - "======================================"
-          - "ArgoCD UI: http://{{ ansible_default_ipv4.address }}:30080"
-          - "ArgoCD via Tailscale: http://{{ hostname }}:30080"
-          - "kubectl: kubectl get nodes"
+          - "ArgoCD UI:    http://{{ ansible_default_ipv4.address }}:30080"
+          - "ArgoCD/TS:    http://{{ hostname }}:30080"
+          - "Semaphore UI: http://semaphore.homeserver"
+          - "kubectl:      kubectl get nodes"
           - "======================================"
+
+# ============================================================
+# Distribute the Semaphore SSH key to every managed target so
+# Semaphore can SSH in non-interactively. Skipped automatically
+# when no target host is defined in the inventory.
+# ============================================================
+- name: Authorize Semaphore on managed targets
+  hosts: semaphore_targets
+  become: true
+  gather_facts: false
+  tags: [semaphore, semaphore-targets]
+  roles:
+    - role: semaphore_targets

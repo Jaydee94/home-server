@@ -1,0 +1,194 @@
+---
+# ============================================================
+# semaphore_secrets/tasks/main.yml
+# Generates (idempotent) the bootstrap material Semaphore needs and
+# pushes it into k8s as Secret `semaphore-bootstrap` in the `semaphore`
+# namespace. The Semaphore Deployment (managed by ArgoCD) consumes it.
+# ============================================================
+
+# ---- State directory on the home-server ---------------------
+- name: Ensure semaphore state directory exists
+  ansible.builtin.file:
+    path: "{{ semaphore_state_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+# ---- Admin password ----------------------------------------
+- name: Check whether the admin password file already exists
+  ansible.builtin.stat:
+    path: "{{ semaphore_state_dir }}/admin_password"
+  register: semaphore_admin_pw_stat
+
+- name: Generate a random admin password (first run only)
+  ansible.builtin.set_fact:
+    semaphore_generated_admin_password: "{{ lookup('community.general.random_string', length=24, special=false) }}"
+  when: not semaphore_admin_pw_stat.stat.exists
+
+- name: Persist the admin password on disk (first run only)
+  ansible.builtin.copy:
+    content: "{{ semaphore_generated_admin_password }}"
+    dest: "{{ semaphore_state_dir }}/admin_password"
+    owner: root
+    group: root
+    mode: '0600'
+  when: not semaphore_admin_pw_stat.stat.exists
+
+- name: Read admin password from disk
+  ansible.builtin.slurp:
+    src: "{{ semaphore_state_dir }}/admin_password"
+  register: semaphore_admin_pw_slurp
+
+- name: Expose admin password as a fact
+  ansible.builtin.set_fact:
+    semaphore_admin_password: "{{ semaphore_admin_pw_slurp.content | b64decode | trim }}"
+
+# ---- Access key encryption key (32 bytes, base64) ----------
+- name: Check whether the access key encryption file already exists
+  ansible.builtin.stat:
+    path: "{{ semaphore_state_dir }}/access_key_encryption"
+  register: semaphore_aek_stat
+
+- name: Generate the access key encryption key (first run only)
+  ansible.builtin.shell:
+    cmd: "head -c32 /dev/urandom | base64 > {{ semaphore_state_dir }}/access_key_encryption"
+    creates: "{{ semaphore_state_dir }}/access_key_encryption"
+
+- name: Lock down the access key encryption file
+  ansible.builtin.file:
+    path: "{{ semaphore_state_dir }}/access_key_encryption"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Read access key encryption key from disk
+  ansible.builtin.slurp:
+    src: "{{ semaphore_state_dir }}/access_key_encryption"
+  register: semaphore_aek_slurp
+
+- name: Expose access key encryption key as a fact
+  ansible.builtin.set_fact:
+    semaphore_access_key_encryption: "{{ semaphore_aek_slurp.content | b64decode | trim }}"
+
+# ---- SSH keypair (dedicated for Semaphore → targets) -------
+- name: Generate Semaphore SSH keypair (first run only)
+  ansible.builtin.command:
+    cmd: "ssh-keygen -t ed25519 -N '' -C 'semaphore@homeserver' -f {{ semaphore_state_dir }}/id_ed25519"
+    creates: "{{ semaphore_state_dir }}/id_ed25519"
+
+- name: Lock down SSH private key permissions
+  ansible.builtin.file:
+    path: "{{ semaphore_state_dir }}/id_ed25519"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Lock down SSH public key permissions
+  ansible.builtin.file:
+    path: "{{ semaphore_state_dir }}/id_ed25519.pub"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Read Semaphore SSH private key
+  ansible.builtin.slurp:
+    src: "{{ semaphore_state_dir }}/id_ed25519"
+  register: semaphore_ssh_priv_slurp
+
+- name: Read Semaphore SSH public key
+  ansible.builtin.slurp:
+    src: "{{ semaphore_state_dir }}/id_ed25519.pub"
+  register: semaphore_ssh_pub_slurp
+
+- name: Expose SSH keys as facts (hostvars for downstream roles)
+  ansible.builtin.set_fact:
+    semaphore_ssh_private_key: "{{ semaphore_ssh_priv_slurp.content | b64decode }}"
+    semaphore_ssh_public_key: "{{ semaphore_ssh_pub_slurp.content | b64decode | trim }}"
+
+# ---- k8s namespace ----------------------------------------
+# ArgoCD will create the namespace too (CreateNamespace=true) but we may
+# get here before ArgoCD's first sync — make sure it exists.
+- name: Ensure semaphore namespace exists
+  ansible.builtin.shell:
+    cmd: |
+      set -o pipefail
+      kubectl create namespace {{ semaphore_namespace }} --dry-run=client -o yaml |
+        kubectl apply -f -
+    executable: /bin/bash
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: semaphore_ns_apply
+  changed_when: "'created' in semaphore_ns_apply.stdout"
+
+# ---- Bootstrap Secret -------------------------------------
+# Build the Secret with `kubectl create --dry-run | kubectl apply` so it
+# stays idempotent and we never log secret values.
+- name: Render bootstrap Secret manifest
+  ansible.builtin.copy:
+    dest: /tmp/semaphore-bootstrap-secret.yaml
+    owner: root
+    group: root
+    mode: '0600'
+    content: |
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: {{ semaphore_bootstrap_secret_name }}
+        namespace: {{ semaphore_namespace }}
+      type: Opaque
+      stringData:
+        admin_username: {{ semaphore_admin_username | to_json }}
+        admin_email: {{ semaphore_admin_email | to_json }}
+        admin_password: {{ semaphore_admin_password | to_json }}
+        access_key_encryption: {{ semaphore_access_key_encryption | to_json }}
+        ansible_vault_password: {{ semaphore_ansible_vault_password | to_json }}
+        ssh_private_key: {{ semaphore_ssh_private_key | to_json }}
+        ssh_public_key: {{ semaphore_ssh_public_key | to_json }}
+  no_log: true
+
+- name: Apply bootstrap Secret to the cluster
+  ansible.builtin.command: kubectl apply -f /tmp/semaphore-bootstrap-secret.yaml
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: semaphore_secret_apply
+  changed_when:
+    - "'unchanged' not in semaphore_secret_apply.stdout"
+
+- name: Remove temporary Secret manifest
+  ansible.builtin.file:
+    path: /tmp/semaphore-bootstrap-secret.yaml
+    state: absent
+
+# ---- Add semaphore.homeserver to dnsmasq ------------------
+# Defensive: if `semaphore` isn't already in dnsmasq_hosts, warn the
+# operator. We don't mutate group_vars from here — that's their config.
+- name: Warn if `semaphore` is missing from dnsmasq_hosts
+  ansible.builtin.debug:
+    msg: >
+      `semaphore` is not listed in `dnsmasq_hosts` in group_vars/all.yml.
+      Add it and re-run with `--tags dnsmasq` so semaphore.homeserver
+      resolves on your LAN.
+  when:
+    - dnsmasq_hosts is defined
+    - "'semaphore' not in dnsmasq_hosts"
+
+# ---- Operator summary -------------------------------------
+- name: Display Semaphore bootstrap summary
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "Semaphore UI bootstrap material ready"
+      - "=================================================="
+      - "URL:           http://semaphore.homeserver  (LAN + Tailnet)"
+      - "URL fallback:  http://{{ ansible_default_ipv4.address }} via Traefik Host header"
+      - "Username:      {{ semaphore_admin_username }}"
+      - "Password:      stored in {{ semaphore_state_dir }}/admin_password"
+      - "SSH pubkey:    {{ semaphore_state_dir }}/id_ed25519.pub"
+      - "SSH privkey:   stored in Secret {{ semaphore_namespace }}/{{ semaphore_bootstrap_secret_name }}"
+      - ""
+      - "Next steps:"
+      - "  1) Wait ~3 minutes for ArgoCD to deploy the semaphore app."
+      - "  2) Open the URL, log in, change the admin password."
+      - "  3) Create your first Project (see docs/08-semaphore.md)."
+      - "=================================================="

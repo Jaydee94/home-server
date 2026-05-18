@@ -70,6 +70,22 @@ local_subnet: "192.168.178.0/24"
 dnsmasq_hosts:
   - headlamp
   - argocd
+  - semaphore
+
+# ---- Semaphore UI -----------------------------------------
+# Master Ansible-Vault password — same value you type when running
+# `ansible-playbook --ask-vault-pass`. Semaphore mounts this so playbooks
+# triggered from the UI can decrypt vault-encrypted vars. To set:
+#
+#   1) Pick a strong password and use it for `--ask-vault-pass`.
+#   2) Encrypt that same password with itself:
+#        ansible-vault encrypt_string 'YOUR_VAULT_PW' \
+#          --name 'semaphore_ansible_vault_password'
+#   3) Paste the `!vault |` block over the value below.
+#
+# Leave empty if none of your repos uses ansible-vault — Semaphore still
+# works for non-encrypted playbooks.
+semaphore_ansible_vault_password: ""
 
 # ---- Optional: configure a static IP via Netplan ----------
 # Set to true to have Ansible deploy /etc/netplan/99-static.yaml.

@@ -1,0 +1,20 @@
+---
+apiVersion: v2
+name: semaphore
+description: |
+  Semaphore UI — web frontend for running Ansible playbooks against your
+  network targets (Raspberry Pi, UGREEN NAS, ...). One-click "pull repo
+  + run playbook" workflow.
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - semaphore
+  - ansible
+  - automation
+  - gitops
+home: https://semaphoreui.com
+sources:
+  - https://github.com/semaphoreui/semaphore
+maintainers:
+  - name: home-server-admin

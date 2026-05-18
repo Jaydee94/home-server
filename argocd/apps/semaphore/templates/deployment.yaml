@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "semaphore.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "semaphore.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "semaphore.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "semaphore.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: semaphore
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            # Embedded BoltDB — no external Postgres/MySQL needed for a home setup.
+            - name: SEMAPHORE_DB_DIALECT
+              value: "bolt"
+            - name: SEMAPHORE_DB_PATH
+              value: "/etc/semaphore"
+            - name: SEMAPHORE_CONFIG_PATH
+              value: "/etc/semaphore"
+            - name: SEMAPHORE_TMP_PATH
+              value: "/tmp/semaphore"
+
+            # Admin credentials — created on first start, then ignored.
+            - name: SEMAPHORE_ADMIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bootstrapSecretName }}
+                  key: admin_username
+            - name: SEMAPHORE_ADMIN_NAME
+              value: "Home Server Admin"
+            - name: SEMAPHORE_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bootstrapSecretName }}
+                  key: admin_email
+            - name: SEMAPHORE_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bootstrapSecretName }}
+                  key: admin_password
+
+            # 32-byte base64 key used to encrypt secrets inside Semaphore's DB.
+            # CHANGING this after first run will invalidate all stored secrets.
+            - name: SEMAPHORE_ACCESS_KEY_ENCRYPTION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.bootstrapSecretName }}
+                  key: access_key_encryption
+
+            # Hand ansible-playbook the vault password from the mounted file.
+            - name: ANSIBLE_VAULT_PASSWORD_FILE
+              value: {{ .Values.vaultPasswordMountPath | quote }}
+
+            - name: SEMAPHORE_LDAP_ACTIVATED
+              value: "no"
+
+          volumeMounts:
+            - name: data
+              mountPath: /etc/semaphore
+            - name: vault-password
+              mountPath: {{ .Values.vaultPasswordMountPath | quote }}
+              subPath: ansible_vault_password
+              readOnly: true
+
+          readinessProbe:
+            httpGet:
+              path: /api/ping
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/ping
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "semaphore.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: vault-password
+          secret:
+            secretName: {{ .Values.bootstrapSecretName }}
+            defaultMode: 0400
+            items:
+              - key: ansible_vault_password
+                path: ansible_vault_password

@@ -1,0 +1,62 @@
+---
+# ============================================================
+# Semaphore UI configuration.
+# Targets the bootstrap Secret `semaphore-bootstrap` that the
+# Ansible role `semaphore_secrets` creates in this namespace.
+# ============================================================
+
+replicaCount: 1
+
+image:
+  repository: semaphoreui/semaphore
+  pullPolicy: IfNotPresent
+  # Bump to track upstream: https://hub.docker.com/r/semaphoreui/semaphore/tags
+  # `latest` is fine for a home setup; pin (e.g. "v2.10.34") if you want
+  # reproducibility.
+  tag: "latest"
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Persistent volume for the embedded BoltDB and Semaphore's config.json.
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 2Gi
+  accessMode: ReadWriteOnce
+
+service:
+  type: ClusterIP
+  port: 3000
+  targetPort: 3000
+
+# Reachable in your LAN via dnsmasq wildcard (add `semaphore` to
+# `dnsmasq_hosts` in group_vars/all.yml) and through Tailscale MagicDNS.
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  hosts:
+    - host: semaphore.homeserver
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+# Name of the Secret that the Ansible role `semaphore_secrets` populates.
+# Pod won't start until this Secret exists, which is fine: the role runs
+# before ArgoCD reconciles this Application.
+bootstrapSecretName: semaphore-bootstrap
+
+# Where the Ansible Vault password file gets mounted (read-only) inside
+# the pod. Semaphore points ANSIBLE_VAULT_PASSWORD_FILE at this path so
+# every playbook run can decrypt vault-encrypted vars.
+vaultPasswordMountPath: /var/run/semaphore-secrets/vault-password

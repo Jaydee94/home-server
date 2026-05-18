@@ -1,0 +1,29 @@
+---
+# ============================================================
+# semaphore_secrets — defaults
+# ============================================================
+
+# Namespace the Semaphore Helm chart deploys into.
+semaphore_namespace: semaphore
+
+# Name of the Secret consumed by the Semaphore Deployment
+# (must match `bootstrapSecretName` in argocd/apps/semaphore/values.yaml).
+semaphore_bootstrap_secret_name: semaphore-bootstrap
+
+# Local directory on the home-server where generated material persists
+# across runs (admin password, encryption key, SSH keypair). Files here
+# are root:root 0600 — back them up if you ever wipe the server.
+semaphore_state_dir: /etc/semaphore-secrets
+
+# Initial admin account created on first Semaphore start. The password
+# is auto-generated and stored on the home-server (see semaphore_state_dir).
+semaphore_admin_username: admin
+semaphore_admin_email: admin@homeserver
+
+# Override to inject your *own* Ansible Vault password instead of letting
+# the role read it from the workstation. Set this in group_vars/all.yml,
+# vault-encrypted with itself:
+#   ansible-vault encrypt_string 'YOUR_VAULT_PW' --name 'semaphore_ansible_vault_password'
+# Leave empty to skip the vault password (Semaphore can still run any
+# playbook that doesn't use ansible-vault).
+semaphore_ansible_vault_password: ""

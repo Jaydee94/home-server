@@ -43,6 +43,7 @@ When the playbook finishes you'll see the ArgoCD URL and admin password. That's 
 | Operating System | **Ubuntu Server 24.04 LTS**            | Hardened, UFW firewall, NTP-synced, swap off               |
 | Kubernetes       | **k3s** (latest stable channel)        | Single-node, bundles Traefik, CoreDNS, local-path, metrics |
 | GitOps           | **ArgoCD** + ApplicationSets           | Drop a folder under `argocd/apps/`, push, it deploys       |
+| Web Ansible      | **Semaphore UI**                       | One-click `git pull && ansible-playbook` against your LAN  |
 | Remote access    | **Tailscale**                          | WireGuard mesh VPN — no port forwarding, no public IP      |
 | Ingress          | **Traefik v2** (bundled with k3s)      | HTTP/HTTPS routing into the cluster                        |
 | Provisioning     | **Ansible** (≥ 2.14)                   | Fully idempotent, role-per-concern, vault for secrets      |
@@ -192,6 +193,7 @@ Full architecture in **[docs/01-overview.md](docs/01-overview.md)**.
 | [ArgoCD GitOps](docs/05-argocd.md)                              | App workflow, CLI, sync policies            |
 | [Tailscale VPN](docs/06-tailscale.md)                           | Auth keys, MagicDNS, subnet routes          |
 | [Troubleshooting](docs/07-troubleshooting.md)                   | Diagnostic playbook for common failures     |
+| [Semaphore UI](docs/08-semaphore.md)                            | Web UI to run playbooks against Raspi/NAS   |
 
 ---
 
