@@ -153,6 +153,12 @@ victoria-metrics-k8s-stack:
     admin:
       existingSecret: ""        # leave empty → auto-generated password
 
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 472
+      runAsGroup: 472
+      fsGroup: 472
+
     persistence:
       enabled: true
       type: pvc
