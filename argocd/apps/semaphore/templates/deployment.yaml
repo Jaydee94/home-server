@@ -120,7 +120,10 @@ spec:
         - name: vault-password
           secret:
             secretName: {{ .Values.bootstrapSecretName }}
-            defaultMode: 0400
+            # 0440 (group read) is required: with fsGroup=1001 the file is
+            # owned root:1001, and the pod runs as UID 1001. 0400 would lock
+            # the pod out of its own vault password file.
+            defaultMode: 0440
             items:
               - key: ansible_vault_password
                 path: ansible_vault_password

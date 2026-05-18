@@ -8,13 +8,42 @@ nie wieder eine YAML-Datei an, um eine neue Aktion auszulösen.
 
 ## Was du am Ende hast
 
-- **`http://semaphore.homeserver`** (LAN) oder **`http://semaphore`** über
-  dein Tailscale-MagicDNS — beides ohne Port-Forwarding, ohne TLS-Cert.
+- **`http://semaphore.homeserver`** im LAN — funktioniert sofort, weil
+  dnsmasq auf dem Home-Server `*.homeserver` Wildcards bedient.
 - Ein-Klick-Run von Playbooks aus beliebigen Git-Repos
   (z.B. `home-server`, `ugreen-paperless`, später beliebig viele mehr).
 - Geteilter SSH-Key, der von Ansible verwaltet und automatisch auf alle
   konfigurierten Targets (Raspberry Pi, UGREEN NAS, …) verteilt wird.
 - Geteiltes Ansible-Vault-Password, sicher in einem k8s Secret abgelegt.
+
+### Zugriff über Tailscale von unterwegs
+
+Das aktuelle Setup bindet dnsmasq absichtlich nur an die LAN-IP, damit
+es nicht mit systemd-resolved kollidiert. Damit auflöst
+`semaphore.homeserver` aus dem Tailnet heraus *nicht* automatisch.
+Drei pragmatische Wege:
+
+1. **`/etc/hosts` Eintrag** auf dem Tailscale-Client:
+   ```
+   100.x.y.z   semaphore.homeserver argocd.homeserver headlamp.homeserver
+   ```
+   (`100.x.y.z` ist die Tailscale-IP deines Home-Servers, sichtbar mit
+   `tailscale ip -4` auf dem Server). Easiest fix, kein Server-Change.
+
+2. **Tailscale Subnet Routes + Split DNS** (sauberer): aktiviere für
+   den Subnet-Route-Advertise-Flag im Tailscale-Admin den
+   192.168.178.0/24-Range deines LANs, ergänze unter *DNS* einen
+   Split-DNS-Eintrag `homeserver` → `192.168.178.127`. Damit fragt der
+   Tailscale-Client für `*.homeserver` direkt deinen dnsmasq, der über
+   die Subnet-Route erreichbar ist.
+
+3. **Verzicht auf den Hostname**: greife per
+   `http://<tailscale-ip>:30080` für ArgoCD / per Port-Forward für
+   Semaphore zu — funktioniert ohne DNS-Anpassung, aber ohne Friendly
+   Names.
+
+Frag mich, falls du Variante 2 dauerhaft im Repo verankert haben willst —
+das wäre eine kleine Erweiterung der `dnsmasq`-Role + UFW-Regel.
 
 ## Architektur in zehn Sekunden
 
