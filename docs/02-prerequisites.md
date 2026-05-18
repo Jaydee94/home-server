@@ -48,7 +48,7 @@ ssh -V
 
 ## Target Server Requirements
 
-### Fresh Ubuntu 24.04 LTS Installation
+### Fresh Ubuntu 26.04 LTS Installation
 
 - **Minimal server install** (no desktop environment needed)
 - At least **4 GB RAM** (32 GB in this setup — well above minimum)
@@ -75,7 +75,7 @@ If your private key lives elsewhere, update `ansible_ssh_private_key_file` in `a
 
 ### Python 3 on the Server
 
-Ubuntu 24.04 ships with Python 3.12. Verify:
+Ubuntu 26.04 ships with Python 3.12. Verify:
 ```bash
 ssh ubuntu@192.168.1.100 "python3 --version"
 ```
@@ -214,7 +214,7 @@ grep "tailscale_auth_key:" ansible/group_vars/all.yml
 
 For a server, a static IP is strongly recommended. Configure it before running Ansible.
 
-On Ubuntu 24.04 (netplan):
+On Ubuntu 26.04 (netplan):
 
 ```bash
 # /etc/netplan/00-installer-config.yaml

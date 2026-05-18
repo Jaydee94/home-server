@@ -1,6 +1,6 @@
-# Ubuntu Server 24.04 LTS — Installation Guide
+# Ubuntu Server 26.04 LTS — Installation Guide
 
-This guide walks through installing **Ubuntu Server 24.04 LTS** on the home server. Use **Ubuntu Server** (not Desktop) — it's the supported base for the k3s cluster.
+This guide walks through installing **Ubuntu Server 26.04 LTS** on the home server. Use **Ubuntu Server** (not Desktop) — it's the supported base for the k3s cluster.
 
 ---
 
@@ -12,7 +12,7 @@ This guide walks through installing **Ubuntu Server 24.04 LTS** on the home serv
 | RAM       | ≥ 4 GB            | 32 GB                     |
 | Storage   | ≥ 20 GB           | 512 GB NVMe SSD           |
 | Network   | Wired Ethernet    | 1 Gbps                    |
-| OS        | Ubuntu Server 24.04 LTS (Noble Numbat) |
+| OS        | Ubuntu Server 26.04 LTS |
 
 ---
 
@@ -22,13 +22,13 @@ Download from the official site:
 
 <https://ubuntu.com/download/server>
 
-> Pick **Ubuntu Server**, not Ubuntu Desktop. Current LTS: **24.04.x (Noble Numbat)**.
+> Pick **Ubuntu Server**, not Ubuntu Desktop. Current LTS: **26.04.x**.
 
 Optional but recommended — verify the SHA256 sum:
 
 ```bash
-sha256sum ubuntu-24.04.*-live-server-amd64.iso
-# Compare against: https://releases.ubuntu.com/24.04/SHA256SUMS
+sha256sum ubuntu-26.04.*-live-server-amd64.iso
+# Compare against: https://releases.ubuntu.com/26.04/SHA256SUMS
 ```
 
 ---
@@ -39,7 +39,7 @@ sha256sum ubuntu-24.04.*-live-server-amd64.iso
 
 ```bash
 lsblk                                                       # find your USB device, e.g. /dev/sdb
-sudo dd if=ubuntu-24.04.*-live-server-amd64.iso of=/dev/sdX bs=4M status=progress conv=fsync
+sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
 **macOS**
@@ -47,7 +47,7 @@ sudo dd if=ubuntu-24.04.*-live-server-amd64.iso of=/dev/sdX bs=4M status=progres
 ```bash
 diskutil list                                               # find your USB, e.g. /dev/disk4
 diskutil unmountDisk /dev/diskX
-sudo dd if=ubuntu-24.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
+sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 ```
 
 **Windows** — use [Rufus](https://rufus.ie).
@@ -195,7 +195,7 @@ sudo reboot
 
 ## Ready for Ansible — checklist
 
-- [ ] Ubuntu Server 24.04 LTS installed (not Desktop)
+- [ ] Ubuntu Server 26.04 LTS installed (not Desktop)
 - [ ] Username is `ubuntu`
 - [ ] Hostname matches `hostname` in `ansible/group_vars/all.yml` (default: `homeserver`)
 - [ ] SSH key login works (`ssh -i ~/.ssh/id_ed25519 ubuntu@<ip>`)

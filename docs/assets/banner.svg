@@ -68,7 +68,7 @@
     <g transform="translate(384,278)" font-size="20" font-weight="600">
       <g>
         <rect x="0"   y="0" rx="14" ry="14" width="148" height="40" fill="#0F172A" stroke="#1E40AF" stroke-width="1.5"/>
-        <text x="74"  y="27" text-anchor="middle" fill="#93C5FD">Ubuntu 24.04</text>
+        <text x="74"  y="27" text-anchor="middle" fill="#93C5FD">Ubuntu 26.04</text>
       </g>
       <g transform="translate(160,0)">
         <rect x="0"   y="0" rx="14" ry="14" width="78"  height="40" fill="#0F172A" stroke="#0E7490" stroke-width="1.5"/>

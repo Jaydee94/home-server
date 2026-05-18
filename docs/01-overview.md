@@ -27,7 +27,7 @@ This document describes the high-level architecture of the home server setup.
 │                    HOME SERVER (192.168.1.100)                      │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    Ubuntu 24.04 LTS                          │   │
+│  │                    Ubuntu 26.04 LTS                          │   │
 │  │  ┌────────────┐  ┌──────────────┐  ┌──────────────────────┐ │   │
 │  │  │ tailscaled │  │   chrony     │  │   UFW Firewall       │ │   │
 │  │  │ (Tailscale)│  │ (NTP sync)   │  │  (22,80,443,6443..)  │ │   │
@@ -85,7 +85,7 @@ Developer                Git Repo               ArgoCD              k3s Cluster
 
 ## Component Descriptions
 
-### Ubuntu 24.04 LTS (Base OS)
+### Ubuntu 26.04 LTS (Base OS)
 
 The foundation of the entire stack. Configured by the `common` Ansible role with:
 - Full `apt dist-upgrade` on every Ansible run (controlled by `auto_upgrade`)
