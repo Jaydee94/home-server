@@ -189,6 +189,9 @@ victoria-metrics-k8s-stack:
         labelValue: "1"
         folder: /var/lib/grafana/dashboards
         searchNamespace: ALL
+        # ConfigMaps annotated `grafana_folder: <name>` land in a Grafana
+        # folder of that name (combined with foldersFromFilesStructure below).
+        folderAnnotation: grafana_folder
         provider:
           name: default
           orgid: 1

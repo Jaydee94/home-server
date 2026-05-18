@@ -1,0 +1,24 @@
+{{- /*
+Wires VMAgent to ArgoCD's metrics endpoints. The argo-cd Helm chart already
+exposes a dedicated service per component (controller, server, repo-server,
+applicationset, notifications) with port name `metrics` and the standard
+`app.kubernetes.io/part-of: argocd` label.
+*/ -}}
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: argocd
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - argocd
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: argocd
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics

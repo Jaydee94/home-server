@@ -1,0 +1,45 @@
+{{- /*
+k3s ships Traefik as a bundled HelmChart; the cleanest way to tweak it is a
+HelmChartConfig in kube-system that merges into the bundled chart's values.
+This enables Prometheus metrics and creates a dedicated `traefik-metrics`
+service on port 9100 (port name: `metrics`) which the VMServiceScrape below
+targets.
+
+Reference:
+  https://docs.k3s.io/helm#customizing-packaged-components-with-helmchartconfig
+  https://github.com/traefik/traefik-helm-chart/blob/master/traefik/values.yaml
+*/ -}}
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    metrics:
+      prometheus:
+        entryPoint: metrics
+        addEntryPointsLabels: true
+        addRoutersLabels: true
+        addServicesLabels: true
+        service:
+          enabled: true
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: traefik
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/part-of: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  endpoints:
+    - port: metrics
+      interval: 30s
+      path: /metrics

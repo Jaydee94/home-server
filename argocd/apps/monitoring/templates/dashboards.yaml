@@ -1,0 +1,32 @@
+{{- /*
+Wraps every dashboards/*.json file in a ConfigMap labelled
+`grafana_dashboard: "1"`. Grafana's sidecar (grafana.sidecar.dashboards in
+values.yaml) discovers these and provisions them on the fly — no pod restart
+required when files change. The Grafana folder is set per-file via the
+`grafana_folder` annotation.
+*/ -}}
+{{- range $path, $_ := .Files.Glob "dashboards/*.json" }}
+{{- $name := regexReplaceAll "[^a-z0-9-]" (lower (trimSuffix ".json" (base $path))) "-" }}
+{{- $folder := "Homeserver" }}
+{{- if hasPrefix "k8s-" (base $path) }}
+{{-   $folder = "Kubernetes" }}
+{{- else if eq (base $path) "argocd.json" }}
+{{-   $folder = "Apps" }}
+{{- else if eq (base $path) "traefik.json" }}
+{{-   $folder = "Apps" }}
+{{- end }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-{{ $name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    grafana_dashboard: "1"
+    app.kubernetes.io/part-of: monitoring
+  annotations:
+    grafana_folder: {{ $folder | quote }}
+data:
+  {{ base $path }}: |-
+{{ $.Files.Get $path | indent 4 }}
+{{- end }}
