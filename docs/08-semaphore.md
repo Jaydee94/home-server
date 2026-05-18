@@ -21,28 +21,37 @@ nie wieder eine YAML-Datei an, um eine neue Aktion auszulösen.
 
 dnsmasq lauscht serverseitig schon auf `tailscale0` — fehlt nur noch,
 dass deine Tailscale-Clients den Home-Server als Nameserver für die
-`homeserver`-Domain nutzen:
+`homeserver`-Domain nutzen.
 
-1. Tailscale-IP des Home-Servers ablesen:
+1. **Tailscale-IP** des Home-Servers ablesen (nicht die LAN-IP — die
+   Tailscale-IP ist aus dem Tailnet überall direkt erreichbar, ohne
+   dass Subnet-Routes auf jedem Client aktiviert werden müssen):
    ```bash
    ssh jaydee@homeserver "tailscale ip -4"
    # z.B. 100.78.12.34
    ```
 2. [Tailscale Admin Console → DNS](https://login.tailscale.com/admin/dns)
-   öffnen:
-   - **Nameservers → Add nameserver → Custom**
-   - IP-Adresse aus Schritt 1 eintragen
-   - **Restrict to domain** anhaken, Domain `homeserver` eintippen
-   - Speichern
-3. Fertig. Auf jedem Tailscale-Client (Laptop, Handy, ...) löst
-   `semaphore.homeserver`, `argocd.homeserver` etc. jetzt sofort auf
-   die Server-IP auf und Traefik macht das Host-basierte Routing.
+   öffnen → Abschnitt **Nameservers**:
+   - **Add nameserver → Custom...**
+   - **Nameserver IP**: Wert aus Schritt 1
+   - **Restrict to search domains** anklicken (oder "Split DNS"
+     toggle, je nach UI-Version) → Domain: `homeserver`
+   - **Save**
+3. Fertig. Du brauchst keinen Global Nameserver und auch nicht
+   "Override DNS servers" — Split DNS reicht aus. Alle Queries auf
+   `*.homeserver` gehen jetzt vom Tailscale-Client direkt an dnsmasq
+   auf dem Home-Server, alle anderen Queries bleiben beim normalen
+   System-Resolver des Clients.
 
-Test:
+Test (vom Tailscale-Client):
 ```bash
 nslookup semaphore.homeserver
-# → sollte 192.168.178.127 (oder die Tailscale-IP via Subnet-Route) liefern
+# Expected: 192.168.178.127  (von dnsmasq aufgelöst)
 ```
+
+Falls die Auflösung nicht klappt: prüfe auf dem Server
+`sudo ss -lntu | grep :53` — dnsmasq sollte sowohl auf
+`192.168.178.127:53` als auch auf `100.x.y.z:53` (tailscale0) lauschen.
 
 ## Architektur in zehn Sekunden
 
