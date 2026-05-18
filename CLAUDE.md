@@ -130,6 +130,13 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Grafana sidecar + dashboards conflict**: Setting both `grafana.sidecar.dashboards.enabled: true` and `grafana.dashboards:` in the same values file causes a Helm template error. Use the sidecar only; default dashboards are shipped via labeled ConfigMaps.
 - **Grafana fresh DB**: If Grafana crashes with `no such column: is_service_account`, delete the corrupt `grafana.db` directly from the PVC on the host and restart the deployment. The PVC path is `/var/lib/rancher/k3s/storage/<pvc-name>_monitoring_monitoring-grafana/`.
 
+## Claude Skills
+
+| Skill | Invoke | What it does |
+|-------|--------|--------------|
+| cluster-health | `/cluster-health` | SSH health check — nodes, ArgoCD apps, pods, PVCs |
+| add-app | `/add-app` | Scaffold a new `argocd/apps/<name>/` following home-server conventions |
+
 ## Networking
 
 No public ports. All remote access is via Tailscale. Traefik handles HTTP/HTTPS ingress within the LAN/Tailnet on ports 80/443. ArgoCD UI is available on NodePorts 30080/30443.
