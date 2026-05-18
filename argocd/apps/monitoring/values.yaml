@@ -147,6 +147,9 @@ victoria-metrics-k8s-stack:
     enabled: true
     defaultDashboardsTimezone: browser
 
+    plugins:
+      - victoriametrics-metrics-datasource
+
     admin:
       existingSecret: ""        # leave empty → auto-generated password
 
