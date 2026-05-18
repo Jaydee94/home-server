@@ -1,0 +1,34 @@
+---
+apiVersion: v2
+name: monitoring
+description: |
+  Lightweight monitoring stack for the home-server k3s cluster.
+  Bundles VictoriaMetrics (single-node TSDB) with vmagent, vmalert,
+  Alertmanager, Grafana, kube-state-metrics, and node-exporter.
+
+  - Cluster: scrapes kubelet, cAdvisor, kube-apiserver, kube-state-metrics,
+    CoreDNS, and any ServiceMonitor/VMServiceScrape that apps create.
+  - Host: prometheus-node-exporter DaemonSet collects CPU/RAM/disk/network
+    of the underlying Ubuntu host.
+  - Apps: VMAgent has selectAllByDefault=true, so any VMServiceScrape /
+    VMPodScrape / Prometheus ServiceMonitor in any namespace is scraped.
+  - UI: Grafana is exposed via Traefik at http://grafana.homeserver
+    (add `grafana` to `dnsmasq_hosts` in ansible/group_vars/all.yml).
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - monitoring
+  - victoriametrics
+  - grafana
+  - prometheus
+  - observability
+home: https://docs.victoriametrics.com/helm/victoria-metrics-k8s-stack/
+sources:
+  - https://github.com/VictoriaMetrics/helm-charts
+maintainers:
+  - name: home-server-admin
+dependencies:
+  - name: victoria-metrics-k8s-stack
+    repository: https://victoriametrics.github.io/helm-charts
+    version: "*"

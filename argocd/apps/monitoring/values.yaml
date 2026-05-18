@@ -1,0 +1,289 @@
+---
+# ============================================================
+# Monitoring stack — values for victoria-metrics-k8s-stack.
+# All keys live under `victoria-metrics-k8s-stack:` because that
+# is the dependency name in Chart.yaml.
+#
+# Upstream values.yaml reference:
+#   https://github.com/VictoriaMetrics/helm-charts/blob/master/charts/victoria-metrics-k8s-stack/values.yaml
+# Chart docs:
+#   https://docs.victoriametrics.com/helm/victoria-metrics-k8s-stack/
+# ============================================================
+
+victoria-metrics-k8s-stack:
+  global:
+    clusterLabel: homeserver
+    cluster:
+      dnsDomain: cluster.local.
+
+  # ---- VictoriaMetrics Operator ----------------------------
+  # Installs VM CRDs (VMSingle, VMAgent, VMAlert, VMServiceScrape, ...).
+  # `crds.plain: true` renders CRDs as plain templates so ArgoCD can apply
+  # them — required because ArgoCD ignores Helm's `crds/` folder by default.
+  victoria-metrics-operator:
+    enabled: true
+    crds:
+      plain: true
+      cleanup:
+        # Deleting the chart leaves CRDs on the cluster (safer default).
+        enabled: false
+    admissionWebhooks:
+      # Avoid sync-loop races against the operator's webhook on first install.
+      policy: Ignore
+    operator:
+      # Auto-convert Prometheus ServiceMonitor → VMServiceScrape so apps
+      # that ship Prometheus-style monitors work out of the box.
+      disable_prometheus_converter: false
+
+  # ---- VictoriaMetrics single-node TSDB --------------------
+  # Single-node is plenty for a home server. Switch to vmcluster only if
+  # you ever push > 1M active series.
+  vmsingle:
+    enabled: true
+    spec:
+      retentionPeriod: "15d"       # h/d/w/y; unit-less = months
+      replicaCount: 1
+      extraArgs:
+        # Drop scrapes from misbehaving targets instead of blowing memory.
+        memory.allowedPercent: "60"
+      storage:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 10Gi
+
+  # ---- VMAgent ---------------------------------------------
+  # Scrapes everything matching a VMServiceScrape / VMPodScrape /
+  # VMNodeScrape / VMStaticScrape in any namespace. ServiceMonitors are
+  # auto-converted by the operator.
+  vmagent:
+    enabled: true
+    spec:
+      selectAllByDefault: true
+      scrapeInterval: 30s
+      externalLabels:
+        cluster: homeserver
+      extraArgs:
+        promscrape.streamParse: "true"
+
+  # ---- VMAlert ---------------------------------------------
+  vmalert:
+    enabled: true
+    spec:
+      selectAllByDefault: true
+      evaluationInterval: 30s
+
+  # ---- Alertmanager ----------------------------------------
+  # Default "blackhole" receiver: alerts are routed but silently dropped.
+  # To wire up Discord/Slack/Gotify later, replace `receivers` and `route`
+  # with a real configuration (see commented examples in the upstream
+  # values.yaml).
+  alertmanager:
+    enabled: true
+    spec:
+      replicaCount: 1
+    config:
+      route:
+        receiver: blackhole
+        group_by: ["alertname", "namespace"]
+        group_wait: 30s
+        group_interval: 5m
+        repeat_interval: 12h
+      receivers:
+        - name: blackhole
+      inhibit_rules:
+        - target_matchers:
+            - severity=~"warning|info"
+          source_matchers:
+            - severity=critical
+          equal:
+            - namespace
+            - alertname
+        - target_matchers:
+            - severity=info
+          source_matchers:
+            - severity=warning
+          equal:
+            - namespace
+            - alertname
+
+  # ---- Default alert rules ---------------------------------
+  defaultRules:
+    create: true
+    # Disable rules for components k3s does not expose as separate pods:
+    # controller-manager, scheduler, and etcd all run inside the single
+    # k3s server process. kubeProxy is also baked in.
+    groups:
+      etcd:
+        create: false
+      kubeScheduler:
+        create: false
+      kubernetesSystemScheduler:
+        create: false
+      kubernetesSystemControllerManager:
+        create: false
+
+  # ---- Default dashboards (cluster, nodes, VM components) ---
+  defaultDashboards:
+    enabled: true
+    defaultTimezone: browser
+    dashboards:
+      node-exporter-full:
+        enabled: true
+      victoriametrics-vmalert:
+        enabled: true
+      victoriametrics-operator:
+        enabled: true
+
+  # ---- Grafana --------------------------------------------
+  # Exposed at http://grafana.homeserver via Traefik. Admin password is
+  # auto-generated and stored in the `monitoring-grafana` Secret. Retrieve
+  # with:
+  #   kubectl -n monitoring get secret monitoring-grafana \
+  #     -o jsonpath='{.data.admin-password}' | base64 -d; echo
+  grafana:
+    enabled: true
+    defaultDashboardsTimezone: browser
+
+    admin:
+      existingSecret: ""        # leave empty → auto-generated password
+
+    persistence:
+      enabled: true
+      type: pvc
+      storageClassName: local-path
+      accessModes:
+        - ReadWriteOnce
+      size: 2Gi
+
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+
+    # Sidecar picks up any ConfigMap labelled `grafana_dashboard=1` —
+    # `defaultDashboards` above ships its dashboards this way, and you
+    # can drop extra ConfigMaps in the `monitoring` namespace to add more.
+    sidecar:
+      datasources:
+        enabled: true
+        label: grafana_datasource
+        labelValue: "1"
+      dashboards:
+        enabled: true
+        label: grafana_dashboard
+        labelValue: "1"
+        folder: /var/lib/grafana/dashboards
+        searchNamespace: ALL
+        provider:
+          name: default
+          orgid: 1
+          foldersFromFilesStructure: true
+
+    # Auto-load community dashboards on first start. IDs from
+    # https://grafana.com/grafana/dashboards/. Kept short on purpose —
+    # add more as you need them.
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+          - name: "extra"
+            orgId: 1
+            folder: "Extra"
+            type: file
+            disableDeletion: false
+            editable: true
+            options:
+              path: /var/lib/grafana/dashboards/extra
+    dashboards:
+      extra:
+        # Kubernetes / Views / Global (kube-state-metrics)
+        k8s-global:
+          gnetId: 15757
+          revision: 43
+          datasource: VictoriaMetrics
+        # Kubernetes / Views / Namespaces
+        k8s-namespaces:
+          gnetId: 15758
+          revision: 42
+          datasource: VictoriaMetrics
+        # Kubernetes / Views / Nodes
+        k8s-nodes:
+          gnetId: 15759
+          revision: 37
+          datasource: VictoriaMetrics
+        # Kubernetes / Views / Pods
+        k8s-pods:
+          gnetId: 15760
+          revision: 36
+          datasource: VictoriaMetrics
+        # Traefik 2 dashboard (covers the k3s-bundled Traefik once
+        # `--metrics.prometheus=true` is enabled on it).
+        traefik:
+          gnetId: 17347
+          revision: 9
+          datasource: VictoriaMetrics
+
+    ingress:
+      enabled: true
+      ingressClassName: traefik
+      annotations: {}
+      labels: {}
+      path: /
+      pathType: Prefix
+      hosts:
+        - grafana.homeserver
+      tls: []
+
+    # Grafana itself is scraped by VMAgent.
+    vmScrape:
+      enabled: true
+
+  # ---- prometheus-node-exporter ----------------------------
+  # DaemonSet: one pod per node (only the home-server here), exposes host
+  # CPU/RAM/disk/network/load. Mounts /proc and /sys read-only.
+  prometheus-node-exporter:
+    enabled: true
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 64Mi
+
+  # ---- kube-state-metrics ----------------------------------
+  kube-state-metrics:
+    enabled: true
+    resources:
+      requests:
+        cpu: 20m
+        memory: 32Mi
+      limits:
+        cpu: 200m
+        memory: 128Mi
+
+  # ---- Kubernetes component scraping ----------------------
+  # Enabled where k3s actually exposes the metric.
+  kubelet:
+    enabled: true
+  kubeApiServer:
+    enabled: true
+  coreDns:
+    enabled: true
+
+  # Disabled — k3s bakes these into a single process bound to 127.0.0.1.
+  kubeControllerManager:
+    enabled: false
+  kubeScheduler:
+    enabled: false
+  kubeProxy:
+    enabled: false
+  # k3s ships an embedded SQLite datastore by default; no etcd to scrape.
+  kubeEtcd:
+    enabled: false

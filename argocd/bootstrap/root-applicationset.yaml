@@ -33,6 +33,16 @@ spec:
         automated:
           prune: true
           selfHeal: true
+        # CRD/CR bootstrap (e.g. victoria-metrics-operator installs the
+        # VMSingle CRD and a VMSingle resource in one sync) needs the
+        # dry-run skip + retry to converge on the first reconciliation.
+        retry:
+          limit: 5
+          backoff:
+            duration: 10s
+            factor: 2
+            maxDuration: 5m
         syncOptions:
           - CreateNamespace=true
           - ServerSideApply=true
+          - SkipDryRunOnMissingResource=true

@@ -44,6 +44,7 @@ When the playbook finishes you'll see the ArgoCD URL and admin password. That's 
 | Kubernetes       | **k3s** (latest stable channel)        | Single-node, bundles Traefik, CoreDNS, local-path, metrics |
 | GitOps           | **ArgoCD** + ApplicationSets           | Drop a folder under `argocd/apps/`, push, it deploys       |
 | Web Ansible      | **Semaphore UI**                       | One-click `git pull && ansible-playbook` against your LAN  |
+| Monitoring       | **VictoriaMetrics + Grafana**          | Single-node TSDB, vmagent, vmalert, Alertmanager, dashboards |
 | Remote access    | **Tailscale**                          | WireGuard mesh VPN — no port forwarding, no public IP      |
 | Ingress          | **Traefik v2** (bundled with k3s)      | HTTP/HTTPS routing into the cluster                        |
 | Provisioning     | **Ansible** (≥ 2.14)                   | Fully idempotent, role-per-concern, vault for secrets      |
@@ -144,6 +145,33 @@ home-server/
 └── argocd/
     ├── bootstrap/root-applicationset.yaml  # Reference manifest
     └── apps/example-whoami/                # Example Helm chart
+```
+
+---
+
+## Monitoring
+
+A lightweight VictoriaMetrics + Grafana stack lives under
+`argocd/apps/monitoring/` and is rolled out by ArgoCD automatically.
+
+- **TSDB:** VMSingle (15 d retention, 10 Gi `local-path` PVC).
+- **Scrapers:** VMAgent picks up every `VMServiceScrape`/`VMPodScrape` and
+  any Prometheus `ServiceMonitor` (auto-converted by the operator).
+- **Host metrics:** `prometheus-node-exporter` DaemonSet covers the Ubuntu host.
+- **Cluster metrics:** kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS.
+  Scheduler / controller-manager / etcd scrapes are disabled — k3s bakes
+  them into a single process.
+- **Alerts:** Default kube-prometheus rule set, routed to a `blackhole`
+  receiver until you wire up Discord/Slack/Gotify in `values.yaml`.
+- **Dashboards:** Node Exporter Full, VictoriaMetrics, plus the Kubernetes
+  "Views / Global, Namespaces, Nodes, Pods" set from grafana.com.
+
+Open Grafana at **http://grafana.homeserver** (LAN + Tailnet via dnsmasq).
+Username `admin`, password from the auto-generated secret:
+
+```bash
+kubectl -n monitoring get secret monitoring-grafana \
+  -o jsonpath='{.data.admin-password}' | base64 -d; echo
 ```
 
 ---
