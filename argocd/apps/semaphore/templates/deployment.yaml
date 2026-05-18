@@ -17,6 +17,9 @@ spec:
       labels:
         {{- include "semaphore.selectorLabels" . | nindent 8 }}
     spec:
+      # Kubernetes injects SEMAPHORE_PORT=tcp://... for the in-namespace
+      # Service, which Semaphore mistakes for its own Port config and panics.
+      enableServiceLinks: false
       # The Semaphore image creates /etc/semaphore as UID 1001. Without
       # fsGroup the persistent volume mounts as root-only and the pod
       # fails to write its BoltDB. Matches the official upstream chart.
