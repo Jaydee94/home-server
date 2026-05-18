@@ -78,12 +78,13 @@ spec:
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
           env:
-            # Embedded BoltDB — no external Postgres/MySQL needed for a home setup.
-            # For BoltDB, SEMAPHORE_DB_HOST holds the full path to the .boltdb
-            # file (the variable is reused — the Semaphore source confirms this).
             - name: SEMAPHORE_DB_DIALECT
-              value: "bolt"
+              value: "sqlite"
             - name: SEMAPHORE_DB_HOST
+              value: "/etc/semaphore/database.db"
+            # Migrate existing BoltDB data to SQLite on first start (runs once,
+            # only when database.db does not yet exist). Safe to keep afterwards.
+            - name: SEMAPHORE_MIGRATE_FROM_BOLTDB
               value: "/etc/semaphore/database.boltdb"
             - name: SEMAPHORE_TMP_PATH
               value: "/tmp/semaphore"
