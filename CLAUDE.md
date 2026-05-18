@@ -85,6 +85,17 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 | `argocd_repo_url` | Git repo ArgoCD syncs from |
 | `tailscale_auth_key` | Vault-encrypted WireGuard auth key |
 
+## Monitoring
+
+`argocd/apps/monitoring/` — deployed automatically by ArgoCD.
+
+- **VMSingle** — TSDB (15-day retention, 10 Gi `local-path` PVC)
+- **VMAgent** — scrapes `VMServiceScrape`/`VMPodScrape` and auto-converts Prometheus `ServiceMonitor` CRDs
+- **Host metrics** — `prometheus-node-exporter` DaemonSet
+- **Cluster metrics** — kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS; scheduler/controller-manager/etcd scrapes are disabled (k3s runs them in a single process)
+- **Alerts** — default kube-prometheus rule set; routed to a `blackhole` receiver until Discord/Slack/Gotify is wired in `values.yaml`
+- **Grafana** — available at `http://grafana.homeserver` (LAN + Tailnet via dnsmasq); ships Node Exporter Full, VictoriaMetrics, and Kubernetes Views dashboards
+
 ## Networking
 
 No public ports. All remote access is via Tailscale. Traefik handles HTTP/HTTPS ingress within the LAN/Tailnet on ports 80/443. ArgoCD UI is available on NodePorts 30080/30443.
