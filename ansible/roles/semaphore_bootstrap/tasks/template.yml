@@ -30,6 +30,11 @@
       inventory_id: "{{ project_inventory_map[template_spec.inventory] | int }}"
       repository_id: "{{ repository_id | int }}"
       environment_id: null
+      vault_key_id: >-
+        {{ (project_key_map[template_spec.vault_key] | int)
+           if (template_spec.vault_key is defined
+               and template_spec.vault_key in project_key_map)
+           else None }}
       name: "{{ template_spec.name }}"
       playbook: "{{ template_spec.playbook }}"
       arguments: "[]"
