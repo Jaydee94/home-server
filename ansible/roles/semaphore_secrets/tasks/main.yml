@@ -142,7 +142,7 @@
         admin_email: {{ semaphore_admin_email | to_json }}
         admin_password: {{ semaphore_admin_password | to_json }}
         access_key_encryption: {{ semaphore_access_key_encryption | to_json }}
-        ansible_vault_password: {{ semaphore_ansible_vault_password | to_json }}
+        ansible_vault_password: {{ semaphore_vault_password | to_json }}
         ssh_private_key: {{ semaphore_ssh_private_key | to_json }}
         ssh_public_key: {{ semaphore_ssh_public_key | to_json }}
   no_log: true

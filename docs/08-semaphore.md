@@ -84,11 +84,11 @@ Semaphore das Vault-Password kennen. Verschlüssele es **mit sich selbst**:
 
 ```bash
 ansible-vault encrypt_string 'DEIN_VAULT_PW' \
-  --name 'semaphore_ansible_vault_password' --ask-vault-pass
+  --name 'semaphore_vault_password' --ask-vault-pass
 ```
 
 Den `!vault |…`-Block über den leeren Wert in
-`ansible/group_vars/all.yml` (`semaphore_ansible_vault_password`) pasten.
+`ansible/group_vars/all.yml` (`semaphore_vault_password`) pasten.
 
 ### 2. Targets in der Inventory eintragen
 
@@ -244,5 +244,5 @@ du es per UI anlegen:
 | `semaphore.homeserver` löst nicht | `semaphore` in `dnsmasq_hosts` (group_vars/all.yml), `make tailscale`, dann `--tags dnsmasq` |
 | Pod CrashLoopBackOff              | `kubectl -n semaphore logs deploy/semaphore` — meist fehlt das Bootstrap-Secret |
 | Playbook scheitert mit "Permission denied (publickey)" | `make semaphore-targets` lief nicht — Public Key fehlt in authorized_keys auf dem Ziel |
-| Vault-Passwort wird nicht erkannt | `semaphore_ansible_vault_password` ist leer oder mit falschem PW verschlüsselt |
+| Vault-Passwort wird nicht erkannt | `semaphore_vault_password` ist leer oder mit falschem PW verschlüsselt |
 | `semaphore-bootstrap` failt beim Login | Admin-PW in der UI geändert ohne `/etc/semaphore-secrets/admin_password` zu syncen, oder PVC enthält noch alte DB. Fix: PW dort hinterlegen oder PVC neu (löscht alle Projekte!). |

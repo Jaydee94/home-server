@@ -23,7 +23,7 @@ semaphore_admin_email: admin@homeserver
 # Override to inject your *own* Ansible Vault password instead of letting
 # the role read it from the workstation. Set this in group_vars/all.yml,
 # vault-encrypted with itself:
-#   ansible-vault encrypt_string 'YOUR_VAULT_PW' --name 'semaphore_ansible_vault_password'
+#   ansible-vault encrypt_string 'YOUR_VAULT_PW' --name 'semaphore_vault_password'
 # Leave empty to skip the vault password (Semaphore can still run any
 # playbook that doesn't use ansible-vault).
-semaphore_ansible_vault_password: ""
+semaphore_vault_password: ""
