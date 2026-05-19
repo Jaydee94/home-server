@@ -76,18 +76,19 @@ dnsmasq_hosts:
 
 # ---- Semaphore UI -----------------------------------------
 # Master Ansible-Vault password — same value you type when running
-# `ansible-playbook --ask-vault-pass`. Semaphore mounts this so playbooks
-# triggered from the UI can decrypt vault-encrypted vars. To set:
+# `ansible-playbook --ask-vault-pass`. Semaphore uses this so playbooks
+# triggered from the UI can decrypt vault-encrypted vars. To rotate:
 #
-#   1) Pick a strong password and use it for `--ask-vault-pass`.
-#   2) Encrypt that same password with itself:
-#        ansible-vault encrypt_string 'YOUR_VAULT_PW' \
-#          --name 'semaphore_ansible_vault_password'
-#   3) Paste the `!vault |` block over the value below.
-#
-# Leave empty if none of your repos uses ansible-vault — Semaphore still
-# works for non-encrypted playbooks.
-semaphore_ansible_vault_password: ""
+#   ansible-vault encrypt_string 'YOUR_VAULT_PW' \
+#     --name 'semaphore_vault_password'
+#   then paste the resulting `!vault |` block over the value below.
+semaphore_vault_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          34366462666430616162393037613935373364666564323933656533353961336262336130333735
+          3635333135613265666534353030643362623933663633320a373730633261303766616134376539
+          65333537343963356237356265306462303432356530623732363037343833386131613439386663
+          3637353530353538660a633234343661316332626135623264366564356337653733613763396663
+          3664
 
 # ---- Semaphore projects (auto-bootstrap) ------------------
 # After Semaphore is reachable, the `semaphore_bootstrap` role calls the
