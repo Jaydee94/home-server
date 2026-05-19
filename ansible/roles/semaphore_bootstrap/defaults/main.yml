@@ -26,7 +26,7 @@ semaphore_ssh_private_key_path: "/etc/semaphore-secrets/id_ed25519"
 semaphore_api_ready_retries: 60   # 60 * 5s = 5 min
 semaphore_api_ready_delay: 5
 
-# Two access keys are created in every project — name them once here.
+# Three access keys are created in every project — name them once here.
 # `login` is only relevant for the ssh-type entry.
 semaphore_default_keys:
   - name: semaphore-ssh-key
@@ -34,6 +34,8 @@ semaphore_default_keys:
     login: jaydee
   - name: git-none
     type: none
+  - name: vault-password
+    type: login_password
 
 # ============================================================
 # Desired state: list of projects to provision in Semaphore.
@@ -58,6 +60,7 @@ semaphore_projects:
       - name: "Deploy Home Server"
         playbook: ansible/site.yml
         inventory: homeservers
+        vault_key: vault-password
         description: "Run the full site.yml against the home-server (recursive)."
 
   - name: ugreen-paperless
@@ -77,4 +80,5 @@ semaphore_projects:
       - name: "Deploy ugreen-paperless"
         playbook: ugreen-paperless.yml
         inventory: ugreen-nas
+        vault_key: vault-password
         description: "Provision Paperless-ngx stack on the UGREEN NAS."
