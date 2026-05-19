@@ -56,7 +56,10 @@ resources:
 # before ArgoCD reconciles this Application.
 bootstrapSecretName: semaphore-bootstrap
 
-# Where the Ansible Vault password file gets mounted (read-only) inside
-# the pod. Semaphore points ANSIBLE_VAULT_PASSWORD_FILE at this path so
-# every playbook run can decrypt vault-encrypted vars.
-vaultPasswordMountPath: /var/run/semaphore-secrets/vault-password
+# Directory where the bootstrap Secret is mounted (read-only) inside the
+# pod. The Secret projects `ansible_vault_password` into this directory,
+# and ANSIBLE_VAULT_PASSWORD_FILE points at that file so every playbook
+# run can decrypt vault-encrypted vars. Mounting as a directory (no
+# subPath) is required for fsGroup to apply — with subPath the file
+# would be root:root and unreadable by the UID 1001 pod.
+vaultPasswordMountDir: /var/run/semaphore-secrets

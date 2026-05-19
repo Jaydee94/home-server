@@ -118,7 +118,7 @@ spec:
 
             # Hand ansible-playbook the vault password from the mounted file.
             - name: ANSIBLE_VAULT_PASSWORD_FILE
-              value: {{ .Values.vaultPasswordMountPath | quote }}
+              value: {{ printf "%s/ansible_vault_password" .Values.vaultPasswordMountDir | quote }}
 
             - name: SEMAPHORE_LDAP_ACTIVATED
               value: "no"
@@ -128,9 +128,12 @@ spec:
               mountPath: /etc/semaphore
             - name: tmp
               mountPath: /tmp/semaphore
+            # Mount as a directory (no subPath) so fsGroup=1001 is applied
+            # by the kubelet and the projected file is readable by the pod
+            # (root:1001 0440). With subPath, fsGroup is skipped and the
+            # file ends up root:root 0440 — unreadable by UID 1001.
             - name: vault-password
-              mountPath: {{ .Values.vaultPasswordMountPath | quote }}
-              subPath: ansible_vault_password
+              mountPath: {{ .Values.vaultPasswordMountDir | quote }}
               readOnly: true
 
           # Use "/" like the official semaphoreui chart — /api/ping is not
@@ -166,9 +169,9 @@ spec:
         - name: vault-password
           secret:
             secretName: {{ .Values.bootstrapSecretName }}
-            # 0440 (group read) is required: with fsGroup=1001 the file is
-            # owned root:1001, and the pod runs as UID 1001. 0400 would lock
-            # the pod out of its own vault password file.
+            # 0440 + fsGroup=1001 = file owned root:1001 mode 0440,
+            # readable by the pod's GID 1001. fsGroup only applies because
+            # the mount above is a directory mount (no subPath).
             defaultMode: 0440
             items:
               - key: ansible_vault_password
