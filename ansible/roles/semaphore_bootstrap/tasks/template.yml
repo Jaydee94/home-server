@@ -20,6 +20,14 @@
           | selectattr('name', 'equalto', template_spec.name)
           | list | length) > 0 }}
 
+- name: Find existing template id for {{ template_spec.name }}
+  ansible.builtin.set_fact:
+    template_id: >-
+      {{ (sem_tpl_existing.json
+           | selectattr('name', 'equalto', template_spec.name)
+           | list | first | default({})).id | default(none) }}
+  when: template_exists
+
 - name: Create template {{ template_spec.name }}
   ansible.builtin.uri:
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates"
@@ -48,3 +56,37 @@
       Cookie: "{{ semaphore_cookie }}"
     status_code: [200, 201, 204]
   when: not template_exists
+
+# Existing templates may pre-date the vault_key_id wiring (or other field
+# changes). PUT the full desired body so re-running the bootstrap is
+# self-healing — Semaphore replaces the row wholesale.
+- name: Update template {{ template_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates/{{ template_id | int }}"
+    method: PUT
+    body_format: json
+    body:
+      id: "{{ template_id | int }}"
+      project_id: "{{ project_id | int }}"
+      inventory_id: "{{ project_inventory_map[template_spec.inventory] | int }}"
+      repository_id: "{{ repository_id | int }}"
+      environment_id: null
+      vault_key_id: >-
+        {{ (project_key_map[template_spec.vault_key] | int)
+           if (template_spec.vault_key is defined
+               and template_spec.vault_key in project_key_map)
+           else None }}
+      name: "{{ template_spec.name }}"
+      playbook: "{{ template_spec.playbook }}"
+      arguments: "[]"
+      description: "{{ template_spec.description | default('') }}"
+      allow_override_args_in_task: false
+      app: ansible
+      git_branch: "{{ project_spec.repository.branch | default('main') }}"
+      type: ""
+      suppress_success_alerts: false
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    status_code: [200, 204]
+  when: template_exists
+  changed_when: false
