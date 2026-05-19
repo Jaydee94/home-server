@@ -47,9 +47,22 @@
       Cookie: "{{ semaphore_cookie }}"
     status_code: [200, 201, 204]
   no_log: true
+  register: sem_key_create
+  failed_when: false
   when:
     - not key_exists
     - key_spec.type == "ssh"
+
+- name: Fail with visible HTTP details if SSH key creation failed
+  ansible.builtin.fail:
+    msg: >-
+      SSH key creation returned HTTP {{ sem_key_create.status }}:
+      {{ sem_key_create.msg | default(sem_key_create.json | default('no body') | string) }}
+  when:
+    - not key_exists
+    - key_spec.type == "ssh"
+    - sem_key_create is not skipped
+    - sem_key_create.status not in [200, 201, 204]
 
 - name: Create None access key in project {{ project_spec.name }}
   ansible.builtin.uri:
@@ -66,3 +79,36 @@
   when:
     - not key_exists
     - key_spec.type == "none"
+
+- name: Create login_password key in project {{ project_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/keys"
+    method: POST
+    body_format: json
+    body:
+      name: "{{ key_spec.name }}"
+      type: login_password
+      project_id: "{{ project_id | int }}"
+      login_password:
+        login: ""
+        password: "{{ semaphore_vault_password }}"
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    status_code: [200, 201, 204]
+  no_log: true
+  register: sem_vaultkey_create
+  failed_when: false
+  when:
+    - not key_exists
+    - key_spec.type == "login_password"
+
+- name: Fail with HTTP details if vault key creation failed
+  ansible.builtin.fail:
+    msg: >-
+      Vault key creation returned HTTP {{ sem_vaultkey_create.status }}:
+      {{ sem_vaultkey_create.msg | default('no message') }}
+  when:
+    - not key_exists
+    - key_spec.type == "login_password"
+    - sem_vaultkey_create is not skipped
+    - sem_vaultkey_create.status not in [200, 201, 204]
