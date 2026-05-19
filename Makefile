@@ -28,7 +28,7 @@ check: ## Dry-run the full playbook (no changes applied).
 install: deps ## Provision the home server end-to-end.
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) $(VAULT_OPTS)
 
-.PHONY: common tailscale k3s argocd semaphore semaphore-targets semaphore-bootstrap
+.PHONY: common tailscale k3s argocd semaphore semaphore-targets semaphore-bootstrap semaphore-bootstrap-local
 common: ## Run only the `common` role (base OS, firewall, packages).
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags common $(VAULT_OPTS)
 
@@ -49,6 +49,12 @@ semaphore-targets: ## Push Semaphore SSH key to all managed targets.
 
 semaphore-bootstrap: ## Provision Projects/Inventories/Templates in Semaphore via API.
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags semaphore-bootstrap $(VAULT_OPTS)
+
+semaphore-bootstrap-local: ## Bootstrap Semaphore natively on the home server (no SSH).
+	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) \
+	    --connection local \
+	    --extra-vars "ansible_host=127.0.0.1 ansible_user=$$(whoami)" \
+	    --tags semaphore-bootstrap $(VAULT_OPTS)
 
 .PHONY: lint
 lint: ## Lint YAML, Ansible, and Helm chart.
