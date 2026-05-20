@@ -103,6 +103,21 @@ semaphore_vault_password: !vault |
 # creates resources that don't already exist — to change an existing one,
 # delete it in the UI and re-run `make semaphore-bootstrap`.
 
+# ---- Scanner / Paperless Ingestion ------------------------
+# Fujitsu USB-Scanner direkt am Home-Server; scanbd hört auf den
+# Hardware-Button und schreibt Scans als PDF in den SMB-Share der
+# UGREEN NAS, von wo Paperless-NGX sie automatisch einliest.
+# Vollständige Migrations-Checkliste: docs/10-scanner.md.
+#
+# USB-IDs auf dem Host ermitteln (`lsusb | grep -i fujitsu`):
+# scanner_usb_vendor_id: "04c5"
+# scanner_usb_product_id: "xxxx"   # MUSS gesetzt sein
+#
+# Das SMB-Passwort MUSS vault-encrypted sein. Hinweis in docs/10-scanner.md.
+#   ansible-vault encrypt_string 'DEIN_SMB_PASSWORT' \
+#     --name 'scanner_smb_password'
+# scanner_smb_password: !vault | ...
+
 # ---- Optional: configure a static IP via Netplan ----------
 # Set to true to have Ansible deploy /etc/netplan/99-static.yaml.
 # WARNING: the SSH session will briefly drop while the new IP is applied.

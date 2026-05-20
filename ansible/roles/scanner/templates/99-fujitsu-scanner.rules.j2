@@ -1,0 +1,4 @@
+# ANSIBLE MANAGED — scanner role
+# /etc/udev/rules.d/99-fujitsu-scanner.rules
+# Fujitsu USB scanner: assign to group "scanner", mode 0660, expose to SANE.
+SUBSYSTEM=="usb", ATTRS{idVendor}=="{{ scanner_usb_vendor_id }}", ATTRS{idProduct}=="{{ scanner_usb_product_id }}", ENV{libsane_matched}="yes", GROUP="scanner", MODE="0660", TAG+="uaccess"

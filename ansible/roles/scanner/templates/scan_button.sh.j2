@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# ANSIBLE MANAGED — scanner role
+# Triggered by scanbd when the hardware scan button is pressed.
+# Serialises concurrent button events via flock and delegates the
+# actual scan + PDF assembly to scan_to_pdf.sh.
+
+set -euo pipefail
+
+LOCK_FILE="{{ scanner_lock_path }}"
+SCAN_TO_PDF="{{ scanner_scripts_dir }}/scan_to_pdf.sh"
+
+log_info()  { logger -t scanbd-scan -p user.info  "$*"; }
+log_warn()  { logger -t scanbd-scan -p user.warning "$*"; }
+log_error() { logger -t scanbd-scan -p user.err   "$*"; }
+
+on_error() {
+    local rc=$?
+    local line=$1
+    log_error "scan_button.sh failed (line ${line}, rc=${rc})"
+{% if scanner_failed_marker_in_consume %}
+    local ts marker
+    ts="$(date +%Y%m%d-%H%M%S)"
+    marker="{{ scanner_consume_mountpoint }}/scan-FAILED-${ts}.failed"
+    {
+        echo "scan_button.sh failed at ${ts}"
+        echo "line=${line} rc=${rc}"
+        echo "see: journalctl -t scanbd-scan --since '1 hour ago'"
+    } > "${marker}" 2>/dev/null || true
+{% endif %}
+    exit "${rc}"
+}
+trap 'on_error ${LINENO}' ERR
+
+run_scan() {
+    log_info "scan_button: starting scan pipeline"
+    "${SCAN_TO_PDF}"
+    log_info "scan_button: scan pipeline finished successfully"
+}
+
+# Non-blocking lock: skip if a scan is already running.
+if ! flock -n 9; then
+    log_warn "scan already in progress, skipping"
+    exit 0
+fi 9>"${LOCK_FILE}"
+
+(
+    flock -n 9 || { log_warn "scan already in progress, skipping"; exit 0; }
+    run_scan
+) 9>"${LOCK_FILE}"

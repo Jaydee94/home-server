@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# ANSIBLE MANAGED — scanner role
+# Hourly health check: NAS mount + scanner device availability.
+# Both checks run independently so a scanner failure does not mask
+# (or skip) a missing mount.
+
+set -euo pipefail
+
+MOUNTPOINT="{{ scanner_consume_mountpoint }}"
+SCANNER_USER="{{ scanner_systemd_user }}"
+
+log_info()  { logger -t scanner-healthcheck -p user.info  "$*"; }
+log_warn()  { logger -t scanner-healthcheck -p user.warning "$*"; }
+log_error() { logger -t scanner-healthcheck -p user.err   "$*"; }
+
+# Derive the automount unit name from the mountpoint
+# (e.g. /mnt/paperless-consume → mnt-paperless\x2dconsume.automount).
+automount_unit() {
+    systemd-escape --suffix=automount --path "${MOUNTPOINT}"
+}
+
+check_mount() {
+    if mountpoint -q "${MOUNTPOINT}"; then
+        log_info "mount ok: ${MOUNTPOINT}"
+        return 0
+    fi
+
+    local unit
+    unit="$(automount_unit)"
+    log_warn "mount missing: ${MOUNTPOINT} — restarting ${unit}"
+    if systemctl restart "${unit}" >/dev/null 2>&1; then
+        sleep 2
+        if mountpoint -q "${MOUNTPOINT}"; then
+            log_info "mount recovered via ${unit}"
+            return 0
+        fi
+    fi
+    log_error "mount recovery failed for ${MOUNTPOINT}"
+    return 1
+}
+
+check_scanner() {
+    if sudo -u "${SCANNER_USER}" scanimage -L >/dev/null 2>&1; then
+        log_info "scanner reachable via scanimage -L"
+        return 0
+    fi
+    log_error "scanner not reachable (scanimage -L failed)"
+    return 1
+}
+
+mount_rc=0
+scanner_rc=0
+check_mount    || mount_rc=$?
+check_scanner  || scanner_rc=$?
+
+# Service exits 0 unless both checks fail — a missing scanner alone
+# should not flap the unit; the journal entry is the alert surface.
+if [ "${mount_rc}" -ne 0 ] && [ "${scanner_rc}" -ne 0 ]; then
+    exit 1
+fi
+exit 0

@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# ANSIBLE MANAGED — scanner role
+# Scans all pages from the ADF and assembles a single PDF in the
+# Paperless consume directory. Driven by variables from the scanner
+# role; no hardcoded paths.
+
+set -euo pipefail
+
+BACKEND="{{ scanner_backend }}"
+RESOLUTION="{{ scanner_resolution_dpi }}"
+MODE="{{ scanner_mode }}"
+SOURCE="{{ scanner_paper_source }}"
+TMP_DIR="{{ scanner_tmp_dir }}"
+CONSUME_DIR="{{ scanner_consume_mountpoint }}"
+
+log_info()  { logger -t scanbd-scan -p user.info  "$*"; }
+log_error() { logger -t scanbd-scan -p user.err   "$*"; }
+
+on_error() {
+    local rc=$?
+    local line=$1
+    log_error "scan_to_pdf.sh failed (line ${line}, rc=${rc})"
+{% if scanner_failed_marker_in_consume %}
+    local ts marker
+    ts="$(date +%Y%m%d-%H%M%S)"
+    marker="${CONSUME_DIR}/scan-FAILED-${ts}.failed"
+    {
+        echo "scan_to_pdf.sh failed at ${ts}"
+        echo "line=${line} rc=${rc}"
+        echo "see: journalctl -t scanbd-scan --since '1 hour ago'"
+    } > "${marker}" 2>/dev/null || true
+{% endif %}
+    exit "${rc}"
+}
+trap 'on_error ${LINENO}' ERR
+
+ts="$(date +%Y%m%d-%H%M%S)"
+work_dir="$(mktemp -d "${TMP_DIR}/scan-${ts}-XXXXXX")"
+out_pdf="${CONSUME_DIR}/scan-${ts}.pdf"
+
+cleanup() {
+    rm -rf "${work_dir}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+log_info "scan_to_pdf: backend=${BACKEND} dpi=${RESOLUTION} mode=${MODE} source=${SOURCE}"
+
+scanimage \
+    --device-name "${BACKEND}" \
+    --batch="${work_dir}/page-%04d.tiff" \
+    --batch-prompt=no \
+    --format=tiff \
+    --resolution "${RESOLUTION}" \
+    --mode "${MODE}" \
+    --source "${SOURCE}"
+
+shopt -s nullglob
+pages=("${work_dir}"/page-*.tiff)
+shopt -u nullglob
+if [ "${#pages[@]}" -eq 0 ]; then
+    log_error "scan_to_pdf: scanimage produced no pages"
+    exit 1
+fi
+
+log_info "scan_to_pdf: assembling ${#pages[@]} page(s) into ${out_pdf}"
+convert "${pages[@]}" "${out_pdf}"
+sync
+
+log_info "scan_to_pdf: wrote ${out_pdf}"

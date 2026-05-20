@@ -1,0 +1,11 @@
+# ANSIBLE MANAGED — scanner role
+[Unit]
+Description=Run scanner healthcheck periodically
+
+[Timer]
+OnCalendar={{ scanner_healthcheck_oncalendar }}
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target

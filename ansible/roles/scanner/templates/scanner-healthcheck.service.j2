@@ -1,0 +1,13 @@
+# ANSIBLE MANAGED — scanner role
+[Unit]
+Description=Scanner mount + device healthcheck
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart={{ scanner_scripts_dir }}/healthcheck.sh
+User=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ scanner_log_dir }}

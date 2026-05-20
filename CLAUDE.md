@@ -19,6 +19,7 @@ make common         # Base OS, firewall, packages
 make tailscale      # VPN role
 make k3s            # Kubernetes + Helm role
 make argocd         # GitOps controller role
+make scanner        # Bare-metal Fujitsu scanner + scanbd + SMB mount
 make semaphore      # Bootstrap Semaphore Secret on the home-server
 make semaphore-targets  # Push Semaphore SSH key to all managed targets
 make semaphore-bootstrap # Provision Projects/Repos/Inventories/Templates in Semaphore via API
@@ -34,7 +35,7 @@ make clean          # Remove cached Ansible collections and temp artifacts
 ```
 Ansible (provisioning)
   └── ansible/site.yml          ← entry point; roles run in this order:
-        common → dnsmasq → tailscale → k3s → argocd → semaphore_secrets
+        common → dnsmasq → tailscale → k3s → argocd → scanner → semaphore_secrets
   └── ansible/group_vars/all.yml ← ALL configuration knobs; vault-encrypted secrets live here
   └── ansible/inventory/hosts.yml ← server address
 
@@ -114,6 +115,23 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 | `argocd_repo_url` | Git repo ArgoCD syncs from |
 | `tailscale_auth_key` | Vault-encrypted WireGuard auth key |
 | `semaphore_vault_password` | Vault-encrypted Ansible Vault password Semaphore uses to decrypt secrets in triggered playbooks |
+| `scanner_smb_share` | NAS share path for the Paperless consume directory |
+| `scanner_smb_username` | SMB user (password is vault-encrypted) |
+| `scanner_smb_password` | Vault-encrypted SMB password for the share |
+| `scanner_usb_vendor_id` / `scanner_usb_product_id` | USB IDs of the scanner (`lsusb`) |
+
+## Scanner / Paperless Ingestion
+
+- Fujitsu USB-Scanner sits directly on the home-server; `scanbd` runs as a
+  bare-metal systemd service hardened via drop-in (`User=saned`, `Group=scanner`,
+  `ProtectSystem=strict`, etc.) and the host's udev rule grants USB access via
+  `GROUP=scanner, MODE=0660, TAG+="uaccess"` instead of root.
+- Hardware button → `scanbd` → `scan_button.sh` (flock-guarded) → `scan_to_pdf.sh`
+  → PDF lands on the CIFS mount `/mnt/paperless-consume` (UGREEN NAS).
+- Paperless-NGX still runs on the UGREEN NAS and ingests from that directory.
+- An hourly `scanner-healthcheck.timer` re-mounts the share if it disappears
+  and probes the scanner via `scanimage -L`.
+- Full setup + verification + troubleshooting checklist: [`docs/10-scanner.md`](docs/10-scanner.md).
 
 ## Monitoring
 
@@ -137,6 +155,9 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Semaphore templates self-heal on bootstrap**: `tasks/template.yml` issues `PUT /api/project/{id}/templates/{tid}` for any template that already exists, with the full desired body. This is what fixes pre-existing templates whose `vault_key_id` is NULL because they were created before the vault-password wiring landed. The PUT uses `changed_when: false` because `uri` otherwise reports `changed` on every successful PUT even when the row is unchanged.
 - **Semaphore targets — SSH key prerequisite**: Before running `make semaphore-targets`, the Semaphore SSH public key must be authorized on each managed target. Fetch the pubkey from the server (`sudo cat /etc/semaphore-secrets/id_ed25519.pub`) and add it via `ssh-copy-id` or directly to `~/.ssh/authorized_keys` on the target host.
 - **Running semaphore-bootstrap locally on the server**: `make semaphore-bootstrap-local` runs the same playbook with `--connection local` so no SSH back to self is needed — useful when you're already SSH'd into the home-server. Relies on jaydee's passwordless sudo (configured by the `common` role). For non-interactive runs (cron, scripts), skip the vault prompt with `VAULT_OPTS="--vault-password-file=$HOME/.vault_pass"` (chmod 600).
+- **Scanner — `scanner_usb_product_id` must be set**: leaving it empty makes the role fail in pre-flight on purpose. A wildcard udev rule that matched every device with the same vendor would be worse than failing loudly. Run `lsusb` on the host and paste both IDs into `group_vars/all.yml`.
+- **Scanner — first run needs the NAS reachable**: `_netdev,nofail,x-systemd.automount` keeps the host boot non-fatal when the NAS is down, but `make scanner` itself calls `ansible.posix.mount state=mounted` which actually performs the mount. Bring the NAS up before the first run, or skip the mount task with `--skip-tags scanner` until the NAS is back.
+- **Scanner — ImageMagick refuses PDFs by default**: Debian/Ubuntu ship `policy.xml` with `rights="none" pattern="PDF"`. The role appends an `ANSIBLE MANAGED` block after that line; ImageMagick reads top-to-bottom and the last matching policy wins. Do not delete the upstream `rights="none"` line — that would break the package's conffile handling on upgrades.
 
 ## Claude Skills
 

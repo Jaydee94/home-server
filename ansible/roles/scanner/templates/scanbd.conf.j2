@@ -1,0 +1,45 @@
+# ANSIBLE MANAGED — scanner role
+# /etc/scanbd/scanbd.conf
+global {
+    debug               = true
+    debug-level         = 2
+    pidfile             = "/var/run/scanbd.pid"
+    timeout             = 1000
+    environment {
+        device  = "SCANBD_DEVICE"
+        action  = "SCANBD_ACTION"
+    }
+    function function_knob {
+        filter = "^message.*"
+        desc   = "Scan to file"
+    }
+    action scan {
+        filter = "^scan.*"
+        numerical-trigger {
+            from-value = 1
+            to-value   = 0
+        }
+        desc   = "Scan button pressed"
+        script = "{{ scanner_scripts_dir }}/scan_button.sh"
+    }
+    user  = "{{ scanner_systemd_user }}"
+    group = "{{ scanner_systemd_group }}"
+    saned {
+        user  = "{{ scanner_systemd_user }}"
+        group = "{{ scanner_systemd_group }}"
+    }
+}
+
+device {{ scanner_backend }} {
+    filter = "^{{ scanner_backend }}.*"
+    desc   = "{{ scanner_backend }} USB scanner"
+    action scan {
+        filter = "^scan.*"
+        numerical-trigger {
+            from-value = 1
+            to-value   = 0
+        }
+        desc   = "Hardware scan button"
+        script = "{{ scanner_scripts_dir }}/scan_button.sh"
+    }
+}

@@ -25,6 +25,8 @@
       tags: [k3s, kubernetes]
     - role: argocd
       tags: [argocd, gitops]
+    - role: scanner
+      tags: [scanner, paperless]
     - role: semaphore_secrets
       tags: [semaphore, semaphore-secrets]
 

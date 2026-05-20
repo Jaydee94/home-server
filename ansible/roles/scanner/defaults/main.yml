@@ -1,0 +1,42 @@
+---
+# ============================================================
+# scanner role defaults
+# ============================================================
+# Fujitsu USB-Scanner direkt am Home-Server; scanbd lauscht auf den
+# Hardware-Button und schreibt Scans als PDF auf einen SMB-Share der
+# UGREEN NAS, wo Paperless-NGX sie automatisch einliest.
+# Vollständige Migrations-Checkliste: docs/10-scanner.md.
+# ============================================================
+
+# ---- SMB / Mount ------------------------------------------
+scanner_smb_share: "//jays-ugreen/personal_folder/paperless/consume"
+scanner_smb_username: "paperless"
+scanner_consume_mountpoint: "/mnt/paperless-consume"
+scanner_smb_credentials_path: "/etc/cifs-credentials/paperless"
+scanner_smb_mount_options: >-
+  rw,vers=3.0,uid=root,gid=scanner,file_mode=0664,dir_mode=0775,_netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600
+
+# ---- Lokale Pfade -----------------------------------------
+scanner_tmp_dir: "/var/tmp/scanner"
+scanner_log_dir: "/var/log/scanner"
+scanner_scripts_dir: "/usr/local/lib/scanner"
+
+# ---- SANE / scanbd ----------------------------------------
+scanner_backend: "fujitsu"               # oder "epjitsu" je nach Modell
+scanner_resolution_dpi: 300
+scanner_mode: "Color"                    # Color | Gray | Lineart
+scanner_paper_source: "ADF Duplex"
+scanner_lock_path: "/run/scanner.lock"
+scanner_systemd_user: "saned"
+scanner_systemd_group: "scanner"
+scanner_failed_marker_in_consume: true
+
+# ---- USB / udev -------------------------------------------
+# Ermittlung per `lsusb` am Host. Product-ID muss gesetzt sein,
+# sonst bricht der Rollen-Lauf mit einer klaren Fehlermeldung ab.
+scanner_usb_vendor_id: "04c5"
+scanner_usb_product_id: ""
+
+# ---- Healthcheck-Timer ------------------------------------
+scanner_healthcheck_enabled: true
+scanner_healthcheck_oncalendar: "hourly"

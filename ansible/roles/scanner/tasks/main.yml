@@ -1,0 +1,259 @@
+---
+# ============================================================
+# scanner role — Fujitsu USB scanner + scanbd + SMB consume mount
+# ============================================================
+# Documentation: docs/10-scanner.md
+#
+# The scanner sits directly on the home-server via USB. scanbd listens
+# on the hardware button, scans through the ADF, builds a PDF and drops
+# it into a CIFS mount of the UGREEN NAS where Paperless-NGX picks it up.
+# ============================================================
+
+# ---- Pre-flight -------------------------------------------
+- name: Pre-flight — scanner_usb_product_id must be set
+  ansible.builtin.fail:
+    msg: >-
+      scanner_usb_product_id is empty. Determine the USB product ID on the
+      home-server with `lsusb` (look for the Fujitsu line) and set
+      scanner_usb_product_id in ansible/group_vars/all.yml. See
+      docs/10-scanner.md for the full procedure.
+  when: scanner_usb_product_id | default('') | length == 0
+
+- name: Pre-flight — scanner_smb_password must be defined
+  ansible.builtin.fail:
+    msg: >-
+      scanner_smb_password is not defined. Vault-encrypt it with
+      `ansible-vault encrypt_string '...' --name 'scanner_smb_password'`
+      and paste the resulting !vault block into ansible/group_vars/all.yml.
+  when: scanner_smb_password is not defined or (scanner_smb_password | length == 0)
+
+# ---- Packages ---------------------------------------------
+- name: Install scanner packages
+  ansible.builtin.apt:
+    name:
+      - sane
+      - sane-utils
+      - scanbd
+      - imagemagick
+      - cifs-utils
+      - bc
+      - util-linux
+    state: "{{ 'latest' if auto_upgrade else 'present' }}"
+    update_cache: true
+
+# ---- User & group -----------------------------------------
+- name: Ensure scanner group exists
+  ansible.builtin.group:
+    name: "{{ scanner_systemd_group }}"
+    state: present
+
+- name: Ensure saned is a member of the scanner group
+  ansible.builtin.user:
+    name: "{{ scanner_systemd_user }}"
+    groups: "{{ scanner_systemd_group }}"
+    append: true
+
+# ---- Directories ------------------------------------------
+- name: Create CIFS credentials directory
+  ansible.builtin.file:
+    path: "{{ scanner_smb_credentials_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Create scanner script directory
+  ansible.builtin.file:
+    path: "{{ scanner_scripts_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create scanner tmp directory
+  ansible.builtin.file:
+    path: "{{ scanner_tmp_dir }}"
+    state: directory
+    owner: root
+    group: "{{ scanner_systemd_group }}"
+    mode: "0755"
+
+- name: Create scanner log directory
+  ansible.builtin.file:
+    path: "{{ scanner_log_dir }}"
+    state: directory
+    owner: root
+    group: "{{ scanner_systemd_group }}"
+    mode: "0750"
+
+- name: Create Paperless consume mountpoint
+  ansible.builtin.file:
+    path: "{{ scanner_consume_mountpoint }}"
+    state: directory
+    owner: root
+    group: "{{ scanner_systemd_group }}"
+    mode: "0755"
+
+# ---- SMB credentials + mount ------------------------------
+- name: Deploy SMB credentials file
+  ansible.builtin.template:
+    src: smb-credentials.j2
+    dest: "{{ scanner_smb_credentials_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  no_log: true
+
+- name: Mount Paperless consume share (CIFS)
+  ansible.posix.mount:
+    state: mounted
+    fstype: cifs
+    src: "{{ scanner_smb_share }}"
+    path: "{{ scanner_consume_mountpoint }}"
+    opts: "credentials={{ scanner_smb_credentials_path }},{{ scanner_smb_mount_options }}"
+
+# ---- SANE / scanbd configuration --------------------------
+- name: Deploy SANE dll.conf
+  ansible.builtin.template:
+    src: sane-dll.conf.j2
+    dest: /etc/sane.d/dll.conf
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Deploy scanbd dll.conf
+  ansible.builtin.template:
+    src: scanbd-dll.conf.j2
+    dest: /etc/scanbd/dll.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart scanbd
+
+- name: Deploy scanbd.conf
+  ansible.builtin.template:
+    src: scanbd.conf.j2
+    dest: /etc/scanbd/scanbd.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart scanbd
+
+# ---- Shell scripts ----------------------------------------
+- name: Deploy scan_button.sh
+  ansible.builtin.template:
+    src: scan_button.sh.j2
+    dest: "{{ scanner_scripts_dir }}/scan_button.sh"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy scan_to_pdf.sh
+  ansible.builtin.template:
+    src: scan_to_pdf.sh.j2
+    dest: "{{ scanner_scripts_dir }}/scan_to_pdf.sh"
+    owner: root
+    group: root
+    mode: "0755"
+
+# ---- ImageMagick policy patch -----------------------------
+- name: Allow ImageMagick to write PDFs (managed block)
+  ansible.builtin.blockinfile:
+    path: /etc/ImageMagick-6/policy.xml
+    marker: "<!-- {mark} ANSIBLE MANAGED — scanner role -->"
+    insertbefore: "</policymap>"
+    block: |
+      <policy domain="coder" rights="read|write" pattern="PDF" />
+      <policy domain="coder" rights="read|write" pattern="TIFF" />
+    create: false
+
+# ---- systemd hardening for scanbd -------------------------
+- name: Ensure scanbd systemd drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/scanbd.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy scanbd systemd override
+  ansible.builtin.template:
+    src: scanbd-override.conf.j2
+    dest: /etc/systemd/system/scanbd.service.d/override.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify:
+    - Reload systemd
+    - Restart scanbd
+
+- name: Enable and start scanbd
+  ansible.builtin.systemd:
+    name: scanbd
+    enabled: true
+    state: started
+
+# ---- udev rule --------------------------------------------
+- name: Deploy Fujitsu udev rule
+  ansible.builtin.template:
+    src: 99-fujitsu-scanner.rules.j2
+    dest: /etc/udev/rules.d/99-fujitsu-scanner.rules
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload udev rules
+
+# ---- Healthcheck timer ------------------------------------
+- name: Deploy scanner healthcheck script
+  ansible.builtin.template:
+    src: scanner-healthcheck.sh.j2
+    dest: "{{ scanner_scripts_dir }}/healthcheck.sh"
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy scanner healthcheck service
+  ansible.builtin.template:
+    src: scanner-healthcheck.service.j2
+    dest: /etc/systemd/system/scanner-healthcheck.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Deploy scanner healthcheck timer
+  ansible.builtin.template:
+    src: scanner-healthcheck.timer.j2
+    dest: /etc/systemd/system/scanner-healthcheck.timer
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Enable and start scanner healthcheck timer
+  ansible.builtin.systemd:
+    name: scanner-healthcheck.timer
+    enabled: true
+    state: "{{ 'started' if scanner_healthcheck_enabled else 'stopped' }}"
+    daemon_reload: true
+
+# ---- Verification -----------------------------------------
+- name: Verify scanbd is active
+  ansible.builtin.command: systemctl is-active scanbd
+  register: scanner_scanbd_active
+  changed_when: false
+  failed_when: false
+
+- name: Show scanbd status
+  ansible.builtin.debug:
+    msg: "scanbd is {{ scanner_scanbd_active.stdout | default('unknown') }}"
+
+- name: Probe scanner devices via SANE
+  ansible.builtin.command: scanimage -L
+  register: scanner_devices
+  changed_when: false
+  failed_when: false
+
+- name: Show detected scanners
+  ansible.builtin.debug:
+    msg: "{{ scanner_devices.stdout_lines | default([]) }}"
