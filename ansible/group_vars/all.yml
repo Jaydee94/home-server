@@ -111,13 +111,19 @@ semaphore_vault_password: !vault |
 # Vollständige Migrations-Checkliste: docs/10-scanner.md.
 #
 # USB-IDs auf dem Host ermitteln (`lsusb | grep -i fujitsu`):
-# scanner_usb_vendor_id: "04c5"
-# scanner_usb_product_id: "xxxx"   # MUSS gesetzt sein
+scanner_usb_vendor_id: "04c5"
+scanner_usb_product_id: "132b"
 #
 # Das SMB-Passwort MUSS vault-encrypted sein. Hinweis in docs/10-scanner.md.
 #   ansible-vault encrypt_string 'DEIN_SMB_PASSWORT' \
 #     --name 'scanner_smb_password'
-# scanner_smb_password: !vault | ...
+scanner_smb_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          38376337663562376365653235303832613263333763356130346266356331326132356536336134
+          3230613564363762396363613562353162313930613439660a383361653563353236633465383337
+          65666435303130383263333464636365393238346334373637646465313263326263613262333037
+          3832393035343733340a633837356264323030323132613962636366633839373262373839386238
+          3261
 
 # ---- Gotify push notifications ----------------------------
 # Cluster-App: argocd/apps/gotify (Helm-Chart). Workflow + kubeseal-Schritte
@@ -129,9 +135,15 @@ semaphore_vault_password: !vault |
 #
 # 2) App-Token aus dem Gotify-Web-UI (Applications → Create → "Scanner"):
 #    ansible-vault encrypt_string 'AppTokenXXX' --name 'scanner_gotify_token'
-# scanner_gotify_enabled: true
-# scanner_gotify_url: "http://gotify.homeserver"
-# scanner_gotify_token: !vault | ...
+scanner_gotify_enabled: true
+scanner_gotify_url: "http://gotify.homeserver"
+scanner_gotify_token: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          65623337633331656466393962373263323334643031626530393466373661636437653430666132
+          6536366237353232363563636331323332306265633035360a653737353937613363633530613639
+          33616332386161373662316262393030663863366161346637303731623936313233623631616162
+          3237653831646364620a666135303263366465323436656139303161343732326261313030646564
+          6437
 
 # ---- Optional: configure a static IP via Netplan ----------
 # Set to true to have Ansible deploy /etc/netplan/99-static.yaml.
