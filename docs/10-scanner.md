@@ -11,7 +11,11 @@ the existing Paperless-NGX stack reads it out of
                                        └── scan_to_pdf.sh --> /mnt/paperless-consume
                                                                    │ (CIFS to NAS)
                                                                    └── Paperless-NGX (NAS)
+                                                       └── curl → Gotify (k3s) → push
 ```
+
+Push-Notifications für jeden Scan (Erfolg/Fehler) sind eine optionale
+Erweiterung — Setup in [`docs/11-gotify.md`](11-gotify.md).
 
 Paperless-NGX, its Postgres and Redis remain unchanged on the NAS — only
 the scanning daemon moves off the retired `kubepi` Raspberry Pi.
@@ -149,3 +153,6 @@ few seconds; Paperless-NGX on the NAS picks it up shortly after.
   and logs scanner reachability to the journal.
 - ImageMagick policy patch is an idempotent `blockinfile` (re-running the
   role is a no-op) instead of an in-place `sed`.
+- Optional Gotify push-notifications driven from the same scan scripts;
+  the app token lives in a `0640 root:scanner` env-file rather than in
+  the rendered shell script. Setup: [`docs/11-gotify.md`](11-gotify.md).

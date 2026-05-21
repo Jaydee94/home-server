@@ -1,0 +1,86 @@
+---
+replicaCount: 1
+
+image:
+  repository: gotify/server
+  pullPolicy: IfNotPresent
+  # Pinned for reproducibility. Bump to track upstream releases:
+  # https://hub.docker.com/r/gotify/server/tags
+  tag: "2.6.3"
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  # Gotify is configured (GOTIFY_SERVER_PORT below) to listen on 8080
+  # so the container can run as a non-root UID.
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  hosts:
+    - host: gotify.homeserver
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 1Gi
+  accessMode: ReadWriteOnce
+  mountPath: /app/data
+
+# Admin credentials are injected from the SealedSecret rendered by
+# templates/sealedsecret.yaml. See docs/11-gotify.md for the kubeseal
+# workflow that fills in `encryptedPassword` below.
+adminSecret:
+  enabled: true
+  username: admin
+  secretName: gotify-admin
+  # Generated with:
+  #   echo -n "<plaintext-password>" \
+  #     | kubeseal --raw --namespace gotify --name gotify-admin \
+  #         --from-file=/dev/stdin
+  encryptedPassword: "REPLACE_ME_WITH_KUBESEAL_OUTPUT"
+
+extraEnv: []
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

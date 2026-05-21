@@ -1,0 +1,17 @@
+---
+apiVersion: v2
+name: gotify
+description: Self-hosted Gotify push-notification server for scanner + alert notifications.
+type: application
+version: 0.1.0
+appVersion: "2.6.3"
+keywords:
+  - gotify
+  - notifications
+  - push
+  - scanner
+home: https://gotify.net
+sources:
+  - https://github.com/gotify/server
+maintainers:
+  - name: home-server-admin

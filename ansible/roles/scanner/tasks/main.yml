@@ -27,6 +27,18 @@
       and paste the resulting !vault block into ansible/group_vars/all.yml.
   when: scanner_smb_password is not defined or (scanner_smb_password | length == 0)
 
+- name: Pre-flight — Gotify URL + token must be set when notifications are enabled
+  ansible.builtin.fail:
+    msg: >-
+      scanner_gotify_enabled is true but scanner_gotify_url or scanner_gotify_token
+      is empty. Vault-encrypt the app token from the Gotify Web UI with
+      `ansible-vault encrypt_string '<token>' --name 'scanner_gotify_token'`
+      and set scanner_gotify_url (e.g. "http://gotify.homeserver") in
+      ansible/group_vars/all.yml. See docs/11-gotify.md.
+  when:
+    - scanner_gotify_enabled | bool
+    - (scanner_gotify_url | length == 0) or (scanner_gotify_token | length == 0)
+
 # ---- Packages ---------------------------------------------
 - name: Install scanner packages
   ansible.builtin.apt:
@@ -38,6 +50,7 @@
       - cifs-utils
       - bc
       - util-linux
+      - curl
     state: "{{ 'latest' if auto_upgrade else 'present' }}"
     update_cache: true
 
@@ -93,6 +106,23 @@
     owner: root
     group: "{{ scanner_systemd_group }}"
     mode: "0755"
+
+- name: Create scanner config directory
+  ansible.builtin.file:
+    path: "{{ scanner_gotify_env_dir }}"
+    state: directory
+    owner: root
+    group: "{{ scanner_systemd_group }}"
+    mode: "0750"
+
+- name: Deploy Gotify notification env-file
+  ansible.builtin.template:
+    src: gotify.env.j2
+    dest: "{{ scanner_gotify_env_path }}"
+    owner: root
+    group: "{{ scanner_systemd_group }}"
+    mode: "0640"
+  no_log: true
 
 # ---- SMB credentials + mount ------------------------------
 - name: Deploy SMB credentials file
