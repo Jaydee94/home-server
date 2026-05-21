@@ -111,8 +111,8 @@ semaphore_vault_password: !vault |
 # Vollständige Migrations-Checkliste: docs/10-scanner.md.
 #
 # USB-IDs auf dem Host ermitteln (`lsusb | grep -i fujitsu`):
-# scanner_usb_vendor_id: "04c5"
-# scanner_usb_product_id: "xxxx"   # MUSS gesetzt sein
+scanner_usb_vendor_id: "04c5"
+scanner_usb_product_id: "132b"
 #
 # Das SMB-Passwort MUSS vault-encrypted sein. Hinweis in docs/10-scanner.md.
 #   ansible-vault encrypt_string 'DEIN_SMB_PASSWORT' \
@@ -129,8 +129,8 @@ semaphore_vault_password: !vault |
 #
 # 2) App-Token aus dem Gotify-Web-UI (Applications → Create → "Scanner"):
 #    ansible-vault encrypt_string 'AppTokenXXX' --name 'scanner_gotify_token'
-# scanner_gotify_enabled: true
-# scanner_gotify_url: "http://gotify.homeserver"
+scanner_gotify_enabled: true
+scanner_gotify_url: "http://gotify.homeserver"
 # scanner_gotify_token: !vault | ...
 
 # ---- Optional: configure a static IP via Netplan ----------
