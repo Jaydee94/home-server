@@ -87,18 +87,19 @@ scanimage \
 shopt -s nullglob
 pages=("${work_dir}"/page-*.tiff)
 shopt -u nullglob
-if [ "${#pages[@]}" -eq 0 ]; then
+page_count=${#pages[@]}
+if [ "${page_count}" -eq 0 ]; then
     FAIL_REASON="Keine Seiten gescannt — ADF leer oder Scanner blockiert?"
     log_error "scan_to_pdf: scanimage produced no pages"
     exit 1
 fi
 
-log_info "scan_to_pdf: assembling ${#pages[@]} page(s) into ${out_pdf}"
+log_info "scan_to_pdf: assembling ${page_count} page(s) into ${out_pdf}"
 FAIL_REASON="PDF-Konvertierung fehlgeschlagen (ImageMagick policy.xml?)."
 convert "${pages[@]}" "${out_pdf}"
 sync
 
 log_info "scan_to_pdf: wrote ${out_pdf}"
 gotify_notify "✅ Scan erfolgreich" \
-    "📄 ${out_pdf##*/} (${#pages[@]} Seiten) → Paperless" \
+    "📄 ${out_pdf##*/} (${page_count} Seiten) → Paperless" \
     "${GOTIFY_PRIORITY_SUCCESS:-5}"
