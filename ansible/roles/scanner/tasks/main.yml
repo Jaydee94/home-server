@@ -217,11 +217,15 @@
     - Reload systemd
     - Restart scanbd
 
+- name: Flush handlers before starting scanbd
+  ansible.builtin.meta: flush_handlers
+
 - name: Enable and start scanbd
   ansible.builtin.systemd:
     name: scanbd
     enabled: true
     state: started
+    daemon_reload: true
 
 # ---- udev rule --------------------------------------------
 - name: Deploy Fujitsu udev rule
