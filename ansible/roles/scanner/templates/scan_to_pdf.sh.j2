@@ -13,13 +13,41 @@ SOURCE="{{ scanner_paper_source }}"
 TMP_DIR="{{ scanner_tmp_dir }}"
 CONSUME_DIR="{{ scanner_consume_mountpoint }}"
 
+# Load Gotify settings (GOTIFY_ENABLED, GOTIFY_URL, GOTIFY_TOKEN, ...).
+# File is 0640 root:scanner — readable for saned via the scanner group.
+# shellcheck disable=SC1091
+[ -r "{{ scanner_gotify_env_path }}" ] && . "{{ scanner_gotify_env_path }}"
+
 log_info()  { logger -t scanbd-scan -p user.info  "$*"; }
+log_warn()  { logger -t scanbd-scan -p user.warning "$*"; }
 log_error() { logger -t scanbd-scan -p user.err   "$*"; }
+
+gotify_notify() {
+    local title="$1" message="$2" priority="$3"
+    [ "${GOTIFY_ENABLED:-0}" = "1" ] || return 0
+    [ -n "${GOTIFY_URL:-}" ] && [ -n "${GOTIFY_TOKEN:-}" ] || return 0
+    if ! curl -fsS --connect-timeout "${GOTIFY_TIMEOUT:-5}" \
+        -X POST "${GOTIFY_URL%/}/message" \
+        -H "X-Gotify-Key: ${GOTIFY_TOKEN}" \
+        -F "title=${title}" \
+        -F "message=${message}" \
+        -F "priority=${priority}" \
+        >/dev/null 2>&1; then
+        log_warn "gotify notify failed (curl rc=$?)"
+    fi
+}
+
+# Reason for the current failure — set just before any command that may fail
+# so the ERR trap can include a meaningful Gotify message.
+FAIL_REASON="Unbekannter Fehler — siehe journalctl -t scanbd-scan."
 
 on_error() {
     local rc=$?
     local line=$1
-    log_error "scan_to_pdf.sh failed (line ${line}, rc=${rc})"
+    log_error "scan_to_pdf.sh failed (line ${line}, rc=${rc}): ${FAIL_REASON}"
+    gotify_notify "❌ Scan fehlgeschlagen" \
+        "${FAIL_REASON} (rc=${rc}, line=${line})" \
+        "${GOTIFY_PRIORITY_ERROR:-8}"
 {% if scanner_failed_marker_in_consume %}
     local ts marker
     ts="$(date +%Y%m%d-%H%M%S)"
@@ -27,6 +55,7 @@ on_error() {
     {
         echo "scan_to_pdf.sh failed at ${ts}"
         echo "line=${line} rc=${rc}"
+        echo "reason=${FAIL_REASON}"
         echo "see: journalctl -t scanbd-scan --since '1 hour ago'"
     } > "${marker}" 2>/dev/null || true
 {% endif %}
@@ -45,6 +74,7 @@ trap cleanup EXIT
 
 log_info "scan_to_pdf: backend=${BACKEND} dpi=${RESOLUTION} mode=${MODE} source=${SOURCE}"
 
+FAIL_REASON="scanimage abgebrochen — USB / ADF / Scanner-Treiber prüfen."
 scanimage \
     --device-name "${BACKEND}" \
     --batch="${work_dir}/page-%04d.tiff" \
@@ -58,12 +88,17 @@ shopt -s nullglob
 pages=("${work_dir}"/page-*.tiff)
 shopt -u nullglob
 if [ "${#pages[@]}" -eq 0 ]; then
+    FAIL_REASON="Keine Seiten gescannt — ADF leer oder Scanner blockiert?"
     log_error "scan_to_pdf: scanimage produced no pages"
     exit 1
 fi
 
 log_info "scan_to_pdf: assembling ${#pages[@]} page(s) into ${out_pdf}"
+FAIL_REASON="PDF-Konvertierung fehlgeschlagen (ImageMagick policy.xml?)."
 convert "${pages[@]}" "${out_pdf}"
 sync
 
 log_info "scan_to_pdf: wrote ${out_pdf}"
+gotify_notify "✅ Scan erfolgreich" \
+    "📄 ${out_pdf##*/} (${#pages[@]} Seiten) → Paperless" \
+    "${GOTIFY_PRIORITY_SUCCESS:-5}"

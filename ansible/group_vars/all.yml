@@ -73,6 +73,7 @@ dnsmasq_hosts:
   - semaphore
   - grafana
   - kubeseal-webgui
+  - gotify
 
 # ---- Semaphore UI -----------------------------------------
 # Master Ansible-Vault password — same value you type when running
@@ -117,6 +118,20 @@ semaphore_vault_password: !vault |
 #   ansible-vault encrypt_string 'DEIN_SMB_PASSWORT' \
 #     --name 'scanner_smb_password'
 # scanner_smb_password: !vault | ...
+
+# ---- Gotify push notifications ----------------------------
+# Cluster-App: argocd/apps/gotify (Helm-Chart). Workflow + kubeseal-Schritte
+# stehen in docs/11-gotify.md.
+#
+# 1) Admin-Passwort für das initiale Login (SealedSecret im Cluster):
+#    ansible-vault encrypt_string 'DEIN_ADMIN_PW' --name 'gotify_admin_password'
+# gotify_admin_password: !vault | ...
+#
+# 2) App-Token aus dem Gotify-Web-UI (Applications → Create → "Scanner"):
+#    ansible-vault encrypt_string 'AppTokenXXX' --name 'scanner_gotify_token'
+# scanner_gotify_enabled: true
+# scanner_gotify_url: "http://gotify.homeserver"
+# scanner_gotify_token: !vault | ...
 
 # ---- Optional: configure a static IP via Netplan ----------
 # Set to true to have Ansible deploy /etc/netplan/99-static.yaml.

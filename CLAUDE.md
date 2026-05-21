@@ -72,12 +72,13 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 
 ## Service URLs
 
-| Service   | URL                         | Notes                   |
-|-----------|-----------------------------|-------------------------|
-| Grafana   | http://grafana.homeserver   | user: `admin`           |
-| ArgoCD    | http://\<server-ip\>:30080  | HTTPS on 30443          |
-| Headlamp  | http://headlamp.homeserver  | Kubernetes dashboard    |
-| Semaphore | http://semaphore.homeserver | Ansible UI              |
+| Service   | URL                         | Notes                              |
+|-----------|-----------------------------|------------------------------------|
+| Grafana   | http://grafana.homeserver   | user: `admin`                      |
+| ArgoCD    | http://\<server-ip\>:30080  | HTTPS on 30443                     |
+| Headlamp  | http://headlamp.homeserver  | Kubernetes dashboard               |
+| Semaphore | http://semaphore.homeserver | Ansible UI                         |
+| Gotify    | http://gotify.homeserver    | Push notifications (docs/11-gotify.md) |
 
 ```bash
 # Retrieve Grafana admin password:

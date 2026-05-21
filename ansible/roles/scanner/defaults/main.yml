@@ -40,3 +40,16 @@ scanner_usb_product_id: ""
 # ---- Healthcheck-Timer ------------------------------------
 scanner_healthcheck_enabled: true
 scanner_healthcheck_oncalendar: "hourly"
+
+# ---- Gotify push notifications ----------------------------
+# Opt-in — bleibt false bis URL+Token gesetzt sind. Beides MUSS in
+# group_vars/all.yml (Token vault-encrypted!) gepflegt werden, sonst
+# bricht die Pre-flight ab.
+scanner_gotify_enabled: false
+scanner_gotify_url: ""                   # z.B. "http://gotify.homeserver"
+scanner_gotify_token: ""                 # App-Token, vault-encrypted
+scanner_gotify_env_dir: "/etc/scanner"
+scanner_gotify_env_path: "/etc/scanner/gotify.env"
+scanner_gotify_priority_success: 5
+scanner_gotify_priority_error: 8
+scanner_gotify_timeout_seconds: 5
