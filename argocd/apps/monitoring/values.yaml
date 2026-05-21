@@ -159,6 +159,9 @@ victoria-metrics-k8s-stack:
       runAsGroup: 472
       fsGroup: 472
 
+    initChownData:
+      enabled: false
+
     persistence:
       enabled: true
       type: pvc
