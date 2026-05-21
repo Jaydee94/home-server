@@ -117,7 +117,13 @@ scanner_usb_product_id: "132b"
 # Das SMB-Passwort MUSS vault-encrypted sein. Hinweis in docs/10-scanner.md.
 #   ansible-vault encrypt_string 'DEIN_SMB_PASSWORT' \
 #     --name 'scanner_smb_password'
-# scanner_smb_password: !vault | ...
+scanner_smb_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          38376337663562376365653235303832613263333763356130346266356331326132356536336134
+          3230613564363762396363613562353162313930613439660a383361653563353236633465383337
+          65666435303130383263333464636365393238346334373637646465313263326263613262333037
+          3832393035343733340a633837356264323030323132613962636366633839373262373839386238
+          3261
 
 # ---- Gotify push notifications ----------------------------
 # Cluster-App: argocd/apps/gotify (Helm-Chart). Workflow + kubeseal-Schritte
