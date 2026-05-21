@@ -67,7 +67,7 @@ adminSecret:
   #   echo -n "<plaintext-password>" \
   #     | kubeseal --raw --namespace gotify --name gotify-admin \
   #         --from-file=/dev/stdin
-  encryptedPassword: "REPLACE_ME_WITH_KUBESEAL_OUTPUT"
+  encryptedPassword: "AgAkZFdthlPPVR7uZnu9U3OhEWq18sc1rXvt1V+AxEDqF+laIIfoJkm+U8T2qY8hgDNrsaWyejPFwNJ8a/aFlvPne1P/XnmOwttxAfJnNGzrmaGIZX0iJ1SHA83EzlrTv46dxMgTBg7tjLNCvatCTs8KCOk3xR3vvI/R6NyF3EdGy/8sd/Hwkc/0VjddECtaTBHtTUxPDiRuTNPgmdWbP1JJhrRozEO1Ryx0eLgbd3uU/IEvR3HiPNEOo3tINxkRPkLND1Snu1TrfI9AYY3QqrU+RborDlWHyLol5pbNSWW9/vEA3R1MCsWw6PgnKmMvmBjMRJmqPIi6AvuJMj8xtbdO6LT6D2gSjuwOMKwLGkX+OCUze0wIJEBzWyrUq3HgxzZmBMT4wMvGhFMEElwkUQWfUf597k0qrPELVBhRBgWA2ygbEupoDhg/tZiqLaLZTPyh3NSuV3K3NKGJHHjYRekP2nxcM6Qvd76HaUMPoTf8MnlkFoBsjO4nW4PE7Rxp+L5EMkXKx31cBNH5RYIiNpUM27lU25qaNYrWHYpsQVvCmWssol2F83UyeGxSwQxJI/0HtrIXi+VqG6Mlg0cQxEwNTBYWC10dHlluBOEWtAhOFD12WyL6p17JAuTsWJ5/glix3+GsqnMe3immCy+fi7k3VwmCmO6J+QtLhpvEWgzRTtGykFT4T56LG2d8+N1k4B8eixCElppK+WOvZm4qKpJ8IsxX5zifYDc="
 
 extraEnv: []
 
