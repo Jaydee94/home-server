@@ -6,7 +6,6 @@ Group={{ scanner_systemd_group }}
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-PrivateTmp=true
 PrivateDevices=false
 DeviceAllow=/dev/bus/usb rw
 ReadWritePaths={{ scanner_consume_mountpoint }} {{ scanner_tmp_dir }} {{ scanner_log_dir }} /run
