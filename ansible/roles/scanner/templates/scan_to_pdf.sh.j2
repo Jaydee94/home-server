@@ -87,7 +87,7 @@ scanimage \
 shopt -s nullglob
 pages=("${work_dir}"/page-*.tiff)
 shopt -u nullglob
-page_count=${#pages[@]}
+{% raw %}page_count=${#pages[@]}{% endraw %}
 if [ "${page_count}" -eq 0 ]; then
     FAIL_REASON="Keine Seiten gescannt — ADF leer oder Scanner blockiert?"
     log_error "scan_to_pdf: scanimage produced no pages"
