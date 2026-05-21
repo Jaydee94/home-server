@@ -189,7 +189,7 @@
 # ---- ImageMagick policy patch -----------------------------
 - name: Allow ImageMagick to write PDFs (managed block)
   ansible.builtin.blockinfile:
-    path: /etc/ImageMagick-6/policy.xml
+    path: /etc/ImageMagick-7/policy.xml
     marker: "<!-- {mark} ANSIBLE MANAGED — scanner role -->"
     insertbefore: "</policymap>"
     block: |
