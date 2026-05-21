@@ -22,12 +22,12 @@ global {
         desc   = "Scan button pressed"
         script = "{{ scanner_scripts_dir }}/scan_button.sh"
     }
-    user  = "{{ scanner_systemd_user }}"
-    group = "{{ scanner_systemd_group }}"
-    saned = {
-        user  = "{{ scanner_systemd_user }}"
-        group = "{{ scanner_systemd_group }}"
-    }
+    user       = "{{ scanner_systemd_user }}"
+    group      = "{{ scanner_systemd_group }}"
+    saned      = "/usr/sbin/saned"
+    saned_opt  = {}
+    saned_env  = { "SANE_CONFIG_DIR=/etc/scanbd" }
+    scriptdir  = "{{ scanner_scripts_dir }}"
 }
 
 device {{ scanner_backend }} {
