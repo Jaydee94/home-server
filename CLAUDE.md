@@ -464,8 +464,10 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
   bare-metal systemd service hardened via drop-in (`User=saned`, `Group=scanner`,
   `ProtectSystem=strict`, etc.) and the host's udev rule grants USB access via
   `GROUP=scanner, MODE=0660, TAG+="uaccess"` instead of root.
-- Hardware button → `scanbd` → `scan_button.sh` (flock-guarded) → `scan_to_pdf.sh`
-  → PDF lands on the CIFS mount `/mnt/paperless-consume` (UGREEN NAS).
+- Hardware button → `scanbd` detects → `scan_button.sh` touches trigger flag →
+  `scanner-trigger.path` (inotify) → `scanner-trigger.service` stops scanbd, runs
+  `scan-trigger.sh` as `saned`, restarts scanbd via `trap EXIT` → PDF lands on
+  `/mnt/paperless-consume` (UGREEN NAS).
 - Paperless-NGX still runs on the UGREEN NAS and ingests from that directory.
 - An hourly `scanner-healthcheck.timer` re-mounts the share if it disappears
   and probes the scanner via `scanimage -L`.
@@ -496,6 +498,9 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Scanner — `scanner_usb_product_id` must be set**: leaving it empty makes the role fail in pre-flight on purpose. A wildcard udev rule that matched every device with the same vendor would be worse than failing loudly. Run `lsusb` on the host and paste both IDs into `group_vars/all.yml`.
 - **Scanner — first run needs the NAS reachable**: `_netdev,nofail,x-systemd.automount` keeps the host boot non-fatal when the NAS is down, but `make scanner` itself calls `ansible.posix.mount state=mounted` which actually performs the mount. Bring the NAS up before the first run, or skip the mount task with `--skip-tags scanner` until the NAS is back.
 - **Scanner — ImageMagick refuses PDFs by default**: Debian/Ubuntu ship `policy.xml` with `rights="none" pattern="PDF"`. The role appends an `ANSIBLE MANAGED` block after that line; ImageMagick reads top-to-bottom and the last matching policy wins. Do not delete the upstream `rights="none"` line — that would break the package's conffile handling on upgrades.
+- **Scanner — scanbd hält USB exklusiv (direct mode)**: `scanbd` im direct mode hält das USB-Interface via `ioctl(USBDEVFS_CLAIMINTERFACE)`. `scanimage` schlägt mit `LIBUSB_ERROR_BUSY` fehl solange scanbd läuft. Diagnose: `SANE_DEBUG_SANEI_USB=1 scanimage -L`. Lösung: scanbd stoppen, scannen, neu starten — das macht `scanner-trigger.service` automatisch.
+- **Scanner — SANE_CONFIG_DIR beim Ausführen als saned**: Wird ein Skript via `runuser -u saned` gestartet, liest SANE `/etc/scanbd/dll.conf` (net-Backend) statt `/etc/sane.d/dll.conf` (fujitsu-Backend). Fix: `runuser -u saned -- env SANE_CONFIG_DIR=/etc/sane.d script`.
+- **Ansible-Templates — Jinja2 `trim_blocks` + `{% raw %}`**: Ansible setzt `trim_blocks=True`. Das `\n` nach `{% endraw %}` wird gestrippt — die folgende Zeile klebt direkt an den Raw-Inhalt. `{% endraw %}` immer auf einer eigenen Zeile platzieren, sodass das `\n` innerhalb des Raw-Blocks erhalten bleibt. Symptom: `line N: syntax error near unexpected token` in Bash-Skripten.
 
 ## Claude Skills
 
