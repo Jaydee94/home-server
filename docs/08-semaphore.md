@@ -241,7 +241,7 @@ du es per UI anlegen:
 
 | Symptom                           | Check                                                                  |
 |-----------------------------------|------------------------------------------------------------------------|
-| `semaphore.homeserver` löst nicht | `semaphore` in `dnsmasq_hosts` (group_vars/all.yml), `make tailscale`, dann `--tags dnsmasq` |
+| `semaphore.homeserver` löst nicht | `semaphore` in `dnsmasq_hosts` (group_vars/all.yml) eintragen, dann `make dnsmasq` |
 | Pod CrashLoopBackOff              | `kubectl -n semaphore logs deploy/semaphore` — meist fehlt das Bootstrap-Secret |
 | Playbook scheitert mit "Permission denied (publickey)" | `make semaphore-targets` lief nicht — Public Key fehlt in authorized_keys auf dem Ziel |
 | Vault-Passwort wird nicht erkannt | `semaphore_vault_password` ist leer oder mit falschem PW verschlüsselt |

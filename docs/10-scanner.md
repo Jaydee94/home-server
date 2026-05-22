@@ -17,8 +17,18 @@ the existing Paperless-NGX stack reads it out of
 Push-Notifications für jeden Scan (Erfolg/Fehler) sind eine optionale
 Erweiterung — Setup in [`docs/11-gotify.md`](11-gotify.md).
 
-Paperless-NGX, its Postgres and Redis remain unchanged on the NAS — only
-the scanning daemon moves off the retired `kubepi` Raspberry Pi.
+Paperless-NGX, its Postgres and Redis run on the UGREEN NAS and are not
+managed by this playbook — the scanner role only owns the bare-metal
+scanning daemon and the SMB mount that delivers PDFs into the NAS consume
+directory.
+
+> The shell snippets below use a `SRV` shorthand for the SSH command into
+> the home-server. Replace `homeserver` with the inventory host or
+> Tailscale IP if your setup differs:
+>
+> ```bash
+> SRV='ssh -i ~/.ssh/id_ed25519 jaydee@homeserver'
+> ```
 
 ## 1. Hardware prerequisites
 
@@ -29,7 +39,7 @@ the scanning daemon moves off the retired `kubepi` Raspberry Pi.
 ## 2. Determine the USB IDs
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'lsusb | grep -i fujitsu'
+$SRV 'lsusb | grep -i fujitsu'
 # Bus 002 Device 005: ID 04c5:11a2 Fujitsu, Ltd ScanSnap iX...
 ```
 
@@ -79,8 +89,6 @@ The role runs in this order:
 ## 5. Verification
 
 ```bash
-SRV='ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127'
-
 # NAS mount
 $SRV 'df -h /mnt/paperless-consume'
 
@@ -108,7 +116,7 @@ $SRV 'ls -ld /etc/cifs-credentials /etc/cifs-credentials/paperless'
 Press the hardware button on the scanner. On the host:
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'journalctl -t scanbd-scan -f'
+$SRV 'journalctl -t scanbd-scan -f'
 ```
 
 A new `scan-<ts>.pdf` must appear in `/mnt/paperless-consume/` within a
@@ -126,33 +134,29 @@ few seconds; Paperless-NGX on the NAS picks it up shortly after.
 | ImageMagick PDF refused | check `/etc/ImageMagick-6/policy.xml` for the `ANSIBLE MANAGED — scanner role` block |
 | `scanimage` works as root but not `saned` | `usermod -aG scanner saned` was skipped — re-run `make scanner` |
 
-## 8. Migration notes (one-off)
+## 8. Design notes
 
-- Existing scans on the NAS do **not** need to be migrated — they already
-  live in `personal_folder/paperless/consume`.
-- Validate scanbd end-to-end on the home-server **before** powering down
-  the old `kubepi` Raspberry Pi.
-- The NAS SMB path stays `personal_folder/paperless/consume`; no Paperless
-  reconfiguration is required.
+The role is built around a few opinionated defaults that make the daemon
+safe to run on a bare-metal host:
 
-## 9. Improvements over the old `ugreen-paperless` role
-
-- Pre-flight fails fast when `scanner_usb_product_id` or
-  `scanner_smb_password` are missing — no half-rolled-out USB rule.
-- `scanbd` runs as `saned`/`scanner`, not `root`, with a full hardening
-  drop-in (`ProtectSystem=strict`, `CapabilityBoundingSet=`,
-  `MemoryDenyWriteExecute=true`, etc.).
-- Shell scripts use `set -euo pipefail` + `ERR` trap + `flock` against
-  concurrent button presses + journald-tagged logging
-  (`logger -t scanbd-scan`).
-- udev rule provides USB access via `GROUP=scanner` + `TAG+=uaccess`
-  instead of relying on root.
-- `_netdev,nofail,x-systemd.automount` on the SMB mount: the server boots
-  even when the NAS is offline; the mount returns when the NAS does.
-- Hourly `scanner-healthcheck.timer` re-mounts the share if it goes away
-  and logs scanner reachability to the journal.
-- ImageMagick policy patch is an idempotent `blockinfile` (re-running the
-  role is a no-op) instead of an in-place `sed`.
-- Optional Gotify push-notifications driven from the same scan scripts;
-  the app token lives in a `0640 root:scanner` env-file rather than in
-  the rendered shell script. Setup: [`docs/11-gotify.md`](11-gotify.md).
+- **Fail-fast pre-flight.** Missing `scanner_usb_product_id` or
+  `scanner_smb_password` aborts the role rather than rolling out a
+  wildcard udev rule or a broken mount.
+- **Least-privilege daemon.** `scanbd` runs as `saned`/`scanner`, not
+  `root`, with a full hardening drop-in (`ProtectSystem=strict`,
+  `CapabilityBoundingSet=`, `MemoryDenyWriteExecute=true`, …).
+- **Robust shell scripts.** `set -euo pipefail` + `ERR` trap +
+  `flock` (no double-runs from rapid button presses) + journald-tagged
+  logging (`logger -t scanbd-scan`).
+- **Non-root USB access.** udev rule grants the device to
+  `GROUP=scanner` and adds `TAG+=uaccess` instead of relying on root.
+- **Resilient NAS mount.** `_netdev,nofail,x-systemd.automount` lets the
+  server boot when the NAS is offline; the mount comes back automatically
+  when the NAS does.
+- **Self-healing.** An hourly `scanner-healthcheck.timer` re-mounts the
+  share if it disappears and logs scanner reachability to the journal.
+- **Idempotent ImageMagick patch.** `blockinfile` re-enables PDF/TIFF
+  writes — re-running the role is a no-op instead of an in-place `sed`.
+- **Optional Gotify push.** App token lives in a `0640 root:scanner`
+  env-file, never in the rendered shell script. Setup:
+  [`docs/11-gotify.md`](11-gotify.md).

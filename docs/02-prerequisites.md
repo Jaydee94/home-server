@@ -31,11 +31,13 @@ sudo apt install ansible
 python3 --version
 
 # The following Python packages are needed on the control machine
-pip3 install --user \
-  ansible \
-  netaddr \
-  jmespath
+# (in addition to Ansible itself):
+pip3 install --user netaddr jmespath
 ```
+
+`netaddr` is used by `ansible.utils` for CIDR math (UFW rules), and `jmespath`
+is required by the `community.general.json_query` filter used in the
+`semaphore_bootstrap` role.
 
 ### SSH Client
 

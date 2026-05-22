@@ -78,8 +78,15 @@ ArgoCD UI on the `gotify` app to apply immediately).
 
 ### 1.4 Verify
 
+> The shell snippets below use a `SRV` shorthand for the SSH command into
+> the home-server. Replace `homeserver` with the inventory host or
+> Tailscale IP if your setup differs:
+>
+> ```bash
+> SRV='ssh -i ~/.ssh/id_ed25519 jaydee@homeserver'
+> ```
+
 ```bash
-SRV='ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127'
 $SRV 'sudo kubectl -n gotify get pods,svc,ingress,pvc,sealedsecret,secret'
 curl -sS http://gotify.homeserver/health
 ```
@@ -133,8 +140,6 @@ The role:
 ### 3.4 End-to-end test
 
 ```bash
-SRV='ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127'
-
 # Confirm saned can read the env-file
 $SRV 'sudo -u saned bash -lc ". /etc/scanner/gotify.env && echo $GOTIFY_ENABLED $GOTIFY_URL"'
 # expected: 1 http://gotify.homeserver
@@ -171,4 +176,4 @@ Expected pushes:
 | `gotify-admin` secret missing | `kubectl -n gotify describe sealedsecret gotify-admin` — controller logs explain decryption errors; cipher must be generated against this cluster's public key |
 | No pushes despite a successful scan | `sudo cat /etc/scanner/gotify.env` and confirm `GOTIFY_ENABLED=1`; check `journalctl -t scanbd-scan -g "gotify notify failed"` |
 | Pushes work via curl but not from the scripts | `saned` likely isn't in the `scanner` group → re-run `make scanner` |
-| Wrong hostname (`gotify.homeserver` doesn't resolve) | Confirm `gotify` is in `dnsmasq_hosts` in `group_vars/all.yml`, then `make install --tags dnsmasq` |
+| Wrong hostname (`gotify.homeserver` doesn't resolve) | Confirm `gotify` is in `dnsmasq_hosts` in `group_vars/all.yml`, then `make dnsmasq` |

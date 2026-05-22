@@ -28,9 +28,12 @@ check: ## Dry-run the full playbook (no changes applied).
 install: deps ## Provision the home server end-to-end.
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) $(VAULT_OPTS)
 
-.PHONY: common tailscale k3s argocd scanner semaphore semaphore-targets semaphore-bootstrap semaphore-bootstrap-local
+.PHONY: common dnsmasq tailscale k3s argocd scanner semaphore semaphore-targets semaphore-bootstrap semaphore-bootstrap-local
 common: ## Run only the `common` role (base OS, firewall, packages).
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags common $(VAULT_OPTS)
+
+dnsmasq: ## Run only the `dnsmasq` role (split-DNS for *.homeserver).
+	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags dnsmasq $(VAULT_OPTS)
 
 tailscale: ## Run only the `tailscale` role (VPN).
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags tailscale $(VAULT_OPTS)
