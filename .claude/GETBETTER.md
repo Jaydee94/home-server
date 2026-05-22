@@ -18,7 +18,9 @@ _Letzte Aktualisierung: 2026-05-22_
 
 - **Diagnose-Reihenfolge**: Die libusb-Busy-Ursache hätte früher mit `SANE_DEBUG_SANEI_USB=1 scanimage ...` (während scanbd läuft) identifiziert werden können, statt zuerst Konfigurationen zu verändern.
 
-- **Template-Divergenz**: `scanbd-dll.conf.j2` wurde auf `net` geändert während der Server manuell auf `fujitsu` zurückgesetzt wurde — template und Live-Config liefen auseinander. Template-Änderungen sofort committen, nicht als "wird nachgeholt" behandeln.
+- **Template-Divergenz und fehlende Deployed-File-Prüfung**: `scanbd-dll.conf.j2` wurde auf `net` geändert während der Server manuell auf `fujitsu` zurückgesetzt wurde — template und Live-Config liefen auseinander. Allgemeiner: Bei unerwartetem Verhalten (z.B. "scan klappt, PDF kommt nicht an") zuerst die deployte Datei auf dem Server lesen (`cat -n /path/to/script`), nicht nur das Template. Jinja2-Rendering kann edge cases haben, die Template und Deployment auseinandertreiben.
+
+- **`{% raw %}...{% endraw %}` auf einer Zeile mit Jinja2 `trim_blocks`**: Ansible setzt `trim_blocks=True`. Das `\n` nach `{% endraw %}` wird gestrippt — die folgende Zeile klebt direkt an den Raw-Inhalt. `page_count=${#pages[@]}{% endraw %}\nif [...]` wird zu `page_count=${#pages[@]}if [...]` → Bash-Syntax-Fehler. Fix: `{% endraw %}` immer auf einer eigenen Zeile platzieren, sodass das `\n` innerhalb des Raw-Blocks erhalten bleibt.
 
 ## Was funktioniert
 
@@ -31,3 +33,9 @@ _Letzte Aktualisierung: 2026-05-22_
 - **`trap restart_scanbd EXIT` im Trigger-Skript**: Stellt sicher, dass scanbd immer neu gestartet wird, auch wenn der Scan fehlschlägt — verhindert dauerhaft toten Scanner.
 
 - **Ansible blockinfile für inkrementelle Konfigurationsänderungen** (z.B. ImageMagick policy.xml): Sicherer als das gesamte Distro-File zu ersetzen; überlebt Paket-Upgrades besser.
+
+- **`cat -n /deployed/script` bei Laufzeitfehlern**: Zeigt die deployte Datei mit Zeilennummern — unverzichtbar wenn der Fehler eine Zeilennummer nennt (`line 87: syntax error`). Direkt zur Fehlerzeile springen statt im Template zu suchen.
+
+- **`bash -n script` nach manuellem Server-Patch**: Schnelle Syntax-Verifikation vor dem nächsten Testlauf. Schlägt fehl wenn Bash die Datei nicht parsen kann, ohne sie auszuführen.
+
+- **`sed -i` für Notfall-Patch auf dem Server**: Wenn ein Template-Fehler gefunden wird und `make <role>` Zeit kostet, kann die deployte Datei direkt gepatcht werden — sofortiges Testen möglich. Template-Fix danach committen; nie als dauerhaft betrachten.
