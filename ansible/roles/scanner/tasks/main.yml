@@ -89,7 +89,7 @@
     state: directory
     owner: root
     group: "{{ scanner_systemd_group }}"
-    mode: "0755"
+    mode: "0775"
 
 - name: Create scanner log directory
   ansible.builtin.file:
@@ -186,6 +186,14 @@
     group: root
     mode: "0755"
 
+- name: Deploy scan-trigger.sh
+  ansible.builtin.template:
+    src: scan-trigger.sh.j2
+    dest: "{{ scanner_scripts_dir }}/scan-trigger.sh"
+    owner: root
+    group: root
+    mode: "0755"
+
 # ---- ImageMagick policy patch -----------------------------
 - name: Allow ImageMagick to write PDFs (managed block)
   ansible.builtin.blockinfile:
@@ -217,12 +225,37 @@
     - Reload systemd
     - Restart scanbd
 
-- name: Flush handlers before starting scanbd
+- name: Deploy scanner-trigger.service
+  ansible.builtin.template:
+    src: scanner-trigger.service.j2
+    dest: /etc/systemd/system/scanner-trigger.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Deploy scanner-trigger.path
+  ansible.builtin.template:
+    src: scanner-trigger.path.j2
+    dest: /etc/systemd/system/scanner-trigger.path
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Flush handlers before starting units
   ansible.builtin.meta: flush_handlers
 
 - name: Enable and start scanbd
   ansible.builtin.systemd:
     name: scanbd
+    enabled: true
+    state: started
+    daemon_reload: true
+
+- name: Enable and start scanner-trigger.path
+  ansible.builtin.systemd:
+    name: scanner-trigger.path
     enabled: true
     state: started
     daemon_reload: true

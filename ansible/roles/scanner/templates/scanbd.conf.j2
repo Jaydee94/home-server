@@ -28,7 +28,7 @@ global {
 }
 
 device {{ scanner_backend }} {
-    filter = "^{{ scanner_backend }}.*"
+    filter = ".*{{ scanner_backend }}.*"
     desc   = "{{ scanner_backend }} USB scanner"
     action scan {
         filter = "^scan.*"

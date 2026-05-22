@@ -1,73 +1,12 @@
 #!/usr/bin/env bash
 # ANSIBLE MANAGED — scanner role
 # Triggered by scanbd when the hardware scan button is pressed.
-# Serialises concurrent button events via flock and delegates the
-# actual scan + PDF assembly to scan_to_pdf.sh.
+# Sets a trigger flag; scanner-trigger.path/service handles the actual scan
+# outside of scanbd's process tree so the USB interface can be released.
 
 set -euo pipefail
 
-LOCK_FILE="{{ scanner_lock_path }}"
-SCAN_TO_PDF="{{ scanner_scripts_dir }}/scan_to_pdf.sh"
+TRIGGER_FLAG="{{ scanner_trigger_flag }}"
 
-# Load Gotify settings (GOTIFY_ENABLED, GOTIFY_URL, GOTIFY_TOKEN, ...).
-# shellcheck disable=SC1091
-[ -r "{{ scanner_gotify_env_path }}" ] && . "{{ scanner_gotify_env_path }}"
-
-log_info()  { logger -t scanbd-scan -p user.info  "$*"; }
-log_warn()  { logger -t scanbd-scan -p user.warning "$*"; }
-log_error() { logger -t scanbd-scan -p user.err   "$*"; }
-
-gotify_notify() {
-    local title="$1" message="$2" priority="$3"
-    [ "${GOTIFY_ENABLED:-0}" = "1" ] || return 0
-    [ -n "${GOTIFY_URL:-}" ] && [ -n "${GOTIFY_TOKEN:-}" ] || return 0
-    if ! curl -fsS --connect-timeout "${GOTIFY_TIMEOUT:-5}" \
-        -X POST "${GOTIFY_URL%/}/message" \
-        -H "X-Gotify-Key: ${GOTIFY_TOKEN}" \
-        -F "title=${title}" \
-        -F "message=${message}" \
-        -F "priority=${priority}" \
-        >/dev/null 2>&1; then
-        log_warn "gotify notify failed (curl rc=$?)"
-    fi
-}
-
-on_error() {
-    local rc=$?
-    local line=$1
-    log_error "scan_button.sh failed (line ${line}, rc=${rc})"
-    # scan_to_pdf.sh already sends a detailed push when it fails — only
-    # notify here for failures *outside* the scan pipeline (flock, environment).
-    gotify_notify "❌ Scan abgebrochen" \
-        "scan_button trap rc=${rc} (line ${line}) — siehe journalctl -t scanbd-scan" \
-        "${GOTIFY_PRIORITY_ERROR:-8}"
-{% if scanner_failed_marker_in_consume %}
-    local ts marker
-    ts="$(date +%Y%m%d-%H%M%S)"
-    marker="{{ scanner_consume_mountpoint }}/scan-FAILED-${ts}.failed"
-    {
-        echo "scan_button.sh failed at ${ts}"
-        echo "line=${line} rc=${rc}"
-        echo "see: journalctl -t scanbd-scan --since '1 hour ago'"
-    } > "${marker}" 2>/dev/null || true
-{% endif %}
-    exit "${rc}"
-}
-trap 'on_error ${LINENO}' ERR
-
-run_scan() {
-    log_info "scan_button: starting scan pipeline"
-    "${SCAN_TO_PDF}"
-    log_info "scan_button: scan pipeline finished successfully"
-}
-
-# Non-blocking lock: skip if a scan is already running.
-if ! flock -n 9; then
-    log_warn "scan already in progress, skipping"
-    exit 0
-fi 9>"${LOCK_FILE}"
-
-(
-    flock -n 9 || { log_warn "scan already in progress, skipping"; exit 0; }
-    run_scan
-) 9>"${LOCK_FILE}"
+logger -t scanbd-scan -p user.info "scan_button: button pressed — setting trigger flag"
+touch "${TRIGGER_FLAG}"

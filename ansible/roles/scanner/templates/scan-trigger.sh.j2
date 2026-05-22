@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# ANSIBLE MANAGED — scanner role
+# Run by scanner-trigger.service when the trigger flag appears.
+# Stops scanbd (releases USB), scans as saned, restarts scanbd.
+
+set -euo pipefail
+
+TRIGGER_FLAG="{{ scanner_trigger_flag }}"
+SCAN_TO_PDF="{{ scanner_scripts_dir }}/scan_to_pdf.sh"
+
+log_info()  { logger -t scanner-trigger -p user.info  "$*"; }
+log_error() { logger -t scanner-trigger -p user.err   "$*"; }
+
+# Remove flag now so a button press during the scan creates a fresh flag.
+rm -f "${TRIGGER_FLAG}" || true
+
+restart_scanbd() {
+    log_info "Restarting scanbd"
+    systemctl start scanbd || log_error "Failed to start scanbd after scan"
+}
+trap restart_scanbd EXIT
+
+log_info "Stopping scanbd to release USB interface"
+systemctl stop scanbd || true
+sleep 0.3
+
+log_info "Running scan pipeline as {{ scanner_systemd_user }}"
+runuser -u {{ scanner_systemd_user }} -- \
+    env SANE_CONFIG_DIR=/etc/sane.d "${SCAN_TO_PDF}"

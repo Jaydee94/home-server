@@ -1,0 +1,10 @@
+# ANSIBLE MANAGED — scanner role
+[Unit]
+Description=Watch for scanner button trigger flag
+
+[Path]
+PathExists={{ scanner_trigger_flag }}
+Unit=scanner-trigger.service
+
+[Install]
+WantedBy=multi-user.target

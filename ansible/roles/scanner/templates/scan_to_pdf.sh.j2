@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-BACKEND="{{ scanner_backend }}"
+BACKEND="${SCANBD_DEVICE:-{{ scanner_backend }}}"
 RESOLUTION="{{ scanner_resolution_dpi }}"
 MODE="{{ scanner_mode }}"
 SOURCE="{{ scanner_paper_source }}"
@@ -78,7 +78,6 @@ FAIL_REASON="scanimage abgebrochen — USB / ADF / Scanner-Treiber prüfen."
 scanimage \
     --device-name "${BACKEND}" \
     --batch="${work_dir}/page-%04d.tiff" \
-    --batch-prompt=no \
     --format=tiff \
     --resolution "${RESOLUTION}" \
     --mode "${MODE}" \
@@ -87,7 +86,8 @@ scanimage \
 shopt -s nullglob
 pages=("${work_dir}"/page-*.tiff)
 shopt -u nullglob
-{% raw %}page_count=${#pages[@]}{% endraw %}
+{% raw %}page_count=${#pages[@]}
+{% endraw %}
 if [ "${page_count}" -eq 0 ]; then
     FAIL_REASON="Keine Seiten gescannt — ADF leer oder Scanner blockiert?"
     log_error "scan_to_pdf: scanimage produced no pages"

@@ -1,0 +1,12 @@
+# ANSIBLE MANAGED — scanner role
+[Unit]
+Description=Run scan pipeline on scanner button press
+Documentation=file:{{ scanner_scripts_dir }}/scan-trigger.sh
+
+[Service]
+Type=oneshot
+ExecStart={{ scanner_scripts_dir }}/scan-trigger.sh
+StandardOutput=journal
+StandardError=journal
+# Full ADF scans can take a few minutes; give up to 10 minutes.
+TimeoutStartSec=600

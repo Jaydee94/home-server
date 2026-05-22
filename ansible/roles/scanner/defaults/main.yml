@@ -27,6 +27,7 @@ scanner_resolution_dpi: 300
 scanner_mode: "Color"                    # Color | Gray | Lineart
 scanner_paper_source: "ADF Duplex"
 scanner_lock_path: "/run/scanner.lock"
+scanner_trigger_flag: "/var/tmp/scanner/scan-pending"
 scanner_systemd_user: "saned"
 scanner_systemd_group: "scanner"
 scanner_failed_marker_in_consume: true
