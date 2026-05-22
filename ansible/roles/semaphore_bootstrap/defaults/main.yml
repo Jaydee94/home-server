@@ -14,6 +14,9 @@
 # if the dnsmasq path is not yet up when the role runs.
 semaphore_api_base: "http://semaphore.homeserver"
 
+# Kubernetes namespace where Semaphore runs (must match semaphore_secrets role).
+semaphore_namespace: semaphore
+
 # Where `semaphore_secrets` persisted the admin password.
 semaphore_admin_password_path: "/etc/semaphore-secrets/admin_password"
 semaphore_admin_username: admin
