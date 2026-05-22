@@ -10,6 +10,10 @@ _Letzte Aktualisierung: 2026-05-22_
 
 - **`runuser -u saned -- env SANE_CONFIG_DIR=/etc/sane.d script`**: Explizites Setzen von SANE_CONFIG_DIR beim Ausführen als saned-User, damit `/etc/sane.d/dll.conf` (= fujitsu) genutzt wird, nicht `/etc/scanbd/dll.conf`.
 
+- **ADF Duplex: alle Seiten rotieren + Paare tauschen**: Der Fujitsu ADF scannt Rückseite zuerst UND beide Seiten 180° gedreht. Fix im scan_to_pdf.sh: erst alle TIFFs mit `mogrify -rotate 180` drehen, dann Paare tauschen (`[back_rot, front_rot]` → `[front_rot, back_rot]`). Konfigurierbar via `scanner_duplex_rotate_back_pages` und `scanner_duplex_back_first`. Verifiziert durch iteratives Nutzer-Feedback.
+
+- **PDF-Rotation für Paperless via pikepdf Content-Stream, nicht /Rotate-Metadatum**: OCRmyPDF ignoriert beim Re-Processing das `/Rotate`-Metadatum zuverlässig. Rotation muss physisch in den Content-Stream eingebacken werden: `q\n-612 0 0 -792 612 792 cm\n/Im0 Do\nQ`. Zusätzlich OCR-XObjects (`/OCR-...`) aus `/Resources` entfernen, damit Paperless die Seite neu OCR'd.
+
 ## Anti-Patterns
 
 - **SANE net-Backend ausprobieren ohne Quellcode zu prüfen**: Stunden in Manager-Modus + saned investiert, obwohl scanbd im Quellcode `local_only=1` hartcodiert hat. Hätte zuerst das scanbd-Verhalten verstanden werden sollen (greife nach SANE_DEBUG-Logs, lies die Manpage/Source), bevor ein alternativer Architektur-Ansatz verfolgt wird.
@@ -18,9 +22,15 @@ _Letzte Aktualisierung: 2026-05-22_
 
 - **Diagnose-Reihenfolge**: Die libusb-Busy-Ursache hätte früher mit `SANE_DEBUG_SANEI_USB=1 scanimage ...` (während scanbd läuft) identifiziert werden können, statt zuerst Konfigurationen zu verändern.
 
-- **Template-Divergenz und fehlende Deployed-File-Prüfung**: `scanbd-dll.conf.j2` wurde auf `net` geändert während der Server manuell auf `fujitsu` zurückgesetzt wurde — template und Live-Config liefen auseinander. Allgemeiner: Bei unerwartetem Verhalten (z.B. "scan klappt, PDF kommt nicht an") zuerst die deployte Datei auf dem Server lesen (`cat -n /path/to/script`), nicht nur das Template. Jinja2-Rendering kann edge cases haben, die Template und Deployment auseinandertreiben.
+- **Template-Divergenz und fehlende Deployed-File-Prüfung**: `scanbd-dll.conf.j2` wurde auf `net` geändert während der Server manuell auf `fujitsu` zurückgesetzt wurde — template und Live-Config liefen auseinander. Allgemeiner: Bei unerwartetem Verhalten zuerst die deployte Datei auf dem Server lesen (`cat -n /path/to/script`), nicht nur das Template.
 
-- **`{% raw %}...{% endraw %}` auf einer Zeile mit Jinja2 `trim_blocks`**: Ansible setzt `trim_blocks=True`. Das `\n` nach `{% endraw %}` wird gestrippt — die folgende Zeile klebt direkt an den Raw-Inhalt. `page_count=${#pages[@]}{% endraw %}\nif [...]` wird zu `page_count=${#pages[@]}if [...]` → Bash-Syntax-Fehler. Fix: `{% endraw %}` immer auf einer eigenen Zeile platzieren, sodass das `\n` innerhalb des Raw-Blocks erhalten bleibt.
+- **`{% raw %}...{% endraw %}` auf einer Zeile mit Jinja2 `trim_blocks`**: Ansible setzt `trim_blocks=True`. Das `\n` nach `{% endraw %}` wird gestrippt. Fix: `{% endraw %}` immer auf einer eigenen Zeile platzieren, sodass das `\n` innerhalb des Raw-Blocks erhalten bleibt.
+
+- **Scanner-Verhalten ohne Testdaten annehmen**: Mehrfach falsche Annahmen über die Reihenfolge (front-first vs. back-first) und die Anzahl der zu rotierenden Seiten (nur Rückseiten vs. alle). Korrekte Vorgehensweise: Einen echten Testlauf durchführen und das Ergebnis inspizieren, bevor der Fix implementiert wird. Die Nutzer-Screenshots waren am Ende zuverlässiger als jede Annahme.
+
+- **pypdf /Rotate-Metadatum vs. pikepdf Content-Stream**: Zwei Iterationen verschwendet weil pypdf's `page.rotate()` nur `/Rotate` setzt, OCRmyPDF das aber beim Re-Import ignoriert. Für PDFs die Paperless noch einmal verarbeitet: immer die Transformation in den Content-Stream einbacken, nicht nur Metadaten setzen.
+
+- **pypdf `extract_text()` zur Orientierungs-Erkennung**: OCRmyPDF bettet OCR-Text in einer separaten Form-XObject-Schicht ein, die unabhängig vom Bild-Pixel-Inhalt orientiert sein kann. Text-Extraktion via pypdf zeigt "lesbaren" Text auf einer visuell auf dem Kopf stehenden Seite — kein verlässliches Signal für die Bild-Orientierung.
 
 ## Was funktioniert
 
@@ -34,8 +44,10 @@ _Letzte Aktualisierung: 2026-05-22_
 
 - **Ansible blockinfile für inkrementelle Konfigurationsänderungen** (z.B. ImageMagick policy.xml): Sicherer als das gesamte Distro-File zu ersetzen; überlebt Paket-Upgrades besser.
 
-- **`cat -n /deployed/script` bei Laufzeitfehlern**: Zeigt die deployte Datei mit Zeilennummern — unverzichtbar wenn der Fehler eine Zeilennummer nennt (`line 87: syntax error`). Direkt zur Fehlerzeile springen statt im Template zu suchen.
+- **`cat -n /deployed/script` bei Laufzeitfehlern**: Zeigt die deployte Datei mit Zeilennummern — unverzichtbar wenn der Fehler eine Zeilennummer nennt. Direkt zur Fehlerzeile springen statt im Template zu suchen.
 
-- **`bash -n script` nach manuellem Server-Patch**: Schnelle Syntax-Verifikation vor dem nächsten Testlauf. Schlägt fehl wenn Bash die Datei nicht parsen kann, ohne sie auszuführen.
+- **`bash -n script` nach manuellem Server-Patch**: Schnelle Syntax-Verifikation vor dem nächsten Testlauf.
 
-- **`sed -i` für Notfall-Patch auf dem Server**: Wenn ein Template-Fehler gefunden wird und `make <role>` Zeit kostet, kann die deployte Datei direkt gepatcht werden — sofortiges Testen möglich. Template-Fix danach committen; nie als dauerhaft betrachten.
+- **pikepdf Content-Stream-Inspektion zur Ursachen-Diagnose**: `page.get("/Contents").read_bytes()` zeigt die CTM-Matrix (`612 0 0 792 0 0 cm`) und OCR-Layer-Referenzen direkt — unverzichtbar um zu verstehen warum `/Rotate` allein nicht ausreicht.
+
+- **Nutzer-Screenshots als primäres Verifikationsmittel**: Bei visuellen PDF-Problemen sind Screenshots aus dem echten Viewer (Paperless) zuverlässiger als jede programmatische Analyse (text extraction, metadata). Screenshot anfordern statt auf Code-Analyse vertrauen.

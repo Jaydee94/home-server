@@ -94,6 +94,40 @@ if [ "${page_count}" -eq 0 ]; then
     exit 1
 fi
 
+{% if scanner_duplex_rotate_back_pages | default(false) %}
+{% if scanner_duplex_back_first | default(true) %}
+# ADF scannt Rückseite zuerst: [back1, front1, back2, front2, ...]
+# → gerade Indices (0,2,4,...) 180° drehen, dann Paare tauschen → [front1, back1_rot, ...]
+log_info "scan_to_pdf: ADF Duplex back-first — Rückseiten rotieren + Paare tauschen"
+FAIL_REASON="ImageMagick mogrify fehlgeschlagen beim Rotieren der Rückseiten."
+{% raw %}
+for i in "${!pages[@]}"; do
+    mogrify -rotate 180 "${pages[$i]}"
+done
+reordered=()
+for (( i=0; i < ${#pages[@]}; i+=2 )); do
+    if (( i+1 < ${#pages[@]} )); then
+        reordered+=("${pages[$((i+1))]}" "${pages[$i]}")
+    else
+        reordered+=("${pages[$i]}")
+    fi
+done
+pages=("${reordered[@]}")
+{% endraw %}
+{% else %}
+# ADF scannt Vorderseite zuerst: [front1, back1, front2, back2, ...]
+# → ungerade Indices (1,3,5,...) 180° drehen, Reihenfolge passt bereits
+log_info "scan_to_pdf: ADF Duplex front-first — nur Rückseiten rotieren"
+FAIL_REASON="ImageMagick mogrify fehlgeschlagen beim Rotieren der Rückseiten."
+{% raw %}
+for i in "${!pages[@]}"; do
+    if (( i % 2 == 1 )); then
+        mogrify -rotate 180 "${pages[$i]}"
+    fi
+done
+{% endraw %}
+{% endif %}
+{% endif %}
 log_info "scan_to_pdf: assembling ${page_count} page(s) into ${out_pdf}"
 FAIL_REASON="PDF-Konvertierung fehlgeschlagen (ImageMagick policy.xml?)."
 convert "${pages[@]}" "${out_pdf}"
