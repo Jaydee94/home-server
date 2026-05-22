@@ -2,6 +2,11 @@
 # ============================================================
 # Provision one inventory entry inside the current project.
 # `ssh_key` field references a key by name from semaphore_default_keys.
+# Body is built as a single Jinja dict so Python-native types survive
+# into the JSON encoder — same pattern as template.yml. YAML scalars
+# with `"{{ expr | int }}"` wrappers can be stringified before they
+# reach the encoder, causing Semaphore's strict int unmarshaler to
+# return 400 for required integer fields like ssh_key_id.
 # ============================================================
 
 - name: List existing inventories in project {{ project_spec.name }}
@@ -33,14 +38,18 @@
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/inventory"
     method: POST
     body_format: json
-    body:
-      name: "{{ inventory_spec.name }}"
-      project_id: "{{ project_id | int }}"
-      inventory: "{{ inventory_spec.content }}"
-      ssh_key_id: "{{ project_key_map[inventory_spec.ssh_key] | int }}"
-      become_key_id: null
-      repository_id: null
-      type: "{{ inventory_spec.type | default('static') }}"
+    body: >-
+      {{
+        {
+          'name': inventory_spec.name,
+          'project_id': project_id | int,
+          'inventory': inventory_spec.content,
+          'ssh_key_id': project_key_map[inventory_spec.ssh_key] | int,
+          'become_key_id': none,
+          'repository_id': none,
+          'type': inventory_spec.type | default('static'),
+        }
+      }}
     headers:
       Cookie: "{{ semaphore_cookie }}"
     status_code: [200, 201, 204]
@@ -54,17 +63,34 @@
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/inventory/{{ inventory_id | int }}"
     method: PUT
     body_format: json
-    body:
-      id: "{{ inventory_id | int }}"
-      name: "{{ inventory_spec.name }}"
-      project_id: "{{ project_id | int }}"
-      inventory: "{{ inventory_spec.content }}"
-      ssh_key_id: "{{ project_key_map[inventory_spec.ssh_key] | int }}"
-      become_key_id: null
-      repository_id: null
-      type: "{{ inventory_spec.type | default('static') }}"
+    body: >-
+      {{
+        {
+          'id': inventory_id | int,
+          'name': inventory_spec.name,
+          'project_id': project_id | int,
+          'inventory': inventory_spec.content,
+          'ssh_key_id': project_key_map[inventory_spec.ssh_key] | int,
+          'become_key_id': none,
+          'repository_id': none,
+          'type': inventory_spec.type | default('static'),
+        }
+      }}
     headers:
       Cookie: "{{ semaphore_cookie }}"
-    status_code: [200, 204]
+    status_code: [200, 204, 400, 422, 500]
+    return_content: true
+  register: inv_update_result
   when: inventory_exists
   changed_when: false
+  failed_when: false
+
+- name: Fail with HTTP details if inventory update failed
+  ansible.builtin.fail:
+    msg: >-
+      Inventory '{{ inventory_spec.name }}' update failed:
+      HTTP {{ inv_update_result.status }} — {{ inv_update_result.content | default('(empty body)') }}
+  when:
+    - inventory_exists
+    - inv_update_result is not skipped
+    - inv_update_result.status not in [200, 204]
