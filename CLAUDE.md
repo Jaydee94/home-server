@@ -206,6 +206,7 @@ make common         # Base OS, firewall, packages
 make tailscale      # VPN role
 make k3s            # Kubernetes + Helm role
 make argocd         # GitOps controller role
+make dnsmasq        # Split-DNS for *.homeserver on LAN + tailscale0
 make scanner        # Bare-metal Fujitsu scanner + scanbd + SMB mount
 make semaphore      # Bootstrap Semaphore Secret on the home-server
 make semaphore-targets  # Push Semaphore SSH key to all managed targets
@@ -298,15 +299,25 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 | Variable | Purpose |
 |---|---|
 | `hostname` | Server hostname |
+| `timezone` | IANA timezone, e.g. `Europe/Berlin` |
 | `auto_upgrade` | Keep OS + components on latest (default: true) |
+| `auto_reboot_if_required` | Auto-reboot when APT marks `/var/run/reboot-required` |
 | `k3s_channel` / `k3s_version` | Pin or float k3s version |
-| `argocd_repo_url` | Git repo ArgoCD syncs from |
+| `helm_version` / `argocd_version` | Pin Helm 3 / Argo Helm chart, empty = latest |
+| `local_subnet` | Home LAN CIDR used in UFW rules |
+| `argocd_repo_url` / `argocd_repo_revision` | Git repo + revision ArgoCD syncs from |
 | `tailscale_auth_key` | Vault-encrypted WireGuard auth key |
+| `tailscale_hostname` | Tailnet name (defaults to `hostname`) |
+| `dnsmasq_hosts` | Names served under `*.homeserver` by dnsmasq |
 | `semaphore_vault_password` | Vault-encrypted Ansible Vault password Semaphore uses to decrypt secrets in triggered playbooks |
+| `semaphore_projects` | Optional list of additional Semaphore projects/templates to bootstrap |
 | `scanner_smb_share` | NAS share path for the Paperless consume directory |
 | `scanner_smb_username` | SMB user (password is vault-encrypted) |
 | `scanner_smb_password` | Vault-encrypted SMB password for the share |
 | `scanner_usb_vendor_id` / `scanner_usb_product_id` | USB IDs of the scanner (`lsusb`) |
+| `scanner_gotify_enabled` | Toggle Gotify push notifications from the scan pipeline |
+| `scanner_gotify_url` / `scanner_gotify_token` | Gotify endpoint + (vault-encrypted) app token |
+| `gotify_admin_password` | Optional vault-stored copy of the Gotify admin password |
 
 ## Scanner / Paperless Ingestion
 
@@ -349,10 +360,18 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 
 ## Claude Skills
 
+Project-scoped skills (live under `.claude/skills/`):
+
 | Skill | Invoke | What it does |
 |-------|--------|--------------|
 | cluster-health | `/cluster-health` | SSH health check — nodes, ArgoCD apps, pods, PVCs |
 | add-app | `/add-app` | Scaffold a new `argocd/apps/<name>/` following home-server conventions |
+| forgecrate-advisor | `/forgecrate-advisor` | Analysiert das Repo und empfiehlt das passende forgecrate-Profil + Flavors |
+| forgecrate-repo-onboarding | `/forgecrate-repo-onboarding` | Erkundet das Repo nach `forgecrate run` und erstellt einen strukturierten Überblick für CLAUDE.md |
+| forgecrate-repo-health | `/forgecrate-repo-health` | Priorisierte Liste an Verbesserungsvorschlägen für das Repo |
+| forgecrate-release | `/forgecrate-release` | Vollständigen Release-Zyklus durchführen |
+| forgecrate-db-migration | `/forgecrate-db-migration` | DB-Migration erstellen und reviewen |
+| forgecrate-handoff | `/forgecrate-handoff` | Portablen Projekt-Kontext in `HANDOFF.md` schreiben |
 
 ## Networking
 
