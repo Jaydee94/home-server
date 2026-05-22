@@ -1,15 +1,13 @@
 # Managed by Ansible — do not edit manually.
-# Explizite DNS-Einträge für *.homeserver, erreichbar aus LAN und Tailnet.
-# Neue Services in group_vars/all.yml unter dnsmasq_hosts eintragen.
+# Wildcard-DNS: alle *.homeserver-Namen → network_static_ip
+# Neue Services brauchen keinen manuellen Eintrag mehr.
 
 # Upstream DNS: Fritz!Box
 no-resolv
 server={{ network_gateway }}
 
-# Pro Service ein expliziter DNS-Eintrag → {{ network_static_ip }}
-{% for host in dnsmasq_hosts %}
-address=/{{ host }}.homeserver/{{ network_static_ip }}
-{% endfor %}
+# Wildcard: *.homeserver und homeserver selbst → statische Server-IP
+address=/homeserver/{{ network_static_ip }}
 
 # bind-dynamic statt bind-interfaces, damit dnsmasq die tailscale0-Adresse
 # automatisch übernimmt, sobald tailscaled startet (kein Restart nötig).
