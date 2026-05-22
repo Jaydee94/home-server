@@ -197,19 +197,19 @@
       <policy domain="coder" rights="read|write" pattern="TIFF" />
     create: false
 
-# ---- systemd hardening for scanbd -------------------------
-- name: Ensure scanbd systemd drop-in directory exists
+# ---- native systemd unit for scanbd -------------------------
+- name: Remove legacy scanbd systemd drop-in
   ansible.builtin.file:
-    path: /etc/systemd/system/scanbd.service.d
-    state: directory
-    owner: root
-    group: root
-    mode: "0755"
+    path: /etc/systemd/system/scanbd.service.d/override.conf
+    state: absent
+  notify:
+    - Reload systemd
+    - Restart scanbd
 
-- name: Deploy scanbd systemd override
+- name: Deploy native scanbd systemd unit
   ansible.builtin.template:
-    src: scanbd-override.conf.j2
-    dest: /etc/systemd/system/scanbd.service.d/override.conf
+    src: scanbd.service.j2
+    dest: /etc/systemd/system/scanbd.service
     owner: root
     group: root
     mode: "0644"

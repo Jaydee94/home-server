@@ -1,17 +1,26 @@
 # ANSIBLE MANAGED — scanner role
-# systemd drop-in: harden scanbd and keep USB access available.
+[Unit]
+Description=SANE scanner button events daemon
+After=local-fs.target
+
 [Service]
-User={{ scanner_systemd_user }}
-Group={{ scanner_systemd_group }}
+Type=forking
+PIDFile=/run/scanbd.pid
+Environment=SANE_CONFIG_DIR=/etc/scanbd
+ExecStart=/usr/sbin/scanbd -c /etc/scanbd/scanbd.conf
+Restart=on-failure
+RestartSec=5
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateDevices=false
-DeviceAllow=/dev/bus/usb rw
 ReadWritePaths={{ scanner_consume_mountpoint }} {{ scanner_tmp_dir }} {{ scanner_log_dir }} /run
-CapabilityBoundingSet=
+CapabilityBoundingSet=CAP_CHOWN CAP_SETUID CAP_SETGID
 RestrictAddressFamilies=AF_UNIX AF_NETLINK
 RestrictNamespaces=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
 SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target
