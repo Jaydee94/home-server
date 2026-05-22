@@ -12,7 +12,6 @@ Gilt für alle Agenten (Codex, Claude Code, etc.) die in diesem Repo arbeiten.
 <!-- GENERATED:END -->
 
 <!-- CUSTOM:BEGIN -->
-
 ## Projekt-Kontext
 
 Vollständige Projektdokumentation: [`CLAUDE.md`](CLAUDE.md). Diese Datei

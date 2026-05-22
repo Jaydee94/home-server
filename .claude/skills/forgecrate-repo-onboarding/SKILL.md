@@ -1,6 +1,6 @@
 # Repo Onboarding
 
-Erkundet das Repo nach `forgecrate run` und erstellt einen strukturierten Überblick für `CLAUDE.md`.
+Erkundet das Repo nach `forgecrate init` und erstellt einen strukturierten Überblick für `CLAUDE.md`.
 
 ## Ablauf
 
@@ -19,28 +19,25 @@ Erkundet das Repo nach `forgecrate run` und erstellt einen strukturierten Überb
 
 4. **Externe Abhängigkeiten** — suche nach Datenbankverbindungen, externen APIs, Message-Queues in Imports und Konfigurationsfiles.
 
-5. **CLAUDE.md-Vorschlag erstellen** — erzeuge Text für den `<!-- GENERATED:BEGIN -->…<!-- GENERATED:END -->`-Block:
+5. **memory-bank befüllen** — schreibe direkt (keine Rückfrage) auf Basis der Analyse:
 
-```markdown
-## Projekt-Übersicht
+   - **`memory-bank/projectbrief.md`** — ersetze die Platzhalter:
+     - *Was ist dieses Projekt?* → Kurze Beschreibung aus README/go.mod/package.json
+     - *Ziele* → Erkannter Mehrwert (CLI-Tool, API, Library, ...)
+     - *Nicht-Ziele* → Was bewusst fehlt (z.B. kein Frontend, kein Auth)
 
-**Sprache:** Go 1.24 | **Framework:** — | **Einstiegspunkt:** `cmd/myapp/main.go`
+   - **`memory-bank/techContext.md`** — ersetze die Platzhalter:
+     - *Stack* → Sprache + Version, Framework, wichtige Libraries (aus go.mod/package.json/pyproject.toml)
+     - *Tools & Infrastruktur* → Build-, Test-, Lint-Kommandos (aus Makefile/scripts)
+     - *Constraints* → Erkannte Einschränkungen (z.B. Go-Version, Node-Version, kein CGO)
 
-## Struktur
+   - **`memory-bank/systemPatterns.md`** — ersetze die Platzhalter:
+     - *Architektur-Entscheidungen* → Erkannte Struktur (z.B. `internal/` für Business-Logik, `cmd/` für Einstiegspunkte)
+     - *Wiederkehrende Muster* → Coding-Conventions aus dem Code (z.B. error wrapping, interface-Design)
+     - *Anti-Patterns* → Lass diesen Abschnitt leer wenn nichts klar erkennbar
 
-- `internal/` — Business-Logik
-- `internal/deploy/` — Deployment-Pipeline
-- `cmd/` — CLI-Einstiegspunkte
+   - **`memory-bank/activeContext.md`** und **`memory-bank/progress.md`** — nicht anfassen, Template bleibt leer.
 
-## Workflow
+   Lies jede Zieldatei zuerst via `mcp__memory-bank__memory_bank_read`, um bestehende Inhalte zu kennen. Schreibe neue Inhalte via `mcp__memory-bank__memory_bank_write` (vollständiger Ersatz) oder `mcp__memory-bank__memory_bank_update` (gezielte Ergänzung bestehender Abschnitte). Verwende keine Read/Write-Datei-Tools für memory-bank-Operationen.
 
-- Build: `go build ./...`
-- Test: `go test ./...`
-- Lint: `golangci-lint run`
-
-## Externe Abhängigkeiten
-
-- GitHub API (gh CLI)
-```
-
-6. **Übergabe** — zeige den Vorschlag und frage: "Soll ich den GENERATED-Block in `CLAUDE.md` damit ersetzen?"
+   **Fertigstellung:** Gib aus welche memory-bank-Dateien befüllt wurden — ein Satz je Datei (projectbrief.md, techContext.md, systemPatterns.md). Damit ist der Skill abgeschlossen.

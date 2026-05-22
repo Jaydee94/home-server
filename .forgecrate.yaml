@@ -1,8 +1,12 @@
 version: "1.0"
 source: github.com/jmt-labs/forgecrate
 ref: main
-profile: backend
-flavors: []
+profile: fullstack
+flavors:
+    - getbetter
+    - github
+    - strict-review
+    - tdd
 deployed_files:
     .claude/hooks/pre-tool-test.sh: sha256:3fd062c0d9c7bab72a682d33556e2e20490bb30803d985d693b4d564e9135138
     .claude/hooks/pre-tool.sh: sha256:759e2ade5b5be8ab43ed6a8a2e2fdecf96a7241a914bd1cffa1871248f93fceb

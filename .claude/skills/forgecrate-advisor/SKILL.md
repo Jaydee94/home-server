@@ -15,8 +15,12 @@ Analysiert ein Repo und empfiehlt das passende `forgecrate`-Profil und die passe
 | Flavor | Wann |
 |--------|------|
 | `strict-review` | Team >1 Person, PRs, formale Review-Prozesse |
-| `tdd` | Test-first-Kultur, Testabdeckung >70%, CI-Pflicht |
+| `tdd` | Test-first-Kultur, Testabdeckung >70 %, CI-Pflicht |
 | `minimal` | Prototyp, Solo-Projekt, wenig Overhead gewünscht |
+| `gitops` | ArgoCD-/Flux-getriebene Infrastruktur, Kyverno/OPA-Policies |
+| `getbetter` | Lern-fokussierte Projekte, Session-übergreifende Erkenntnisse |
+| `github` | GitHub-zentrierter Workflow: Releases via `gh`, CI-getriebene Tags |
+| `no-research` | Air-gapped Repos, strikte Compliance, rein interne Logik |
 
 ## Ablauf
 
@@ -53,10 +57,10 @@ Flavors: strict-review, tdd
 Reasons: .github/workflows/ vorhanden (CI), >50 Testdateien gefunden
 
 Befehl:
-  forgecrate run --profile backend --flavor strict-review,tdd
+  forgecrate init --profile backend --flavors strict-review,tdd
 
 Alternativ ohne TDD-Disziplin:
-  forgecrate run --profile backend --flavor strict-review
+  forgecrate init --profile backend --flavors strict-review
 ```
 
-6. **Frage ob ausführen** — "Soll ich `forgecrate run` mit dieser Konfiguration jetzt ausführen?"
+6. **Frage ob ausführen** — "Soll ich `forgecrate init` mit dieser Konfiguration jetzt ausführen?"
