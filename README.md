@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <b>A fully automated, GitOps-driven home server on a single machine.</b><br/>
-  One Ansible run gives you a hardened Ubuntu host, a lightweight Kubernetes cluster (<a href="https://k3s.io">k3s</a>), continuous delivery from Git (<a href="https://argo-cd.readthedocs.io">ArgoCD</a>), and zero-config remote access (<a href="https://tailscale.com">Tailscale</a>).
+  <b>Vollständig automatisierter, GitOps-getriebener Home-Server auf einer einzigen Maschine.</b><br/>
+  Ein einziger Ansible-Run liefert einen gehärteten Ubuntu-Host, einen schlanken Kubernetes-Cluster (<a href="https://k3s.io">k3s</a>), Continuous Delivery aus Git (<a href="https://argo-cd.readthedocs.io">ArgoCD</a>) und Zero-Config-Remote-Access (<a href="https://tailscale.com">Tailscale</a>).
 </p>
 
 ---
@@ -20,179 +20,177 @@
 ## TL;DR
 
 ```bash
-# 1) Clone
+# 1) Repo klonen
 git clone https://github.com/Jaydee94/home-server.git && cd home-server
 
-# 2) Fill in your details (server IP, repo URL, Tailscale key)
+# 2) Eigene Details eintragen (Server-IP, Repo-URL, Tailscale-Key)
 $EDITOR ansible/inventory/hosts.yml
 $EDITOR ansible/group_vars/all.yml
 
-# 3) Install collections, then run it
-make install   # or: ansible-galaxy collection install -r ansible/requirements.yml \
-               #     && ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
+# 3) Collections installieren und Playbook laufen lassen
+make install   # oder: ansible-galaxy collection install -r ansible/requirements.yml \
+               #       && ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
 ```
 
-When the playbook finishes you'll see the ArgoCD URL and admin password. That's it.
+Am Ende druckt das Playbook die ArgoCD-URL und das Admin-Passwort. Fertig.
 
 ---
 
-## What you get
+## Was du bekommst
 
-| Layer            | Component                              | Notes                                                      |
-|------------------|----------------------------------------|------------------------------------------------------------|
-| Operating System | **Ubuntu Server 26.04 LTS**            | Hardened, UFW firewall, NTP-synced, swap off               |
-| Kubernetes       | **k3s** (latest stable channel)        | Single-node, bundles Traefik, CoreDNS, local-path, metrics |
-| GitOps           | **ArgoCD** + ApplicationSets           | Drop a folder under `argocd/apps/`, push, it deploys       |
-| Split-DNS        | **dnsmasq** on `tailscale0` + LAN      | `*.homeserver` resolvable from LAN and tailnet — no public DNS |
-| Web Ansible      | **Semaphore UI**                       | One-click `git pull && ansible-playbook` against your LAN  |
-| Monitoring       | **VictoriaMetrics + Grafana**          | Single-node TSDB, vmagent, vmalert, Alertmanager, dashboards |
-| Kubernetes UI    | **Headlamp**                           | Browser dashboard for the cluster                          |
-| Secrets          | **Sealed Secrets + kubeseal-webgui**   | Commit encrypted secrets to Git, decrypted only in-cluster |
-| Document scan    | **scanbd + Fujitsu USB scanner**       | Bare-metal scan daemon → CIFS → Paperless-NGX on the NAS   |
-| Notifications    | **Gotify**                             | Self-hosted push notifications (Android/iOS client)        |
-| Remote access    | **Tailscale**                          | WireGuard mesh VPN — no port forwarding, no public IP      |
-| Ingress          | **Traefik v2** (bundled with k3s)      | HTTP/HTTPS routing into the cluster                        |
-| Provisioning     | **Ansible** (≥ 2.14)                   | Fully idempotent, role-per-concern, vault for secrets      |
+| Schicht          | Komponente                             | Hinweis                                                                |
+|------------------|----------------------------------------|------------------------------------------------------------------------|
+| Betriebssystem   | **Ubuntu Server 26.04 LTS**            | Gehärtet, UFW-Firewall, NTP-synced, Swap off                           |
+| Kubernetes       | **k3s** (latest stable channel)        | Single-Node, bundelt Traefik, CoreDNS, local-path, metrics-server      |
+| GitOps           | **ArgoCD** + ApplicationSets           | Verzeichnis unter `argocd/apps/` anlegen, pushen, deployt              |
+| Split-DNS        | **dnsmasq** auf `tailscale0` + LAN     | `*.homeserver` aus LAN und Tailnet auflösbar — kein öffentliches DNS   |
+| Web-Ansible      | **Semaphore UI**                       | Ein-Klick-`git pull && ansible-playbook` gegen das eigene LAN          |
+| Monitoring       | **VictoriaMetrics + Grafana**          | Single-Node TSDB, vmagent, vmalert, Alertmanager, Dashboards           |
+| Kubernetes-UI    | **Headlamp**                           | Browser-Dashboard für den Cluster                                      |
+| Secrets          | **Sealed Secrets + kubeseal-webgui**   | Verschlüsselte Secrets in Git, nur im Cluster entschlüsselbar          |
+| Dokumenten-Scan  | **scanbd + Fujitsu USB-Scanner**       | Bare-Metal-Scan-Daemon → CIFS → Paperless-NGX auf der NAS              |
+| Notifications    | **Gotify**                             | Self-hosted Push-Notifications (Android/iOS-Client)                    |
+| Remote-Access    | **Tailscale**                          | WireGuard-Mesh-VPN — keine Portfreigaben, keine öffentliche IP         |
+| Ingress          | **Traefik v2** (mit k3s gebundled)     | HTTP/HTTPS-Routing in den Cluster                                      |
+| Provisioning     | **Ansible** (≥ 2.14)                   | Vollständig idempotent, Role-per-Concern, Vault für Secrets            |
 
-Hardware target: a small box with ≥ 4 GB RAM and ≥ 20 GB disk. Reference build: Intel i5, 32 GB RAM, 512 GB NVMe.
+Ziel-Hardware: kleine Box mit ≥ 4 GB RAM und ≥ 20 GB Disk. Referenz-Build: Intel i5, 32 GB RAM, 512 GB NVMe.
 
-### Always up to date
+### Immer aktuell
 
-`auto_upgrade: true` (default) makes every playbook run keep the entire stack current:
+`auto_upgrade: true` (Default) hält bei jedem Playbook-Run den gesamten Stack aktuell:
 
-- **APT packages** — `apt dist-upgrade` on every run, plus `unattended-upgrades` configured for daily background security patches.
-- **Tailscale** — `state: latest` for the `tailscale` package.
-- **k3s** — follows `k3s_channel` (default `stable`), so the upstream installer pulls the latest release on every run. Pin by setting `k3s_version`.
-- **Helm** — re-runs the official installer; replaces the binary when a newer Helm 3 release exists.
-- **ArgoCD** — `helm upgrade --install` with no `--version` flag pulls the latest chart. Pin by setting `argocd_version`.
-- **Reboot-if-required** — if APT marks `/var/run/reboot-required`, the playbook reboots the host and waits for it to come back (toggle with `auto_reboot_if_required`).
+- **APT-Pakete** — `apt dist-upgrade` bei jedem Run, plus `unattended-upgrades` für tägliche Sicherheits-Patches im Hintergrund.
+- **Tailscale** — `state: latest` für das `tailscale`-Paket.
+- **k3s** — folgt `k3s_channel` (Default `stable`), der Upstream-Installer zieht jeweils den neuesten Release. Pin via `k3s_version`.
+- **Helm** — Re-Run des offiziellen Installers ersetzt das Binary, wenn ein neuerer Helm-3-Release existiert.
+- **ArgoCD** — `helm upgrade --install` ohne `--version` zieht das neueste Chart. Pin via `argocd_version`.
+- **Reboot-if-required** — wenn APT `/var/run/reboot-required` setzt, rebootet das Playbook den Host und wartet, bis er wieder oben ist (Toggle via `auto_reboot_if_required`).
 
-Set `auto_upgrade: false` in `ansible/group_vars/all.yml` to freeze everything at the pinned versions for reproducibility.
+Für reproduzierbare Builds `auto_upgrade: false` in `ansible/group_vars/all.yml` setzen.
 
 ---
 
-## Quick Start (5 steps)
+## Quickstart (5 Schritte)
 
-> First time on the machine? Start with **[Ubuntu Server Install](docs/00-ubuntu-server-install.md)**.
-> Full prerequisites are in **[docs/02-prerequisites.md](docs/02-prerequisites.md)**.
+> Erstmalig auf der Maschine? Start mit **[Ubuntu-Server-Installation](docs/00-ubuntu-server-install.md)**.
+> Komplette Voraussetzungen unter **[docs/02-prerequisites.md](docs/02-prerequisites.md)**.
 
-**1. Clone the repo**
+**1. Repo klonen**
 
 ```bash
 git clone https://github.com/Jaydee94/home-server.git
 cd home-server
 ```
 
-**2. Point the inventory at your server**
+**2. Inventory auf den eigenen Server zeigen lassen**
 
 ```bash
 $EDITOR ansible/inventory/hosts.yml
-# Change ansible_host (server IP) and ansible_ssh_private_key_file if needed.
+# ansible_host (Server-IP) und ggf. ansible_ssh_private_key_file anpassen.
 ```
 
-**3. Set your variables**
+**3. Variablen setzen**
 
 ```bash
 $EDITOR ansible/group_vars/all.yml
-# Required: argocd_repo_url, local_subnet, timezone.
-# Tailscale key must be vault-encrypted (next step).
+# Pflicht: argocd_repo_url, local_subnet, timezone.
+# Tailscale-Key muss vault-encrypted sein (nächster Schritt).
 ```
 
-**4. Encrypt the Tailscale auth key**
+**4. Tailscale-Auth-Key verschlüsseln**
 
 ```bash
-ansible-vault encrypt_string 'tskey-auth-YOUR_KEY_HERE' --name 'tailscale_auth_key'
-# Paste the !vault block over the existing tailscale_auth_key value in all.yml.
+ansible-vault encrypt_string 'tskey-auth-DEIN_KEY' --name 'tailscale_auth_key'
+# Den !vault-Block in all.yml über den bestehenden tailscale_auth_key-Wert pasten.
 ```
 
-**5. Run it**
+**5. Playbook ausführen**
 
 ```bash
 make install
-# or, without make:
+# oder ohne make:
 ansible-galaxy collection install -r ansible/requirements.yml
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
 ```
 
-After completion the playbook prints:
+Am Ende druckt das Playbook:
 
 ```
 ArgoCD UI:  http://<server-ip>:30080
 Username:   admin
-Password:   <auto-generated>
+Password:   <auto-generiert>
 ```
 
 ---
 
-## Repository Layout
+## Repository-Layout
 
 ```
 home-server/
 ├── README.md
-├── Makefile                          # Convenience targets: install, lint, ping, check, …
+├── Makefile                          # Convenience-Targets: install, lint, ping, check, …
 ├── docs/
-│   ├── 00-ubuntu-server-install.md   # Bare-metal Ubuntu install
-│   ├── 01-overview.md                # Architecture diagrams
-│   ├── 02-prerequisites.md           # Requirements & pre-flight checks
-│   ├── 03-installation.md            # Step-by-step setup
-│   ├── 04-k3s.md                     # k3s + kubectl reference
-│   ├── 05-argocd.md                  # GitOps usage
-│   ├── 06-tailscale.md               # VPN setup
-│   ├── 07-troubleshooting.md         # Common issues
-│   ├── 08-semaphore.md               # Semaphore Web UI for Ansible
-│   ├── 09-dns-architecture.md        # Split-DNS design & failure modes
-│   ├── 10-scanner.md                 # Fujitsu scanner + scanbd + Paperless
-│   ├── 11-gotify.md                  # Push notifications via Gotify
+│   ├── 00-ubuntu-server-install.md   # Bare-Metal-Ubuntu-Installation
+│   ├── 01-overview.md                # Architektur-Diagramme
+│   ├── 02-prerequisites.md           # Voraussetzungen & Pre-flight
+│   ├── 03-installation.md            # Step-by-Step-Setup
+│   ├── 04-k3s.md                     # k3s + kubectl-Referenz
+│   ├── 05-argocd.md                  # GitOps-Nutzung
+│   ├── 06-tailscale.md               # VPN-Setup
+│   ├── 07-troubleshooting.md         # Häufige Probleme
+│   ├── 08-semaphore.md               # Semaphore-Web-UI für Ansible
+│   ├── 09-dns-architecture.md        # Split-DNS-Design & Ausfallsicherheit
+│   ├── 10-scanner.md                 # Fujitsu-Scanner + scanbd + Paperless
+│   ├── 11-gotify.md                  # Push-Notifications via Gotify
 │   └── assets/banner.svg
 ├── ansible/
-│   ├── site.yml                      # Entry point
-│   ├── requirements.yml              # Galaxy collections
-│   ├── ansible.cfg                   # Sensible defaults
-│   ├── inventory/hosts.yml           # Your server (+ semaphore_targets)
-│   ├── group_vars/all.yml            # All knobs (vault-encrypted secrets)
+│   ├── site.yml                      # Entry-Point
+│   ├── requirements.yml              # Galaxy-Collections
+│   ├── ansible.cfg                   # Defaults
+│   ├── inventory/hosts.yml           # Eigener Server (+ semaphore_targets)
+│   ├── group_vars/all.yml            # Alle Knobs (vault-verschlüsselte Secrets)
 │   └── roles/
-│       ├── common/                   # Base OS, firewall, packages
-│       ├── dnsmasq/                  # Split-DNS for *.homeserver
-│       ├── tailscale/                # VPN (WireGuard mesh)
-│       ├── k3s/                      # Single-node Kubernetes + Helm
-│       ├── argocd/                   # GitOps controller via Helm
-│       ├── scanner/                  # Fujitsu USB scanner + scanbd + SMB
-│       ├── semaphore_secrets/        # Bootstrap Secret for the Semaphore pod
-│       ├── semaphore_targets/        # Push SSH pubkey to managed hosts
-│       └── semaphore_bootstrap/      # Provision Projects/Inventories/Templates via API
+│       ├── common/                   # Base-OS, Firewall, Pakete
+│       ├── dnsmasq/                  # Split-DNS für *.homeserver
+│       ├── tailscale/                # VPN (WireGuard-Mesh)
+│       ├── k3s/                      # Single-Node-Kubernetes + Helm
+│       ├── argocd/                   # GitOps-Controller via Helm
+│       ├── scanner/                  # Fujitsu-USB-Scanner + scanbd + SMB
+│       ├── semaphore_secrets/        # Bootstrap-Secret für den Semaphore-Pod
+│       ├── semaphore_targets/        # SSH-Pubkey auf Managed-Hosts pushen
+│       └── semaphore_bootstrap/      # Projects/Inventories/Templates per API
 └── argocd/
-    ├── bootstrap/root-applicationset.yaml  # Discovers every directory below
-    └── apps/                               # One folder per ArgoCD Application
-        ├── example-whoami/                 # Reference Helm chart
-        ├── gotify/                         # Push notifications
-        ├── headlamp/                       # Kubernetes web dashboard
-        ├── kubeseal-webgui/                # Sealed-Secrets encryption UI
+    ├── bootstrap/root-applicationset.yaml  # Erkennt jedes Verzeichnis darunter
+    └── apps/                               # Ein Ordner pro ArgoCD-Application
+        ├── example-whoami/                 # Referenz-Helm-Chart
+        ├── gotify/                         # Push-Notifications
+        ├── headlamp/                       # Kubernetes-Web-Dashboard
+        ├── kubeseal-webgui/                # Sealed-Secrets-Verschlüsselungs-UI
         ├── monitoring/                     # VictoriaMetrics + Grafana
-        ├── sealed-secrets/                 # SealedSecrets controller
-        └── semaphore/                      # Ansible web UI
+        ├── sealed-secrets/                 # SealedSecrets-Controller
+        └── semaphore/                      # Ansible-Web-UI
 ```
 
 ---
 
 ## Monitoring
 
-A lightweight VictoriaMetrics + Grafana stack lives under
-`argocd/apps/monitoring/` and is rolled out by ArgoCD automatically.
+Ein schlanker VictoriaMetrics-+-Grafana-Stack lebt unter
+`argocd/apps/monitoring/` und wird automatisch von ArgoCD ausgerollt.
 
-- **TSDB:** VMSingle (15 d retention, 10 Gi `local-path` PVC).
-- **Scrapers:** VMAgent picks up every `VMServiceScrape`/`VMPodScrape` and
-  any Prometheus `ServiceMonitor` (auto-converted by the operator).
-- **Host metrics:** `prometheus-node-exporter` DaemonSet covers the Ubuntu host.
-- **Cluster metrics:** kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS.
-  Scheduler / controller-manager / etcd scrapes are disabled — k3s bakes
-  them into a single process.
-- **Alerts:** Default kube-prometheus rule set, routed to a `blackhole`
-  receiver until you wire up Discord/Slack/Gotify in `values.yaml`.
-- **Dashboards:** Node Exporter Full, VictoriaMetrics, plus the Kubernetes
-  "Views / Global, Namespaces, Nodes, Pods" set from grafana.com.
+- **TSDB:** VMSingle (15 Tage Retention, 10 Gi `local-path`-PVC).
+- **Scrapers:** VMAgent scrapet alle `VMServiceScrape`/`VMPodScrape` und
+  zusätzlich Prometheus-`ServiceMonitor`-CRDs (vom Operator auto-konvertiert).
+- **Host-Metriken:** `prometheus-node-exporter` als DaemonSet auf dem Ubuntu-Host.
+- **Cluster-Metriken:** kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS.
+  Scheduler/Controller-Manager/etcd-Scrapes sind deaktiviert — k3s vereint sie in einem Prozess.
+- **Alerts:** Default-kube-prometheus-Rules, geroutet auf einen `blackhole`-Receiver,
+  bis Discord/Slack/Gotify in `values.yaml` verdrahtet ist.
+- **Dashboards:** Node Exporter Full, VictoriaMetrics + Kubernetes „Views / Global, Namespaces, Nodes, Pods" von grafana.com.
 
-Open Grafana at **http://grafana.homeserver** (LAN + Tailnet via dnsmasq).
-Username `admin`, password from the auto-generated secret:
+Grafana öffnen unter **http://grafana.homeserver** (LAN + Tailnet via dnsmasq).
+User `admin`, Passwort aus dem auto-generierten Secret:
 
 ```bash
 kubectl -n monitoring get secret monitoring-grafana \
@@ -201,59 +199,61 @@ kubectl -n monitoring get secret monitoring-grafana \
 
 ---
 
-## Adding an Application (the GitOps way)
+## Application hinzufügen (der GitOps-Weg)
 
 ```bash
 mkdir -p argocd/apps/my-app
-# Drop plain Kubernetes YAML, kustomization.yaml, or a Helm chart inside.
+# Plain Kubernetes-YAML, kustomization.yaml oder ein Helm-Chart hineinlegen.
 git add argocd/apps/my-app && git commit -m "feat(apps): add my-app" && git push
 ```
 
-Within ~3 minutes ArgoCD picks up the new directory, creates an `Application` named `my-app` in a `my-app` namespace, and syncs it. See **[docs/05-argocd.md](docs/05-argocd.md)** for details.
+Innerhalb von ~3 Minuten erkennt ArgoCD das neue Verzeichnis, erstellt eine
+`Application` namens `my-app` im Namespace `my-app` und synct sie.
+Details: **[docs/05-argocd.md](docs/05-argocd.md)**.
 
 ---
 
 ## Networking & Security
 
-- **No public ports.** Internet-facing access is via Tailscale only.
-- **UFW** allows just what the stack needs: SSH, HTTP/HTTPS, k3s API, ArgoCD NodePort, kubelet, Flannel VXLAN, Tailscale UDP, plus full trust for LAN, Tailnet, pod and service CIDRs.
-- **Ansible Vault** encrypts the Tailscale auth key at rest.
-- **ArgoCD** uses read-only access to the Git repository.
+- **Keine öffentlichen Ports.** Internet-Zugriff geht ausschließlich über Tailscale.
+- **UFW** erlaubt nur, was der Stack braucht: SSH, HTTP/HTTPS, k3s-API, ArgoCD-NodePort, kubelet, Flannel VXLAN, Tailscale-UDP, plus volles Trust für LAN, Tailnet, Pod- und Service-CIDRs.
+- **Ansible-Vault** verschlüsselt sensitive Secrets at rest.
+- **ArgoCD** hat ausschließlich Read-Access auf das Git-Repo.
 
-| Port  | Proto    | Scope             | Purpose                                |
-|-------|----------|-------------------|----------------------------------------|
-| 22    | TCP      | LAN + Tailnet     | SSH                                    |
-| 53    | UDP+TCP  | LAN + Tailnet     | dnsmasq split-DNS for `*.homeserver`   |
-| 80    | TCP      | LAN + Tailnet     | Traefik HTTP                           |
-| 443   | TCP      | LAN + Tailnet     | Traefik HTTPS                          |
-| 6443  | TCP      | LAN + Tailnet     | k3s API                                |
-| 30080 | TCP      | LAN + Tailnet     | ArgoCD UI (HTTP)                       |
-| 30443 | TCP      | LAN + Tailnet     | ArgoCD UI (HTTPS)                      |
-| 41641 | UDP      | Internet          | Tailscale WireGuard                    |
+| Port  | Protokoll | Scope             | Zweck                                  |
+|-------|-----------|-------------------|----------------------------------------|
+| 22    | TCP       | LAN + Tailnet     | SSH                                    |
+| 53    | UDP+TCP   | LAN + Tailnet     | dnsmasq Split-DNS für `*.homeserver`   |
+| 80    | TCP       | LAN + Tailnet     | Traefik HTTP                           |
+| 443   | TCP       | LAN + Tailnet     | Traefik HTTPS                          |
+| 6443  | TCP       | LAN + Tailnet     | k3s-API                                |
+| 30080 | TCP       | LAN + Tailnet     | ArgoCD-UI (HTTP)                       |
+| 30443 | TCP       | LAN + Tailnet     | ArgoCD-UI (HTTPS)                      |
+| 41641 | UDP       | Internet          | Tailscale-WireGuard                    |
 
-Full architecture in **[docs/01-overview.md](docs/01-overview.md)**.
-
----
-
-## Documentation
-
-| Doc                                                             | What it covers                              |
-|-----------------------------------------------------------------|---------------------------------------------|
-| [Ubuntu Server Install](docs/00-ubuntu-server-install.md)       | ISO, USB stick, install wizard, first boot  |
-| [Architecture Overview](docs/01-overview.md)                    | Components and how traffic flows            |
-| [Prerequisites](docs/02-prerequisites.md)                       | What you need before running Ansible        |
-| [Installation Guide](docs/03-installation.md)                   | Full step-by-step walkthrough               |
-| [k3s Reference](docs/04-k3s.md)                                 | Config, kubectl cheat-sheet, upgrades       |
-| [ArgoCD GitOps](docs/05-argocd.md)                              | App workflow, CLI, sync policies            |
-| [Tailscale VPN](docs/06-tailscale.md)                           | Auth keys, MagicDNS, subnet routes          |
-| [Troubleshooting](docs/07-troubleshooting.md)                   | Diagnostic playbook for common failures     |
-| [Semaphore UI](docs/08-semaphore.md)                            | Web UI to run playbooks against Raspi/NAS   |
-| [DNS Architecture](docs/09-dns-architecture.md)                 | Why the home-server is NOT your LAN DNS     |
-| [Scanner & Paperless](docs/10-scanner.md)                       | Fujitsu USB scanner → CIFS → Paperless-NGX  |
-| [Gotify Push](docs/11-gotify.md)                                | Self-hosted push notifications from the stack |
+Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
 
 ---
 
-## License
+## Dokumentation
 
-MIT — see [LICENSE](LICENSE).
+| Doc                                                             | Inhalt                                       |
+|-----------------------------------------------------------------|----------------------------------------------|
+| [Ubuntu-Server-Installation](docs/00-ubuntu-server-install.md)  | ISO, USB-Stick, Installer, erster Boot       |
+| [Architektur-Überblick](docs/01-overview.md)                    | Komponenten und Traffic-Flows                |
+| [Voraussetzungen](docs/02-prerequisites.md)                     | Was vor dem Ansible-Run nötig ist            |
+| [Installationsleitfaden](docs/03-installation.md)               | Vollständiger Step-by-Step-Walkthrough       |
+| [k3s-Referenz](docs/04-k3s.md)                                  | Config, kubectl-Cheatsheet, Upgrades         |
+| [ArgoCD-GitOps](docs/05-argocd.md)                              | App-Workflow, CLI, Sync-Policies             |
+| [Tailscale-VPN](docs/06-tailscale.md)                           | Auth-Keys, MagicDNS, Subnet-Routes           |
+| [Troubleshooting](docs/07-troubleshooting.md)                   | Diagnose-Playbook für häufige Probleme       |
+| [Semaphore-UI](docs/08-semaphore.md)                            | Web-UI zum Ausführen von Playbooks           |
+| [DNS-Architektur](docs/09-dns-architecture.md)                  | Warum der Home-Server NICHT dein LAN-DNS ist |
+| [Scanner & Paperless](docs/10-scanner.md)                       | Fujitsu-USB-Scanner → CIFS → Paperless-NGX   |
+| [Gotify-Push](docs/11-gotify.md)                                | Self-hosted Push-Notifications aus dem Stack |
+
+---
+
+## Lizenz
+
+MIT — siehe [LICENSE](LICENSE).

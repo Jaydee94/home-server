@@ -1,149 +1,154 @@
-# Ubuntu Server 26.04 LTS — Installation Guide
+# Ubuntu Server 26.04 LTS — Installationsleitfaden
 
-This guide walks through installing **Ubuntu Server 26.04 LTS** on the home server. Use **Ubuntu Server** (not Desktop) — it's the supported base for the k3s cluster.
+Dieser Leitfaden beschreibt die Installation von **Ubuntu Server 26.04 LTS** auf
+dem Home-Server. **Server-Variante** (nicht Desktop) — sie ist die unterstützte
+Basis für den k3s-Cluster.
 
 ---
 
 ## Hardware
 
-| Component | Recommended       | Reference build           |
-|-----------|-------------------|---------------------------|
-| CPU       | x86-64, 2+ cores  | Intel Core i5             |
-| RAM       | ≥ 4 GB            | 32 GB                     |
-| Storage   | ≥ 20 GB           | 512 GB NVMe SSD           |
-| Network   | Wired Ethernet    | 1 Gbps                    |
-| OS        | Ubuntu Server 26.04 LTS |
+| Komponente | Empfohlen              | Referenz-Build              |
+|------------|------------------------|-----------------------------|
+| CPU        | x86-64, 2+ Cores       | Intel Core i5               |
+| RAM        | ≥ 4 GB                 | 32 GB                       |
+| Storage    | ≥ 20 GB                | 512 GB NVMe-SSD             |
+| Netzwerk   | Wired Ethernet         | 1 Gbit/s                    |
+| OS         | Ubuntu Server 26.04 LTS|                             |
 
 ---
 
-## Step 1 — Download the Ubuntu Server ISO
+## Schritt 1 — Ubuntu-Server-ISO herunterladen
 
-Download from the official site:
+Von der offiziellen Seite:
 
 <https://ubuntu.com/download/server>
 
-> Pick **Ubuntu Server**, not Ubuntu Desktop. Current LTS: **26.04.x**.
+> **Ubuntu Server** wählen, nicht Ubuntu Desktop. Aktuelles LTS: **26.04.x**.
 
-Optional but recommended — verify the SHA256 sum:
+Optional, aber empfohlen — SHA256-Summe verifizieren:
 
 ```bash
 sha256sum ubuntu-26.04.*-live-server-amd64.iso
-# Compare against: https://releases.ubuntu.com/26.04/SHA256SUMS
+# Vergleichen mit: https://releases.ubuntu.com/26.04/SHA256SUMS
 ```
 
 ---
 
-## Step 2 — Create a bootable USB stick
+## Schritt 2 — Bootable USB-Stick erstellen
 
 **Linux**
 
 ```bash
-lsblk                                                       # find your USB device, e.g. /dev/sdb
+lsblk                                                       # USB-Device finden, z. B. /dev/sdb
 sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/sdX bs=4M status=progress conv=fsync
 ```
 
 **macOS**
 
 ```bash
-diskutil list                                               # find your USB, e.g. /dev/disk4
+diskutil list                                               # USB finden, z. B. /dev/disk4
 diskutil unmountDisk /dev/diskX
 sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 ```
 
-**Windows** — use [Rufus](https://rufus.ie).
+**Windows** — [Rufus](https://rufus.ie) oder
+[balenaEtcher](https://www.balena.io/etcher/) nutzen.
 
-> The USB stick will be wiped. Double-check the device path.
+> Der USB-Stick wird komplett überschrieben. Device-Pfad doppelt prüfen.
 
 ---
 
-## Step 3 — Install Ubuntu Server
+## Schritt 3 — Ubuntu Server installieren
 
-1. Boot the server from the USB stick (BIOS/UEFI key is usually `F2`, `F10`, `F12`, or `Del`).
-2. Walk through the Subiquity installer:
+1. Server vom USB-Stick booten (BIOS/UEFI-Taste meist `F2`, `F10`, `F12` oder `Del`).
+2. Durch den Subiquity-Installer klicken:
 
-| Step                 | Setting                                                                |
+| Schritt              | Einstellung                                                            |
 |----------------------|------------------------------------------------------------------------|
-| Language             | English (avoids locale issues)                                         |
-| Keyboard layout      | Your local layout (e.g. German)                                        |
-| Installation type    | **Ubuntu Server** (NOT *minimized*)                                    |
-| Network              | Accept DHCP for now — set a static IP later                            |
-| Proxy                | Leave blank                                                            |
+| Sprache              | English (vermeidet Locale-Issues)                                      |
+| Tastatur             | Eigenes Layout (z. B. German)                                          |
+| Installationstyp     | **Ubuntu Server** (NICHT *minimized*)                                  |
+| Netzwerk             | DHCP zunächst akzeptieren — statische IP folgt später                  |
+| Proxy                | leer lassen                                                            |
 | Mirror               | Default                                                                |
 | Storage              | **Use an entire disk** + **Set up this disk as an LVM group**          |
-| Profile              | Username **`ubuntu`** (must match the inventory)                       |
-| Server name          | **`homeserver`** (must match `hostname` in `group_vars/all.yml`)       |
-| SSH                  | **Install OpenSSH server** (optionally import your GitHub/Launchpad keys) |
-| Featured snaps       | Skip all — Ansible installs everything                                 |
+| Profile              | Username **`ubuntu`** (muss zum Inventory passen)                      |
+| Servername           | **`homeserver`** (muss zu `hostname` in `group_vars/all.yml` passen)   |
+| SSH                  | **Install OpenSSH server** (optional GitHub/Launchpad-Keys importieren)|
+| Featured Snaps       | alles überspringen — Ansible installiert alles Weitere                 |
 
-3. Reboot when prompted and remove the USB stick.
+3. Nach dem Reboot den USB-Stick entfernen.
 
 ---
 
-## Step 4 — First login & find the server's IP
+## Schritt 4 — Erster Login & Server-IP finden
 
-After reboot, log in (locally or via SSH if you imported a key):
+Nach dem Reboot lokal oder per SSH (falls Key importiert wurde) anmelden:
 
 ```bash
-ip -4 addr show         # find the server's IP, e.g. 192.168.1.123
-hostname -I             # short form
+ip -4 addr show         # IP des Servers ermitteln, z. B. 192.168.1.123
+hostname -I             # Kurzform
 ```
 
 ---
 
-## Step 5 — Push your SSH key from the control machine
+## Schritt 5 — SSH-Public-Key vom Control-Rechner pushen
 
-On your **local** machine (the one that will run Ansible):
+Auf dem **lokalen** Rechner (von dort wird Ansible laufen):
 
 ```bash
-# Generate a key if you don't have one
+# Key generieren, falls noch keiner vorhanden
 ssh-keygen -t ed25519 -C "home-server-ansible" -f ~/.ssh/id_ed25519
 
-# Copy the public key to the server (one-time password login)
+# Public Key auf den Server kopieren (einmaliger Passwort-Login)
 ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@<server-ip>
 
-# Verify passwordless login works
-ssh -i ~/.ssh/id_ed25519 ubuntu@<server-ip> "echo 'SSH key auth works'"
+# Verifizieren, dass passwortloser Login geht
+ssh -i ~/.ssh/id_ed25519 ubuntu@<server-ip> "echo 'SSH-Key-Login funktioniert'"
 ```
 
-If you used a different filename (or the legacy `~/.ssh/id_rsa`), update `ansible_ssh_private_key_file` in `ansible/inventory/hosts.yml`.
+Bei abweichendem Key-Pfad (z. B. legacy `~/.ssh/id_rsa`) den Eintrag
+`ansible_ssh_private_key_file` in `ansible/inventory/hosts.yml` anpassen.
 
 ---
 
-## Step 6 — Set a static IP
+## Schritt 6 — Statische IP einrichten
 
-A static IP is strongly recommended for a server.
+Für einen Server dringend empfohlen.
 
-### Option A — Let Ansible handle it (recommended)
+### Variante A — Ansible erledigt es (empfohlen)
 
 In `ansible/group_vars/all.yml`:
 
 ```yaml
 network_configure_static_ip: true
-network_interface: eno1          # CHANGE — find yours with: ip link show
-network_static_ip: 192.168.1.100 # CHANGE
+network_interface: eno1          # ANPASSEN — Name aus: ip link show
+network_static_ip: 192.168.1.100 # ANPASSEN
 network_prefix_length: 24
-network_gateway: 192.168.1.1     # CHANGE — your router's IP
+network_gateway: 192.168.1.1     # ANPASSEN — IP des Routers
 network_dns:
   - 1.1.1.1
   - 8.8.8.8
 ```
 
-The SSH session briefly drops while Netplan reconfigures. Make sure `ansible_host` in the inventory points at the new IP (or set it ahead of time).
+Die SSH-Session bricht kurz weg, während Netplan neu konfiguriert. Wichtig:
+`ansible_host` im Inventory muss auf die neue IP zeigen (oder vorher schon).
 
-### Option B — Do it manually before Ansible
+### Variante B — Manuell vor dem Playbook
 
 ```bash
-ip link show                              # discover interface name, e.g. eno1
+ip link show                              # Interface-Name herausfinden, z. B. eno1
 sudo $EDITOR /etc/netplan/00-installer-config.yaml
 ```
 
-Replace the file with:
+Datei ersetzen durch:
 
 ```yaml
 network:
   version: 2
   ethernets:
-    eno1:                       # your interface
+    eno1:                       # eigenes Interface
       dhcp4: false
       addresses:
         - 192.168.1.100/24
@@ -156,13 +161,13 @@ network:
           - 8.8.8.8
 ```
 
-Then:
+Anwenden:
 
 ```bash
 sudo netplan apply
 ```
 
-Test from your laptop:
+Vom Laptop aus testen:
 
 ```bash
 ping 192.168.1.100
@@ -171,20 +176,21 @@ ssh ubuntu@192.168.1.100
 
 ---
 
-## Step 7 — Enable passwordless sudo
+## Schritt 7 — Passwortloses sudo
 
-Ansible needs `NOPASSWD` sudo. Ubuntu Server doesn't enable this by default — check and fix if needed:
+Ansible braucht `NOPASSWD`-sudo. Ubuntu Server hat das nicht standardmäßig
+aktiv — prüfen und bei Bedarf fixen:
 
 ```bash
-sudo -n whoami           # should print "root" without prompting
-# If it prompts for a password:
+sudo -n whoami           # sollte "root" liefern, ohne Passwortabfrage
+# Falls Passwort abgefragt wird:
 echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/ubuntu
 sudo chmod 0440 /etc/sudoers.d/ubuntu
 ```
 
 ---
 
-## Step 8 — System updates
+## Schritt 8 — System-Updates
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -193,17 +199,17 @@ sudo reboot
 
 ---
 
-## Ready for Ansible — checklist
+## Bereit für Ansible — Checkliste
 
-- [ ] Ubuntu Server 26.04 LTS installed (not Desktop)
-- [ ] Username is `ubuntu`
-- [ ] Hostname matches `hostname` in `ansible/group_vars/all.yml` (default: `homeserver`)
-- [ ] SSH key login works (`ssh -i ~/.ssh/id_ed25519 ubuntu@<ip>`)
-- [ ] Passwordless sudo works (`sudo -n whoami` → `root`)
-- [ ] Server has a static IP
-- [ ] Internet is reachable from the server (`ping 1.1.1.1`)
-- [ ] `ansible/inventory/hosts.yml` has the correct IP
-- [ ] `ansible/group_vars/all.yml` is filled in (`argocd_repo_url`, `local_subnet`, `timezone`)
-- [ ] Tailscale auth key encrypted with Ansible Vault
+- [ ] Ubuntu Server 26.04 LTS installiert (nicht Desktop)
+- [ ] Username ist `ubuntu`
+- [ ] Hostname stimmt mit `hostname` in `ansible/group_vars/all.yml` überein (Default: `homeserver`)
+- [ ] SSH-Key-Login funktioniert (`ssh -i ~/.ssh/id_ed25519 ubuntu@<ip>`)
+- [ ] Passwortloses sudo funktioniert (`sudo -n whoami` → `root`)
+- [ ] Server hat statische IP
+- [ ] Internet vom Server erreichbar (`ping 1.1.1.1`)
+- [ ] `ansible/inventory/hosts.yml` hat die korrekte IP
+- [ ] `ansible/group_vars/all.yml` ist ausgefüllt (`argocd_repo_url`, `local_subnet`, `timezone`)
+- [ ] Tailscale Auth-Key mit Ansible-Vault verschlüsselt
 
-When everything is checked, continue with the **[Installation Guide](03-installation.md)**.
+Wenn alles abgehakt ist, weiter mit dem **[Installationsleitfaden](03-installation.md)**.

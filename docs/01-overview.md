@@ -1,10 +1,10 @@
-# Architecture Overview
+# Architektur-Überblick
 
-This document describes the high-level architecture of the home server setup.
+Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 
 ---
 
-## System Architecture
+## System-Architektur
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -14,7 +14,7 @@ This document describes the high-level architecture of the home server setup.
                              ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    TAILSCALE VPN OVERLAY                            │
-│                  (100.x.x.x address space)                          │
+│                  (100.x.x.x Adressbereich)                          │
 │                                                                     │
 │   ┌─────────────┐         ┌──────────────┐      ┌──────────────┐   │
 │   │  Laptop /   │         │    Phone /   │      │   Remote     │   │
@@ -34,9 +34,9 @@ This document describes the high-level architecture of the home server setup.
 │  │  └────────────┘  └──────────────┘  └──────────────────────┘ │   │
 │  │  ┌──────────────┐  ┌─────────────────────────────────────┐  │   │
 │  │  │   dnsmasq    │  │   scanbd + SANE + scan_*.sh         │  │   │
-│  │  │ split-DNS    │  │   (Fujitsu USB scanner pipeline)    │  │   │
-│  │  │ *.homeserver │  │   ──► CIFS mount to UGREEN NAS      │  │   │
-│  │  │ :53 LAN+TS   │  │       (Paperless-NGX consume dir)   │  │   │
+│  │  │ split-DNS    │  │   (Fujitsu USB Scanner Pipeline)    │  │   │
+│  │  │ *.homeserver │  │   ──► CIFS Mount auf UGREEN NAS     │  │   │
+│  │  │ :53 LAN+TS   │  │       (Paperless-NGX consume-Dir)   │  │   │
 │  │  └──────────────┘  └─────────────────────────────────────┘  │   │
 │  │                                                              │   │
 │  │  ┌──────────────────────────────────────────────────────┐   │   │
@@ -45,24 +45,24 @@ This document describes the high-level architecture of the home server setup.
 │  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │   │   │
 │  │  │  │   Traefik   │  │   ArgoCD    │  │  Workload   │  │   │   │
 │  │  │  │  (Ingress)  │  │  (GitOps)   │  │   Apps      │  │   │   │
-│  │  │  │  :80/:443   │  │  :30080     │  │  (see ↓)    │  │   │   │
+│  │  │  │  :80/:443   │  │  :30080     │  │  (siehe ↓)  │  │   │   │
 │  │  │  └──────┬──────┘  └──────┬──────┘  └─────────────┘  │   │   │
 │  │  │         │                │                           │   │   │
 │  │  │  ┌──────┴────────────────┴──────────────────────┐   │   │   │
-│  │  │  │  argocd/apps/ — managed by ApplicationSet:   │   │   │   │
+│  │  │  │  argocd/apps/ — verwaltet vom ApplicationSet:│   │   │   │
 │  │  │  │    monitoring (VictoriaMetrics + Grafana),   │   │   │   │
 │  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
 │  │  │  │    semaphore (Ansible UI),                   │   │   │   │
-│  │  │  │    headlamp (k8s dashboard), gotify (push),  │   │   │   │
+│  │  │  │    headlamp (k8s-Dashboard), gotify (Push),  │   │   │   │
 │  │  │  │    example-whoami                            │   │   │   │
 │  │  │  └─────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
 │  │  │  ┌──────────────────────────────────────────────┐   │   │   │
-│  │  │  │   Flannel VXLAN (Pod Network 10.42.0.0/16)   │   │   │   │
+│  │  │  │   Flannel VXLAN (Pod-Netz 10.42.0.0/16)      │   │   │   │
 │  │  │  └──────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
 │  │  │  ┌──────────────────────────────────────────────┐   │   │   │
-│  │  │  │   local-path StorageClass (NVMe SSD)         │   │   │   │
+│  │  │  │   local-path StorageClass (NVMe-SSD)         │   │   │   │
 │  │  │  └──────────────────────────────────────────────┘   │   │   │
 │  │  └──────────────────────────────────────────────────────┘   │   │
 │  └──────────────────────────────────────────────────────────────┘   │
@@ -74,154 +74,166 @@ This document describes the high-level architecture of the home server setup.
 │                    GIT REPOSITORY (GitHub)                          │
 │                                                                     │
 │   home-server/                                                      │
-│   └── argocd/apps/          ← ArgoCD watches this directory        │
-│       ├── example-whoami/   ← Each subdirectory = one Application  │
+│   └── argocd/apps/          ← ArgoCD beobachtet dieses Verzeichnis │
+│       ├── example-whoami/   ← Jedes Unterverzeichnis = eine App    │
 │       ├── monitoring/                                              │
 │       ├── sealed-secrets/                                          │
 │       ├── kubeseal-webgui/                                         │
 │       ├── headlamp/                                                │
 │       ├── semaphore/                                               │
 │       ├── gotify/                                                  │
-│       └── my-new-app/       ← Add directory → auto-deployed        │
+│       └── my-new-app/       ← Verzeichnis anlegen → auto-deployed  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## GitOps Flow
+## GitOps-Flow
 
 ```
 Developer                Git Repo               ArgoCD              k3s Cluster
     │                       │                     │                      │
     │── git push ──────────►│                     │                      │
-    │                       │◄── poll (3min) ─────│                      │
-    │                       │──── diff detected ──►│                      │
+    │                       │◄── poll (3 min) ────│                      │
+    │                       │─── diff erkannt ───►│                      │
     │                       │                     │── kubectl apply ────►│
-    │                       │                     │                      │── Pods running
-    │                       │                     │◄── status sync ──────│
-    │                       │                     │── sync complete      │
+    │                       │                     │                      │── Pods laufen
+    │                       │                     │◄── Status-Sync ──────│
+    │                       │                     │── Sync complete      │
 ```
 
 ---
 
-## Component Descriptions
+## Komponenten
 
-### Ubuntu 26.04 LTS (Base OS)
+### Ubuntu 26.04 LTS (Base-OS)
 
-The foundation of the entire stack. Configured by the `common` Ansible role with:
-- Full `apt dist-upgrade` on every Ansible run (controlled by `auto_upgrade`)
-- `unattended-upgrades` enabled for daily background security patches
-- Reboot triggered automatically when `/var/run/reboot-required` is present
-- UFW firewall with minimal open ports
-- Kernel modules for container networking (`br_netfilter`, `overlay`)
-- sysctl tuning for Kubernetes requirements
-- Chrony for NTP time synchronization
-- Swap disabled (required for Kubernetes)
+Das Fundament des ganzen Stacks. Konfiguriert durch die Ansible-Rolle `common`:
 
-### k3s (Kubernetes Distribution)
+- Vollständiges `apt dist-upgrade` bei jedem Ansible-Run (gesteuert über `auto_upgrade`)
+- `unattended-upgrades` aktiv für tägliche Sicherheits-Patches im Hintergrund
+- Automatischer Reboot, wenn `/var/run/reboot-required` existiert
+- UFW-Firewall mit minimal offenen Ports
+- Kernel-Module für Container-Netzwerk (`br_netfilter`, `overlay`)
+- sysctl-Tuning für Kubernetes-Anforderungen
+- Chrony für NTP-Zeitsync
+- Swap deaktiviert (Kubernetes-Pflicht)
 
-k3s is a CNCF-certified, production-ready Kubernetes distribution optimized for resource-constrained environments. On this hardware (i5 + 32GB RAM), k3s operates far below its resource limits.
+### k3s (Kubernetes-Distribution)
 
-Bundled components used in this setup:
-- **Flannel** (VXLAN mode) for pod networking
-- **Traefik** v2 as the default Ingress controller
-- **CoreDNS** for cluster DNS
-- **local-path provisioner** for PersistentVolume storage
-- **metrics-server** for resource metrics
+k3s ist eine CNCF-zertifizierte, produktionsreife Kubernetes-Distribution,
+optimiert für ressourcenarme Umgebungen. Auf dieser Hardware (i5 + 32 GB RAM)
+läuft k3s weit unter seinem Limit.
 
-### ArgoCD (GitOps Controller)
+Mitgelieferte Komponenten:
 
-ArgoCD continuously monitors the Git repository and reconciles the cluster state with the desired state defined in YAML manifests. Deployed via Helm into the `argocd` namespace.
+- **Flannel** (VXLAN) für Pod-Networking
+- **Traefik v2** als Default-Ingress-Controller
+- **CoreDNS** für Cluster-DNS
+- **local-path Provisioner** für PersistentVolume-Storage
+- **metrics-server** für Resource-Metriken
 
-The **ApplicationSet** controller enables dynamic application generation from directory patterns — simply create a new directory under `argocd/apps/` and push; ArgoCD automatically creates and syncs a new Application for it.
+### ArgoCD (GitOps-Controller)
+
+ArgoCD beobachtet das Git-Repository und gleicht den Cluster-State mit dem
+gewünschten YAML-State ab. Wird per Helm-Chart in den `argocd`-Namespace deployt.
+
+Der **ApplicationSet**-Controller erlaubt dynamisches Erzeugen von Applications
+aus Verzeichnis-Patterns — neues Verzeichnis unter `argocd/apps/` anlegen,
+pushen, ArgoCD erzeugt automatisch eine neue Application und synct sie.
 
 ### Tailscale (VPN)
 
-Tailscale provides a WireGuard-based mesh VPN. The home server acts as a node in your Tailscale network, making all services accessible from any of your devices via MagicDNS hostnames or Tailscale IP addresses — without opening any ports on your router.
+Tailscale liefert ein WireGuard-basiertes Mesh-VPN. Der Home-Server wird
+zum Knoten im eigenen Tailscale-Netz — alle Services sind von jedem
+Tailscale-Gerät per MagicDNS-Hostname oder Tailscale-IP erreichbar, ohne
+Portfreigaben am Router.
 
-### Traefik (Ingress Controller)
+### Traefik (Ingress-Controller)
 
-Bundled with k3s, Traefik handles HTTP/HTTPS routing into the cluster. Services are exposed via Kubernetes `Ingress` resources or Traefik's native `IngressRoute` CRD.
+Wird mit k3s mitgeliefert und routet HTTP/HTTPS in den Cluster. Services
+werden über `Ingress`-Resourcen oder Traefiks `IngressRoute`-CRD exponiert.
 
-### dnsmasq (Split-DNS for `*.homeserver`)
+### dnsmasq (Split-DNS für `*.homeserver`)
 
-A bare-metal `dnsmasq` runs on the host and serves the `*.homeserver`
-zone on both the LAN interface and `tailscale0`. Every entry in
-`dnsmasq_hosts` (`ansible/group_vars/all.yml`) resolves to the server's
-LAN IP, which lets you reach apps as `grafana.homeserver`,
-`argocd.homeserver`, etc. from anywhere in the LAN or tailnet without
-touching the router or the Tailscale admin console for each new app.
-The architecture (and why the home-server is intentionally **not** your
-LAN-wide DNS server) is covered in detail in
+Auf dem Host läuft ein bare-metal `dnsmasq` und beantwortet die
+`*.homeserver`-Zone sowohl auf dem LAN-Interface als auch auf `tailscale0`.
+Jeder Eintrag in `dnsmasq_hosts` (`ansible/group_vars/all.yml`) löst auf
+die LAN-IP des Servers auf — so erreichst du Apps als `grafana.homeserver`,
+`argocd.homeserver` etc. aus LAN und Tailnet, ohne pro App den Router oder
+die Tailscale-Admin-Konsole anzufassen.
+Die Architektur — und warum der Home-Server bewusst **nicht** dein
+LAN-weiter DNS-Server sein sollte — steht in
 [`09-dns-architecture.md`](09-dns-architecture.md).
 
-### Scanner + Paperless Pipeline
+### Scanner + Paperless-Pipeline
 
-A Fujitsu USB scanner sits directly on the host. `scanbd` listens on the
-hardware button and triggers shell scripts (`scan_button.sh` →
-`scan_to_pdf.sh`) that produce a PDF and drop it onto a CIFS mount of
-the UGREEN NAS, where Paperless-NGX picks it up. Optional Gotify push
-notifications are sent from the same scripts. Full setup is in
-[`10-scanner.md`](10-scanner.md) and [`11-gotify.md`](11-gotify.md).
+Ein Fujitsu USB-Scanner hängt direkt am Host. `scanbd` hört auf den
+Hardware-Button und triggert Shell-Skripte (`scan_button.sh` →
+`scan_to_pdf.sh`), die ein PDF erzeugen und auf einem CIFS-Mount der
+UGREEN NAS ablegen, wo Paperless-NGX es einliest. Optional werden
+Gotify-Push-Notifications aus denselben Skripten verschickt.
+Vollständiges Setup: [`10-scanner.md`](10-scanner.md) und
+[`11-gotify.md`](11-gotify.md).
 
-### Monitoring Stack (VictoriaMetrics + Grafana)
+### Monitoring-Stack (VictoriaMetrics + Grafana)
 
-Deployed via `argocd/apps/monitoring/`. VMSingle stores 15 days of TSDB
-on a `local-path` PVC, VMAgent scrapes both `VMServiceScrape`/`VMPodScrape`
-CRDs and Prometheus `ServiceMonitor` CRDs (auto-converted), and Grafana
-ships pre-loaded dashboards (Node Exporter Full, VictoriaMetrics,
-Kubernetes Views) at `http://grafana.homeserver`.
+Deployt via `argocd/apps/monitoring/`. VMSingle hält 15 Tage TSDB auf
+einem `local-path`-PVC, VMAgent scrapet `VMServiceScrape`/`VMPodScrape`
+**und** auto-konvertierte Prometheus-`ServiceMonitor`-CRDs, Grafana
+liefert vorinstallierte Dashboards (Node Exporter Full, VictoriaMetrics,
+Kubernetes Views) unter `http://grafana.homeserver`.
 
 ### Sealed Secrets
 
-Bitnami's `sealed-secrets` controller (under `argocd/apps/sealed-secrets/`)
-decrypts in-cluster `SealedSecret` CRDs into regular Kubernetes
-`Secret`s. `kubeseal-webgui` (under `argocd/apps/kubeseal-webgui/`)
-provides a small browser UI that encrypts plaintext values against the
-controller's public key — useful for committing per-app secrets safely
-to the GitOps repo.
+Der `sealed-secrets`-Controller von Bitnami (unter
+`argocd/apps/sealed-secrets/`) entschlüsselt cluster-interne
+`SealedSecret`-CRDs in normale Kubernetes-`Secret`s. `kubeseal-webgui`
+(`argocd/apps/kubeseal-webgui/`) ist eine kleine Browser-UI, die
+Klartext-Werte mit dem Public Key des Controllers verschlüsselt —
+ideal, um per-App-Secrets sicher ins GitOps-Repo zu committen.
 
-### Semaphore (Ansible Web UI)
+### Semaphore (Ansible-Web-UI)
 
-Runs as a k8s pod under `argocd/apps/semaphore/`. The
-`semaphore_bootstrap` Ansible role calls Semaphore's REST API to
-provision Projects, Inventories, Repositories and Templates idempotently,
-so the UI is ready to use after the first playbook run.
-
----
-
-## Port Overview
-
-| Port  | Protocol | Component       | Access         | Description                        |
-|-------|----------|-----------------|----------------|------------------------------------|
-| 22    | TCP      | SSH             | LAN + Tailscale| Server SSH access                  |
-| 53    | UDP+TCP  | dnsmasq         | LAN + Tailscale| Split-DNS for `*.homeserver`       |
-| 80    | TCP      | Traefik         | LAN + Tailscale| HTTP ingress                       |
-| 443   | TCP      | Traefik         | LAN + Tailscale| HTTPS ingress                      |
-| 6443  | TCP      | k3s API Server  | LAN + Tailscale| Kubernetes API                     |
-| 30080 | TCP      | ArgoCD NodePort | LAN + Tailscale| ArgoCD web UI (HTTP)               |
-| 30443 | TCP      | ArgoCD NodePort | LAN + Tailscale| ArgoCD web UI (HTTPS)              |
-| 41641 | UDP      | Tailscale       | Internet       | WireGuard VPN (Tailscale)          |
-| 10250 | TCP      | k3s kubelet     | Internal       | kubelet API                        |
-| 8472  | UDP      | Flannel VXLAN   | Internal       | Pod overlay network                |
+Läuft als k8s-Pod unter `argocd/apps/semaphore/`. Die Ansible-Rolle
+`semaphore_bootstrap` ruft die Semaphore-REST-API auf und legt
+Projects, Inventories, Repositories und Templates idempotent an —
+die UI ist nach dem ersten Playbook-Run sofort einsatzbereit.
 
 ---
 
-## Network Overview
+## Port-Übersicht
 
-| Network             | CIDR              | Purpose                          |
+| Port  | Protokoll | Komponente      | Scope            | Zweck                                |
+|-------|-----------|-----------------|------------------|--------------------------------------|
+| 22    | TCP       | SSH             | LAN + Tailscale  | Server-SSH-Zugriff                   |
+| 53    | UDP+TCP   | dnsmasq         | LAN + Tailscale  | Split-DNS für `*.homeserver`         |
+| 80    | TCP       | Traefik         | LAN + Tailscale  | HTTP-Ingress                         |
+| 443   | TCP       | Traefik         | LAN + Tailscale  | HTTPS-Ingress                        |
+| 6443  | TCP       | k3s API-Server  | LAN + Tailscale  | Kubernetes-API                       |
+| 30080 | TCP       | ArgoCD NodePort | LAN + Tailscale  | ArgoCD-Web-UI (HTTP)                 |
+| 30443 | TCP       | ArgoCD NodePort | LAN + Tailscale  | ArgoCD-Web-UI (HTTPS)                |
+| 41641 | UDP       | Tailscale       | Internet         | WireGuard-VPN (Tailscale)            |
+| 10250 | TCP       | k3s-kubelet     | Intern           | kubelet-API                          |
+| 8472  | UDP       | Flannel VXLAN   | Intern           | Pod-Overlay-Netz                     |
+
+---
+
+## Netzwerk-Übersicht
+
+| Netz                | CIDR              | Zweck                            |
 |---------------------|-------------------|----------------------------------|
-| Home LAN            | 192.168.1.0/24    | Physical home network            |
-| Tailscale overlay   | 100.64.0.0/10     | VPN mesh network                 |
-| k3s Pod CIDR        | 10.42.0.0/16      | Pod IP addresses                 |
-| k3s Service CIDR    | 10.43.0.0/16      | ClusterIP service addresses      |
+| Home-LAN            | 192.168.1.0/24    | Physikalisches Heimnetz          |
+| Tailscale-Overlay   | 100.64.0.0/10     | VPN-Mesh                         |
+| k3s-Pod-CIDR        | 10.42.0.0/16      | Pod-IPs                          |
+| k3s-Service-CIDR    | 10.43.0.0/16      | ClusterIP-Service-Adressen       |
 
 ---
 
-## Security Model
+## Security-Modell
 
-- **No ports exposed to the internet** — all remote access is via Tailscale
-- **UFW firewall** blocks everything not explicitly allowed
-- **Tailscale ACLs** can further restrict which devices access which services
-- **ArgoCD** only has read access to the Git repository
-- **Ansible Vault** encrypts the Tailscale auth key at rest
+- **Keine Ports ins Internet** — Remote-Zugriff ausschließlich über Tailscale.
+- **UFW-Firewall** blockt alles, was nicht explizit erlaubt ist.
+- **Tailscale-ACLs** können zusätzlich pro Gerät einschränken, welche Services erreichbar sind.
+- **ArgoCD** hat ausschließlich Read-Access auf das Git-Repo.
+- **Ansible-Vault** verschlüsselt sensitive Werte (Tailscale-Auth-Key, SMB-Password, Vault-Password, Tokens) at rest.

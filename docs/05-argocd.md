@@ -1,26 +1,26 @@
-# ArgoCD GitOps Guide
+# ArgoCD-GitOps-Guide
 
-This document covers ArgoCD access, configuration, and day-to-day GitOps operations.
+Dieses Dokument behandelt ArgoCD-Zugriff, Konfiguration und GitOps-Alltag.
 
 ---
 
-## Access
+## Zugriff
 
-### Web UI
+### Web-UI
 
-ArgoCD is exposed as a NodePort service on ports **30080** (HTTP) and **30443** (HTTPS).
+ArgoCD läuft als NodePort-Service auf den Ports **30080** (HTTP) und **30443** (HTTPS).
 
 ```
 http://<server-ip>:30080
-http://homeserver:30080          (via Tailscale MagicDNS)
-http://100.x.x.x:30080          (via Tailscale IP)
+http://homeserver:30080          (via Tailscale-MagicDNS)
+http://100.x.x.x:30080           (via Tailscale-IP)
 ```
 
-### Initial Credentials
+### Initial-Credentials
 
-After installation, ArgoCD generates a random initial password stored in a Kubernetes secret.
+Bei der Installation generiert ArgoCD ein zufälliges Initial-Passwort in einem Kubernetes-Secret.
 
-Retrieve it:
+Auslesen:
 
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret \
@@ -28,21 +28,21 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 ```
 
 - **Username:** `admin`
-- **Password:** output of the above command
+- **Passwort:** Output des Befehls
 
 ---
 
-## First Login and Password Change
+## Erst-Login und Passwortwechsel
 
-1. Navigate to `http://<server-ip>:30080`
-2. Log in with `admin` / `<initial-password>`
-3. Click the **user icon** in the top-left corner
-4. Click **User Info**
-5. Click **Update Password**
-6. Enter and confirm a strong new password
-7. Click **Save**
+1. `http://<server-ip>:30080` öffnen.
+2. Login mit `admin` + Initial-Passwort.
+3. **User-Icon** oben links anklicken.
+4. **User Info**.
+5. **Update Password**.
+6. Neues, starkes Passwort vergeben und bestätigen.
+7. **Save**.
 
-After changing the password, you can optionally delete the initial secret:
+Nach dem Passwortwechsel kann das Initial-Secret optional gelöscht werden:
 
 ```bash
 kubectl -n argocd delete secret argocd-initial-admin-secret
@@ -50,37 +50,39 @@ kubectl -n argocd delete secret argocd-initial-admin-secret
 
 ---
 
-## Repository Configuration
+## Repository-Konfiguration
 
-The bootstrap ApplicationSet is configured to pull from your Git repository. If your repository is **public**, no additional configuration is needed.
+Das Bootstrap-`ApplicationSet` ist so konfiguriert, dass es aus dem eigenen
+Git-Repo zieht. Bei **öffentlichem** Repo ist keine zusätzliche Konfiguration nötig.
 
-### Private Repository Setup
+### Privates Repository
 
-If your repository is private, add credentials via the ArgoCD UI or CLI:
+Bei privatem Repo Credentials über UI oder CLI hinterlegen:
 
-**Via UI:**
-1. Go to **Settings** → **Repositories**
-2. Click **Connect Repo**
-3. Choose **HTTPS** or **SSH**
-4. Enter repository URL and credentials
+**Über die UI:**
 
-**Via CLI:**
+1. **Settings → Repositories**
+2. **Connect Repo**
+3. **HTTPS** oder **SSH** wählen
+4. Repo-URL und Credentials eingeben
+
+**Über die CLI:**
 
 ```bash
-# HTTPS with username/password or token
+# HTTPS mit User/Password oder Token
 argocd repo add https://github.com/YOUR_USER/home-server.git \
   --username YOUR_USER \
   --password YOUR_TOKEN
 
-# SSH with key
+# SSH mit Key
 argocd repo add git@github.com:YOUR_USER/home-server.git \
   --ssh-private-key-path ~/.ssh/id_rsa
 
-# Check connected repos
+# Repos prüfen
 argocd repo list
 ```
 
-**Via Kubernetes Secret:**
+**Über ein Kubernetes-Secret:**
 
 ```yaml
 apiVersion: v1
@@ -104,9 +106,11 @@ kubectl apply -f repo-secret.yaml
 
 ---
 
-## ApplicationSet Structure
+## ApplicationSet-Struktur
 
-The bootstrap **ApplicationSet** (`argocd/bootstrap/root-applicationset.yaml`) uses the Git directory generator to automatically create ArgoCD Applications from subdirectories.
+Das Bootstrap-`ApplicationSet` (`argocd/bootstrap/root-applicationset.yaml`) nutzt
+den Git-Directory-Generator, um aus Unterverzeichnissen automatisch
+ArgoCD-Applications zu erzeugen.
 
 ```yaml
 generators:
@@ -117,48 +121,49 @@ generators:
         - path: "argocd/apps/*"
 ```
 
-**How it works:**
-- ArgoCD scans `argocd/apps/` in the Git repository
-- Each subdirectory becomes an ArgoCD **Application**
-- The Application name = directory name
-- The target namespace = directory name
-- ArgoCD syncs the directory contents to the cluster
+**Funktionsweise:**
 
-**Current directory layout in this repo:**
+- ArgoCD scannt `argocd/apps/` im Git-Repo.
+- Jedes Unterverzeichnis wird zu einer ArgoCD-**Application**.
+- Application-Name = Verzeichnisname.
+- Ziel-Namespace = Verzeichnisname.
+- ArgoCD synct den Inhalt des Verzeichnisses in den Cluster.
+
+**Aktuelle Verzeichnis-Struktur in diesem Repo:**
 
 ```
 argocd/apps/
-├── example-whoami/      → Reference Helm chart used as a wiring test
-├── gotify/              → Push-notification server (Android/iOS client)
-├── headlamp/            → Web-based Kubernetes dashboard
-├── kubeseal-webgui/     → Browser UI that encrypts secrets with the
-│                          cluster's SealedSecrets public key
+├── example-whoami/      → Referenz-Helm-Chart als Wiring-Test
+├── gotify/              → Push-Notification-Server (Android/iOS-Client)
+├── headlamp/            → Web-basiertes Kubernetes-Dashboard
+├── kubeseal-webgui/     → Browser-UI, die Werte mit dem
+│                          SealedSecrets-Public-Key des Clusters verschlüsselt
 ├── monitoring/          → VictoriaMetrics + Grafana + node-exporter +
 │                          kube-state-metrics + Alertmanager
-├── sealed-secrets/      → bitnami-labs SealedSecrets controller
-│                          (decrypts SealedSecret CRDs into Secrets)
-└── semaphore/           → Web UI for running Ansible playbooks
+├── sealed-secrets/      → bitnami-labs SealedSecrets-Controller
+│                          (entschlüsselt SealedSecret-CRDs zu Secrets)
+└── semaphore/           → Web-UI zum Ausführen von Ansible-Playbooks
 ```
 
-Each directory becomes an `Application` named after the directory, deployed
-into a namespace of the same name. To add another one, drop a folder under
-`argocd/apps/<name>/` with either plain Kubernetes manifests, a
-`kustomization.yaml`, or a Helm chart (`Chart.yaml` + `values.yaml`), then
-commit and push — ArgoCD picks it up within ~3 minutes.
+Jedes Verzeichnis wird zu einer `Application` mit gleichem Namen und Namespace.
+Eine neue App ist drei Schritte entfernt: Verzeichnis unter `argocd/apps/<name>/`
+anlegen (plain Manifests, `kustomization.yaml` **oder** Helm-Chart mit
+`Chart.yaml` + `values.yaml`), committen, pushen — ArgoCD greift in
+~3 Minuten zu.
 
 ---
 
-## Adding a New Application
+## Neue Application hinzufügen
 
-The GitOps workflow for adding apps is:
+Der GitOps-Workflow für neue Apps:
 
-1. Create a directory under `argocd/apps/<app-name>/`
-2. Add your Kubernetes manifests or Helm chart
-3. Commit and push to Git
-4. ArgoCD detects the new directory within ~3 minutes
-5. ArgoCD creates an Application and syncs it
+1. Verzeichnis `argocd/apps/<app-name>/` anlegen.
+2. Kubernetes-Manifests oder Helm-Chart hineinlegen.
+3. `git add` + `git commit` + `git push`.
+4. ArgoCD erkennt das neue Verzeichnis innerhalb von ~3 Minuten.
+5. ArgoCD erzeugt eine Application und synct sie.
 
-**Example: Adding a plain manifest app**
+**Beispiel: App mit Plain-Manifest**
 
 ```bash
 mkdir -p argocd/apps/my-app
@@ -190,44 +195,45 @@ git commit -m "feat: add my-app"
 git push
 ```
 
-**Example: Adding a Helm chart app**
+**Beispiel: App als Helm-Chart**
 
 ```bash
 mkdir -p argocd/apps/my-helm-app/templates
 
-# Chart.yaml, values.yaml, templates/ — standard Helm chart structure
-# ArgoCD detects Chart.yaml and treats the directory as a Helm chart
+# Chart.yaml, values.yaml, templates/ — standard Helm-Chart-Struktur
+# ArgoCD erkennt Chart.yaml und behandelt das Verzeichnis als Helm-Chart
 ```
 
 ---
 
-## Sync Policies
+## Sync-Policies
 
-The bootstrap ApplicationSet configures apps with full automation:
+Das Bootstrap-`ApplicationSet` konfiguriert Apps mit voller Automation:
 
 ```yaml
 syncPolicy:
   automated:
-    prune: true      # Delete resources removed from Git
-    selfHeal: true   # Auto-fix manual changes (drift correction)
+    prune: true      # Resources, die aus Git entfernt wurden, löschen
+    selfHeal: true   # Manuelle Änderungen am Cluster zurückdrehen
   syncOptions:
-    - CreateNamespace=true    # Auto-create target namespace
-    - ServerSideApply=true    # Use server-side apply for better conflict handling
+    - CreateNamespace=true    # Ziel-Namespace automatisch erstellen
+    - ServerSideApply=true    # Server-Side-Apply für bessere Field-Ownership
 ```
 
-**What these mean:**
+**Bedeutung:**
 
-| Policy           | Effect                                                              |
+| Policy           | Effekt                                                              |
 |------------------|---------------------------------------------------------------------|
-| `automated`      | ArgoCD syncs automatically on Git changes (no manual sync needed)  |
-| `prune: true`    | Resources deleted from Git are removed from the cluster            |
-| `selfHeal: true` | Manual `kubectl` changes are reverted to match Git                 |
-| `CreateNamespace`| Target namespace is created if it doesn't exist                    |
-| `ServerSideApply`| Uses `kubectl apply --server-side` for better field management     |
+| `automated`      | ArgoCD synct automatisch bei Git-Changes (kein manueller Sync nötig)|
+| `prune: true`    | Aus Git entfernte Resources werden vom Cluster gelöscht             |
+| `selfHeal: true` | Manuelle `kubectl`-Änderungen werden auf den Git-Stand zurückgedreht|
+| `CreateNamespace`| Ziel-Namespace wird erzeugt, falls nicht vorhanden                  |
+| `ServerSideApply`| Nutzt `kubectl apply --server-side` für besseres Field-Management   |
 
-**Disabling automated sync for a specific app:**
+**Automated Sync für eine einzelne App deaktivieren:**
 
-If you want manual control over one app, add a custom `Application` manifest that overrides the sync policy:
+Für eine App, die manuell kontrolliert werden soll, ein eigenes
+`Application`-Manifest hinterlegen, das die Sync-Policy überschreibt:
 
 ```yaml
 # argocd/apps/my-careful-app/argocd-application.yaml
@@ -237,16 +243,16 @@ metadata:
   name: my-careful-app
   namespace: argocd
   annotations:
-    argocd.argoproj.io/skip-reconcile: "true"  # exclude from ApplicationSet
+    argocd.argoproj.io/skip-reconcile: "true"  # nicht durch das ApplicationSet überschreiben
 spec:
-  syncPolicy: {}  # manual sync only
+  syncPolicy: {}  # nur manueller Sync
 ```
 
 ---
 
-## CLI Usage
+## CLI-Nutzung
 
-Install the ArgoCD CLI:
+ArgoCD-CLI installieren:
 
 ```bash
 # Linux
@@ -257,9 +263,9 @@ chmod +x argocd && sudo mv argocd /usr/local/bin/
 brew install argocd
 ```
 
-### Common CLI Commands
+### Gängige CLI-Kommandos
 
-**Authentication:**
+**Authentifizierung:**
 
 ```bash
 # Login
@@ -268,117 +274,123 @@ argocd login 192.168.1.100:30080 --username admin --password <password> --insecu
 # Via Tailscale
 argocd login homeserver:30080 --username admin --password <password> --insecure
 
-# Show current context
+# Aktueller Context
 argocd context
 ```
 
-**Application Management:**
+**Applications:**
 
 ```bash
-# List all applications
+# Alle Apps auflisten
 argocd app list
 
-# Get application details
+# Details
 argocd app get example-whoami
 
-# Manually trigger sync
+# Manuell syncen
 argocd app sync example-whoami
 
-# Sync with pruning (remove extra resources)
+# Sync mit Prune (überflüssige Resources entfernen)
 argocd app sync example-whoami --prune
 
-# Sync specific resources
+# Spezifische Resource syncen
 argocd app sync example-whoami --resource apps:Deployment:whoami
 
-# Wait for sync to complete
+# Auf Sync warten
 argocd app wait example-whoami --sync
 
-# Get application logs
+# Logs
 argocd app logs example-whoami
 
-# Diff: show what would change
+# Diff (was würde sich ändern)
 argocd app diff example-whoami
 
-# Rollback to previous version
-argocd app rollback example-whoami 1   # revision number from history
+# Rollback auf vorherige Revision
+argocd app rollback example-whoami 1   # Revision-Nummer aus der Historie
 
-# History
+# Historie
 argocd app history example-whoami
 
-# Delete application (does NOT delete cluster resources by default)
+# App löschen (löscht Default-mäßig KEINE Cluster-Resources)
 argocd app delete example-whoami
 
-# Delete application AND cluster resources
+# App UND Cluster-Resources löschen
 argocd app delete example-whoami --cascade
 ```
 
-**Repository Management:**
+**Repositories:**
 
 ```bash
-# List repositories
+# Repos auflisten
 argocd repo list
 
-# Add repository
+# Repo hinzufügen
 argocd repo add https://github.com/YOUR_USER/home-server.git
 
-# Remove repository
+# Repo entfernen
 argocd repo rm https://github.com/YOUR_USER/home-server.git
 ```
 
-**Account Management:**
+**Accounts:**
 
 ```bash
-# List accounts
+# Accounts auflisten
 argocd account list
 
-# Update password
+# Passwort ändern
 argocd account update-password
 
-# Generate API token
+# API-Token generieren
 argocd account generate-token --account admin
 ```
 
 ---
 
-## ArgoCD Health Status
+## Health-Status
 
-ArgoCD reports two statuses for each Application:
+ArgoCD führt zwei Status-Werte pro Application:
 
-**Sync Status:**
-- `Synced` — cluster matches Git
-- `OutOfSync` — differences exist between Git and cluster
-- `Unknown` — status cannot be determined
+**Sync-Status:**
 
-**Health Status:**
-- `Healthy` — all resources are healthy
-- `Progressing` — resources are deploying/updating
-- `Degraded` — resources are failing
-- `Missing` — resources don't exist yet
-- `Suspended` — resources are suspended (e.g., CronJob)
-- `Unknown` — health cannot be determined
+- `Synced` — Cluster stimmt mit Git überein
+- `OutOfSync` — Unterschiede zwischen Git und Cluster
+- `Unknown` — Status nicht ermittelbar
 
-Check in the UI under **Applications** or via CLI:
+**Health-Status:**
+
+- `Healthy` — alle Resources gesund
+- `Progressing` — Resources deployen/updaten gerade
+- `Degraded` — Resources schlagen fehl
+- `Missing` — Resources noch nicht vorhanden
+- `Suspended` — Resources pausiert (z. B. CronJob)
+- `Unknown` — Health nicht ermittelbar
+
+Über die UI unter **Applications** oder per CLI:
 
 ```bash
 argocd app list
-# Shows: NAME   CLUSTER   NAMESPACE   PROJECT   STATUS   HEALTH   ...
+# NAME   CLUSTER   NAMESPACE   PROJECT   STATUS   HEALTH   ...
 ```
 
 ---
 
-## Notifications and Webhooks
+## Notifications & Webhooks
 
-### GitHub Webhook (Faster Sync)
+### GitHub-Webhook (schnellerer Sync)
 
-By default, ArgoCD polls the Git repository every 3 minutes. Configure a GitHub webhook for instant sync on push:
+Default-mäßig pollt ArgoCD das Git-Repo alle 3 Minuten. Mit einem GitHub-Webhook
+wird der Sync sofort nach jedem Push ausgelöst:
 
-1. Go to your GitHub repository → **Settings** → **Webhooks**
-2. Click **Add webhook**
-3. Set Payload URL: `http://<tailscale-ip>:30080/api/webhook`
-4. Content type: `application/json`
-5. Select: **Just the push event**
-6. Click **Add webhook**
+1. GitHub-Repo → **Settings → Webhooks**.
+2. **Add webhook**.
+3. Payload-URL: `http://<tailscale-ip>:30080/api/webhook`.
+4. Content type: `application/json`.
+5. **Just the push event**.
+6. **Add webhook**.
 
-Note: The server must be accessible from GitHub's servers. Via Tailscale, this requires either making the server a [Tailscale exit node](06-tailscale.md) or configuring subnet routing.
+Hinweis: Der Server muss aus den GitHub-Servern erreichbar sein. Über Tailscale
+geht das nur, wenn er als
+[Tailscale-Exit-Node](06-tailscale.md) eingerichtet oder Subnet-Routing
+konfiguriert ist.
 
-Alternatively, ArgoCD's 3-minute polling interval is usually fast enough for a home server.
+Alternativ ist der 3-Minuten-Poll für einen Home-Server völlig ausreichend.

@@ -1,229 +1,231 @@
-# Prerequisites and Requirements
+# Voraussetzungen
 
-This document covers everything you need before running the Ansible playbook.
+Dieses Dokument listet alles auf, was vor dem ersten Playbook-Run vorhanden sein muss.
 
 ---
 
-## Control Machine Requirements
+## Control-Machine
 
-Your local machine (the one running Ansible) needs:
+Der Rechner, von dem aus Ansible läuft, braucht:
 
 ### Ansible >= 2.14
 
 ```bash
-# Check version
+# Version prüfen
 ansible --version
 
-# Install via pip (recommended)
+# Installation via pip (empfohlen)
 pip3 install --user "ansible>=2.14"
 
-# Or via pipx (isolated environment)
+# Oder via pipx (isolierte Umgebung)
 pipx install ansible
 
-# On Ubuntu/Debian via apt (may be older version)
+# Auf Ubuntu/Debian via apt (oft ältere Version)
 sudo apt install ansible
 ```
 
 ### Python >= 3.10
 
 ```bash
-# Check version
+# Version prüfen
 python3 --version
 
-# The following Python packages are needed on the control machine
-# (in addition to Ansible itself):
+# Zusätzlich zu Ansible benötigte Python-Pakete:
 pip3 install --user netaddr jmespath
 ```
 
-`netaddr` is used by `ansible.utils` for CIDR math (UFW rules), and `jmespath`
-is required by the `community.general.json_query` filter used in the
-`semaphore_bootstrap` role.
+`netaddr` wird von `ansible.utils` für CIDR-Berechnungen (UFW-Regeln) genutzt,
+`jmespath` von dem `community.general.json_query`-Filter in der Rolle
+`semaphore_bootstrap`.
 
-### SSH Client
+### SSH-Client
 
-Standard `ssh` client must be available. Test with:
+Ein normaler `ssh`-Client muss verfügbar sein. Test:
+
 ```bash
 ssh -V
 ```
 
 ---
 
-## Target Server Requirements
+## Ziel-Server
 
-### Fresh Ubuntu 26.04 LTS Installation
+### Frische Ubuntu-26.04-LTS-Installation
 
-- **Minimal server install** (no desktop environment needed)
-- At least **4 GB RAM** (32 GB in this setup — well above minimum)
-- At least **20 GB disk** (512 GB NVMe SSD in this setup)
-- Network connectivity (DHCP or static IP — static recommended)
-- A non-root user with `sudo` privileges (default Ubuntu install creates `ubuntu` user)
+- **Server-Variante** (kein Desktop)
+- Mindestens **4 GB RAM** (Referenz: 32 GB)
+- Mindestens **20 GB Disk** (Referenz: 512 GB NVMe-SSD)
+- Netzwerk-Anbindung (DHCP oder statische IP — statisch empfohlen)
+- Non-Root-User mit `sudo`-Rechten (Ubuntu-Default: `ubuntu`)
 
-### SSH Key Authentication Configured
+### SSH-Key-Authentifizierung
 
-The control machine must be able to SSH to the server using a key (not a password):
+Die Control-Machine muss sich passwortlos per Key am Server anmelden können:
 
 ```bash
-# Generate a key pair if you don't have one
+# Falls noch kein Key vorhanden ist
 ssh-keygen -t ed25519 -C "home-server-ansible" -f ~/.ssh/id_ed25519
 
-# Copy the public key to the server (one-time password login)
+# Public Key auf den Server kopieren (einmaliger Passwort-Login)
 ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@192.168.1.100
 
-# Test passwordless login
-ssh -i ~/.ssh/id_ed25519 ubuntu@192.168.1.100 "echo 'SSH key auth works'"
+# Login testen
+ssh -i ~/.ssh/id_ed25519 ubuntu@192.168.1.100 "echo 'SSH-Key-Login funktioniert'"
 ```
 
-If your private key lives elsewhere, update `ansible_ssh_private_key_file` in `ansible/inventory/hosts.yml` accordingly.
+Liegt der Private Key woanders, in `ansible/inventory/hosts.yml` entsprechend
+`ansible_ssh_private_key_file` anpassen.
 
-### Python 3 on the Server
+### Python 3 auf dem Server
 
-Ubuntu 26.04 ships with Python 3.12. Verify:
+Ubuntu 26.04 bringt Python 3.12 mit:
+
 ```bash
 ssh ubuntu@192.168.1.100 "python3 --version"
 ```
 
 ---
 
-## External Account Requirements
+## Externe Accounts
 
-### Tailscale Account + Auth Key
+### Tailscale-Account + Auth-Key
 
-1. Sign up at [tailscale.com](https://tailscale.com) (free for personal use)
-2. Go to **Settings → Keys** in the Tailscale admin panel
-3. Click **Generate auth key**
-4. Select options:
-   - **Reusable**: No (single-use is more secure)
-   - **Ephemeral**: No (server should persist in your network)
-   - **Tags**: Optional (e.g., `tag:homeserver`)
-5. Copy the key (starts with `tskey-auth-...`)
-6. Encrypt it with Ansible Vault (see [Installation Guide](03-installation.md))
+1. Auf [tailscale.com](https://tailscale.com) registrieren (kostenlos für Personal Use).
+2. **Settings → Keys** im Tailscale-Admin-Panel öffnen.
+3. **Generate auth key** anklicken.
+4. Optionen wählen:
+   - **Reusable**: Nein (Single-Use ist sicherer)
+   - **Ephemeral**: Nein (der Server soll im Netz bleiben)
+   - **Tags**: optional (z. B. `tag:homeserver`)
+5. Key kopieren (beginnt mit `tskey-auth-…`).
+6. Mit Ansible-Vault verschlüsseln (siehe [Installation Guide](03-installation.md)).
 
-### Git Repository for GitOps
+### Git-Repository für GitOps
 
-ArgoCD needs to pull manifests from a Git repository. Options:
+ArgoCD zieht die Manifests aus einem Git-Repository. Möglichkeiten:
 
-- **Same repository** as this one (recommended for simplicity)
-- A separate private repository
+- **Dieses Repository selbst** (empfohlen — am einfachsten)
+- Ein separates privates Repository
 
-The repository must be **publicly accessible** or you must configure ArgoCD with credentials for private repo access.
+Das Repository muss **öffentlich** sein oder ArgoCD mit Credentials für
+private Repos versorgt werden.
 
-Update `argocd_repo_url` in `ansible/group_vars/all.yml` with your repository URL.
+`argocd_repo_url` in `ansible/group_vars/all.yml` auf die eigene Repo-URL setzen.
 
 ---
 
-## Ansible Galaxy Collections
+## Ansible-Galaxy-Collections
 
-Install required collections before running the playbook:
+Vor dem Playbook-Run die benötigten Collections installieren:
 
 ```bash
 ansible-galaxy collection install -r ansible/requirements.yml
 ```
 
-The `ansible/requirements.yml` file installs:
+Die `ansible/requirements.yml` liefert:
 
-| Collection           | Version     | Purpose                                    |
+| Collection           | Version     | Zweck                                      |
 |----------------------|-------------|--------------------------------------------|
-| `ansible.posix`      | >= 1.5.0    | POSIX modules (sysctl, firewalld, etc.)    |
-| `community.general`  | >= 7.0.0    | Extended modules (snap, homebrew, etc.)    |
-| `kubernetes.core`    | >= 2.4.0    | kubectl/Helm interaction modules           |
+| `ansible.posix`      | >= 1.5.0    | POSIX-Module (sysctl, firewalld, …)        |
+| `community.general`  | >= 7.0.0    | Erweiterte Module (snap, homebrew, …)      |
+| `kubernetes.core`    | >= 2.4.0    | kubectl/Helm-Interaktionsmodule            |
 
 ---
 
-## Pre-flight Checklist
+## Pre-flight-Checks
 
-Run these checks before executing the playbook. All must pass.
+Vor dem Playbook-Run alle Punkte abhaken — alle sollten grün sein.
 
-### 1. SSH Connectivity
+### 1. SSH-Verbindung
 
 ```bash
 ssh ubuntu@192.168.1.100 "whoami"
-# Expected output: ubuntu
+# Erwartet: ubuntu
 ```
 
-### 2. Sudo Access (Passwordless)
+### 2. Passwortloses sudo
 
 ```bash
 ssh ubuntu@192.168.1.100 "sudo whoami"
-# Expected output: root
-# If prompted for password, configure NOPASSWD sudo:
+# Erwartet: root
+# Falls Passwort abgefragt wird, NOPASSWD-sudo konfigurieren:
 # echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/ubuntu
 ```
 
-### 3. Ansible Ping
+### 3. Ansible-Ping
 
 ```bash
 ansible -i ansible/inventory/hosts.yml homeserver -m ping
-# Expected output:
+# Erwartet:
 # homeserver | SUCCESS => { "ping": "pong" }
 ```
 
-### 4. Python Available on Target
+### 4. Python auf dem Ziel verfügbar
 
 ```bash
 ansible -i ansible/inventory/hosts.yml homeserver -m ansible.builtin.command \
   -a "python3 --version"
-# Expected: python3 3.x.x
+# Erwartet: python3 3.x.x
 ```
 
-### 5. Internet Connectivity on Server
+### 5. Internet-Zugriff auf dem Server
 
 ```bash
 ssh ubuntu@192.168.1.100 "curl -sf https://get.k3s.io | head -5"
-# Expected: script header lines (no errors)
+# Erwartet: Script-Header (keine Fehler)
 ```
 
-### 6. Sufficient Disk Space
+### 6. Genug Disk-Speicher
 
 ```bash
 ssh ubuntu@192.168.1.100 "df -h /"
-# Expected: at least 20 GB available
+# Erwartet: mindestens 20 GB frei
 ```
 
-### 7. Sufficient Memory
+### 7. Genug RAM
 
 ```bash
 ssh ubuntu@192.168.1.100 "free -h"
-# Expected: at least 4 GB total RAM
+# Erwartet: mindestens 4 GB total
 ```
 
-### 8. Inventory File Updated
+### 8. Inventory aktualisiert
 
 ```bash
 grep "192.168.1.100" ansible/inventory/hosts.yml
-# If this returns the default IP, you haven't changed it yet!
-# Edit the file and replace 192.168.1.100 with your actual server IP.
+# Liefert das den Default-Wert, wurde die Datei noch nicht angepasst.
 ```
 
-### 9. group_vars Updated
+### 9. group_vars aktualisiert
 
 ```bash
 grep "YOUR_USER\|CHANGE_ME\|CHANGE_THIS" ansible/group_vars/all.yml
-# This should return NO matches — if it does, you have placeholder values to replace.
+# Sollte KEINE Treffer liefern — sonst stehen noch Platzhalter drin.
 ```
 
-### 10. Ansible Vault Secret Encrypted
+### 10. Vault-Secret verschlüsselt
 
 ```bash
 grep "tailscale_auth_key:" ansible/group_vars/all.yml
-# Should show the vault-encrypted value, NOT a plain-text key
-# Correct: tailscale_auth_key: !vault |
-# Wrong:   tailscale_auth_key: "CHANGE_ME_USE_VAULT"
+# Korrekt: tailscale_auth_key: !vault |
+# Falsch:  tailscale_auth_key: "CHANGE_ME_USE_VAULT"
 ```
 
 ---
 
-## Optional: Static IP Configuration
+## Optional: Statische IP
 
-For a server, a static IP is strongly recommended. Configure it before running Ansible.
+Für einen Server ist eine statische IP dringend empfohlen — vor dem Ansible-Run
+konfigurieren.
 
-On Ubuntu 26.04 (netplan):
+Auf Ubuntu 26.04 (netplan):
 
 ```bash
 # /etc/netplan/00-installer-config.yaml
 network:
   version: 2
   ethernets:
-    ens3:           # replace with your interface name (ip link show)
+    ens3:           # tatsächlichen Interface-Namen aus `ip link show` einsetzen
       dhcp4: false
       addresses:
         - 192.168.1.100/24
@@ -235,15 +237,14 @@ network:
           - 1.1.1.1
           - 8.8.8.8
 
-# Apply:
+# Anwenden:
 sudo netplan apply
 ```
 
 ---
 
-## Network Topology Prerequisite
+## Anforderungen an den Heimrouter
 
-Ensure your home router:
-- Has the server reachable at the configured IP
-- Does **not** block outbound UDP port 41641 (used by Tailscale)
-- Does **not** require port forwarding for Tailscale (it uses DERP relay as fallback)
+- Server unter der konfigurierten IP erreichbar.
+- Outbound UDP-Port 41641 **nicht blockieren** (Tailscale).
+- **Kein** Port-Forwarding für Tailscale nötig (DERP-Relay als Fallback).

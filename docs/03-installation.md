@@ -1,118 +1,122 @@
-# Installation Guide
+# Installationsleitfaden
 
-Step-by-step instructions to provision the home server from scratch.
-
----
-
-## Overview
-
-The full installation is automated by a single Ansible playbook run. This guide walks through each step from cloning the repository to verifying a working cluster with ArgoCD and Tailscale.
-
-**Total time:** approximately 15–25 minutes (mostly waiting for downloads).
+Schritt-für-Schritt-Anleitung, um den Home-Server von Null aus zu provisionieren.
 
 ---
 
-## Step 1 — Clone This Repository
+## Überblick
+
+Die komplette Installation wird durch einen einzigen Ansible-Playbook-Run
+erledigt. Dieser Leitfaden begleitet jeden Schritt — vom Repo-Clone bis zur
+Verifikation eines lauffähigen Clusters mit ArgoCD und Tailscale.
+
+**Dauer:** ca. 15–25 Minuten (mehrheitlich Downloads).
+
+---
+
+## Schritt 1 — Repository klonen
 
 ```bash
 git clone https://github.com/Jaydee94/home-server.git
 cd home-server
 ```
 
-If you forked this repository, use your fork's URL.
+Bei einem Fork stattdessen die URL des Forks verwenden.
 
 ---
 
-## Step 2 — Configure the Inventory (Set Server IP)
+## Schritt 2 — Inventory konfigurieren (Server-IP setzen)
 
-Open the inventory file and replace the placeholder IP with your actual server's IP address:
+Inventory-Datei öffnen und die Platzhalter-IP durch die tatsächliche IP des Servers ersetzen:
 
 ```bash
 $EDITOR ansible/inventory/hosts.yml
 ```
 
-Change `192.168.1.100` to your server's IP:
+`192.168.1.100` durch die eigene Server-IP ersetzen:
 
 ```yaml
 homeserver:
   hosts:
     homeserver:
-      ansible_host: 192.168.1.100        # <-- CHANGE THIS
+      ansible_host: 192.168.1.100        # <-- ANPASSEN
       ansible_user: ubuntu
       ansible_ssh_private_key_file: ~/.ssh/id_ed25519
 ```
 
-If your SSH user is different from `ubuntu`, update `ansible_user`.
-If your private key lives elsewhere, update `ansible_ssh_private_key_file` to match.
+Falls der SSH-User nicht `ubuntu` ist, `ansible_user` ebenfalls anpassen.
+Liegt der Private Key woanders, `ansible_ssh_private_key_file` setzen.
 
-Verify connectivity:
+Verbindung testen:
 
 ```bash
 ansible -i ansible/inventory/hosts.yml homeserver -m ping
-# Expected: homeserver | SUCCESS => { "ping": "pong" }
+# Erwartet: homeserver | SUCCESS => { "ping": "pong" }
 ```
 
 ---
 
-## Step 3 — Configure Variables
+## Schritt 3 — Variablen setzen
 
-Open the variables file and review every value:
+Variablendatei öffnen und alle Werte durchgehen:
 
 ```bash
 $EDITOR ansible/group_vars/all.yml
 ```
 
-**Required changes:**
+**Pflicht-Änderungen:**
 
-| Variable           | What to change                                           |
-|--------------------|----------------------------------------------------------|
-| `timezone`         | Your timezone (e.g., `America/New_York`, `Asia/Tokyo`)   |
-| `argocd_repo_url`  | Your GitHub repository URL                               |
-| `local_subnet`     | Your home LAN subnet (e.g., `192.168.0.0/24`)            |
-| `tailscale_auth_key` | Set via Ansible Vault (see Step 4)                     |
+| Variable             | Wert                                                        |
+|----------------------|-------------------------------------------------------------|
+| `timezone`           | Eigene Zeitzone (z. B. `Europe/Berlin`, `America/New_York`) |
+| `argocd_repo_url`    | URL des eigenen GitHub-Repos                                |
+| `local_subnet`       | Heim-LAN-Subnetz (z. B. `192.168.178.0/24`)                 |
+| `tailscale_auth_key` | Via Ansible-Vault setzen (Schritt 4)                        |
 
-**Optional changes:**
+**Optional:**
 
-| Variable                    | Default       | Notes                                                                  |
+| Variable                    | Default       | Hinweis                                                                |
 |-----------------------------|---------------|------------------------------------------------------------------------|
-| `auto_upgrade`              | `true`        | Keep OS + every component on the latest stable on every run            |
-| `auto_reboot_if_required`   | `true`        | Auto-reboot when APT marks `/var/run/reboot-required`                  |
-| `k3s_version`               | `""` (empty)  | Empty ⇒ follow `k3s_channel`. Pin to e.g. `v1.30.2+k3s1`               |
-| `k3s_channel`               | `stable`      | Used when `k3s_version` is empty                                       |
-| `helm_version`              | `""` (empty)  | Empty ⇒ latest Helm 3                                                  |
-| `argocd_version`            | `""` (empty)  | Empty ⇒ latest Argo Helm chart                                         |
-| `hostname`                  | `homeserver`  | Hostname for the machine                                               |
-| `dnsmasq_hosts`             | list of apps  | Hostnames served by `dnsmasq` under `*.homeserver`                     |
-| `semaphore_vault_password`  | vault-block   | Ansible-Vault password used by Semaphore to decrypt secrets at runtime |
-| `scanner_usb_vendor_id` / `scanner_usb_product_id` | empty | USB IDs from `lsusb` — required if the scanner role is enabled    |
-| `scanner_smb_share` / `scanner_smb_username` / `scanner_smb_password` | — | NAS share + creds for the Paperless `consume` directory   |
-| `scanner_gotify_enabled`    | `false`       | Toggle Gotify push notifications from the scan pipeline                |
-| `scanner_gotify_url` / `scanner_gotify_token` | — | Gotify endpoint and (vault-encrypted) app token                     |
-| `gotify_admin_password`     | vault-block   | Optional vault entry to remember the Gotify admin password             |
+| `auto_upgrade`              | `true`        | OS + alle Komponenten bei jedem Run auf neuesten Stable halten         |
+| `auto_reboot_if_required`   | `true`        | Auto-Reboot, wenn APT `/var/run/reboot-required` setzt                 |
+| `k3s_version`               | `""` (leer)   | Leer ⇒ `k3s_channel` folgen. Pin auf z. B. `v1.30.2+k3s1`              |
+| `k3s_channel`               | `stable`      | Wird genutzt, wenn `k3s_version` leer ist                              |
+| `helm_version`              | `""` (leer)   | Leer ⇒ neuestes Helm 3                                                 |
+| `argocd_version`            | `""` (leer)   | Leer ⇒ neuestes Argo-Helm-Chart                                        |
+| `hostname`                  | `homeserver`  | Hostname des Servers                                                   |
+| `dnsmasq_hosts`             | App-Liste     | Hostnamen, die von `dnsmasq` unter `*.homeserver` aufgelöst werden     |
+| `semaphore_vault_password`  | Vault-Block   | Ansible-Vault-Passwort, das Semaphore zur Laufzeit zum Decrypten nutzt |
+| `scanner_usb_vendor_id` / `scanner_usb_product_id` | leer | USB-IDs aus `lsusb` — Pflicht, wenn die Scanner-Rolle aktiv ist     |
+| `scanner_smb_share` / `scanner_smb_username` / `scanner_smb_password` | — | NAS-Share + Creds für das Paperless-`consume`-Verzeichnis    |
+| `scanner_gotify_enabled`    | `false`       | Gotify-Push-Notifications aus der Scan-Pipeline ein/aus                |
+| `scanner_gotify_url` / `scanner_gotify_token` | — | Gotify-Endpoint + (vault-verschlüsselter) App-Token                  |
+| `gotify_admin_password`     | Vault-Block   | Optional: Gotify-Admin-Passwort als Vault-Eintrag aufbewahren          |
 
-> **Tip.** Set `auto_upgrade: false` if you need reproducible builds (CI, lab snapshots) — Ansible will then only install missing packages and honour every pin.
+> **Tipp.** `auto_upgrade: false` setzen, wenn Reproduzierbarkeit wichtig ist
+> (CI, Lab-Snapshots) — Ansible installiert dann nur fehlende Pakete und respektiert alle Pins.
 
 ---
 
-## Step 4 — Set Tailscale Auth Key with Ansible Vault
+## Schritt 4 — Tailscale-Auth-Key mit Ansible-Vault verschlüsseln
 
-**Never commit your auth key in plaintext.** Use Ansible Vault to encrypt it.
+**Niemals den Auth-Key im Klartext committen.** Stattdessen mit Ansible-Vault verschlüsseln.
 
-1. Get your auth key from the [Tailscale admin panel](https://login.tailscale.com/admin/settings/keys):
-   - Click **Generate auth key**
-   - Disable **Reusable** (one-time use is safer for a server)
-   - Disable **Ephemeral** (the node should persist)
-   - Click **Generate key** and copy it (starts with `tskey-auth-...`)
+1. Auth-Key im [Tailscale-Admin-Panel](https://login.tailscale.com/admin/settings/keys) erstellen:
+   - **Generate auth key**
+   - **Reusable** deaktivieren (Single-Use ist sicherer)
+   - **Ephemeral** deaktivieren (der Server soll persistent bleiben)
+   - Key kopieren (beginnt mit `tskey-auth-…`)
 
-2. Encrypt the key with Ansible Vault:
+2. Mit Ansible-Vault verschlüsseln:
 
 ```bash
-ansible-vault encrypt_string 'tskey-auth-YOUR_ACTUAL_KEY_HERE' --name 'tailscale_auth_key'
+ansible-vault encrypt_string 'tskey-auth-DEIN_AUTH_KEY' --name 'tailscale_auth_key'
 ```
 
-You will be prompted to create a vault password. **Remember this password** — you need it every time you run the playbook.
+Beim ersten Mal wird ein Vault-Passwort vergeben. **Dieses Passwort merken** —
+es wird bei jedem Playbook-Run abgefragt.
 
-3. The command outputs something like:
+3. Das Kommando liefert etwas wie:
 
 ```yaml
 tailscale_auth_key: !vault |
@@ -122,32 +126,34 @@ tailscale_auth_key: !vault |
 Encryption successful
 ```
 
-4. Replace the `tailscale_auth_key` line in `ansible/group_vars/all.yml` with the entire vault block output (from `tailscale_auth_key:` to the last encrypted line).
+4. Den kompletten Block in `ansible/group_vars/all.yml` als Wert für
+   `tailscale_auth_key` einsetzen (von `tailscale_auth_key:` bis zur letzten Zeile).
 
-5. Verify it's encrypted:
+5. Verifizieren:
 
 ```bash
 grep -A5 "tailscale_auth_key:" ansible/group_vars/all.yml
-# Should show: tailscale_auth_key: !vault |
-# NOT: tailscale_auth_key: "tskey-auth-..."
+# Korrekt: tailscale_auth_key: !vault |
+# Falsch:  tailscale_auth_key: "tskey-auth-..."
 ```
 
 ---
 
-## Step 5 — Install Ansible Requirements
+## Schritt 5 — Ansible-Requirements installieren
 
-Install the required Ansible Galaxy collections on your control machine:
+Galaxy-Collections auf der Control-Machine installieren:
 
 ```bash
 ansible-galaxy collection install -r ansible/requirements.yml
 ```
 
-This installs:
-- `ansible.posix` — POSIX system modules
-- `community.general` — extended community modules
-- `kubernetes.core` — Kubernetes/Helm modules
+Installiert:
 
-Verify installation:
+- `ansible.posix` — POSIX-System-Module
+- `community.general` — erweiterte Community-Module
+- `kubernetes.core` — Kubernetes-/Helm-Module
+
+Verifizieren:
 
 ```bash
 ansible-galaxy collection list | grep -E "ansible.posix|community.general|kubernetes.core"
@@ -155,15 +161,15 @@ ansible-galaxy collection list | grep -E "ansible.posix|community.general|kubern
 
 ---
 
-## Step 6 — Run the Playbook
+## Schritt 6 — Playbook ausführen
 
-Easiest path — use the Makefile:
+Einfachster Weg — Makefile:
 
 ```bash
-make install            # runs `ansible-galaxy install` + the playbook
+make install            # ruft `ansible-galaxy install` + das Playbook auf
 ```
 
-Or invoke Ansible directly:
+Oder Ansible direkt:
 
 ```bash
 ansible-playbook \
@@ -172,99 +178,100 @@ ansible-playbook \
   --ask-vault-pass
 ```
 
-Enter the vault password when prompted.
+Vault-Passwort eingeben, wenn abgefragt.
 
-**What the playbook does (in order):**
+**Was das Playbook tut (in Reihenfolge):**
 
-1. **common** (~3 min) — APT updates, UFW firewall, kernel parameters, swap-off, chrony NTP sync.
-2. **dnsmasq** (~30 s) — Installs and configures `dnsmasq` to serve the `*.homeserver` zone on both the LAN interface and `tailscale0`.
-3. **tailscale** (~1 min) — Installs Tailscale and joins the tailnet using the vault-encrypted auth key.
-4. **k3s** (~5 min) — Installs k3s, writes the kubeconfig, installs Helm.
-5. **argocd** (~10 min) — Deploys ArgoCD via Helm chart and applies the root `ApplicationSet`.
-6. **scanner** (~2 min) — Installs `sane` + `scanbd`, mounts the NAS via CIFS, wires up the Fujitsu USB scanner (requires `scanner_usb_vendor_id`/`scanner_usb_product_id`).
-7. **semaphore_secrets** (~30 s) — Renders the Semaphore bootstrap Secret used by the in-cluster Semaphore pod.
+1. **common** (~3 min) — APT-Updates, UFW-Firewall, Kernel-Parameter, Swap-off, chrony NTP.
+2. **dnsmasq** (~30 s) — Installiert und konfiguriert `dnsmasq` für die Zone `*.homeserver` auf LAN-Interface und `tailscale0`.
+3. **tailscale** (~1 min) — Installiert Tailscale, joint das Tailnet mit dem vault-verschlüsselten Auth-Key.
+4. **k3s** (~5 min) — Installiert k3s, schreibt die kubeconfig, installiert Helm.
+5. **argocd** (~10 min) — Deployt ArgoCD per Helm-Chart und appliziert das Root-`ApplicationSet`.
+6. **scanner** (~2 min) — Installiert `sane` + `scanbd`, mountet die NAS per CIFS, verdrahtet den Fujitsu-USB-Scanner (braucht `scanner_usb_vendor_id`/`scanner_usb_product_id`).
+7. **semaphore_secrets** (~30 s) — Rendert das Bootstrap-Secret, das der in-Cluster-Semaphore-Pod liest.
 
-After the host-targeted roles, two extra plays run:
+Im Anschluss an die host-zentrischen Rollen laufen zwei zusätzliche Plays:
 
-8. **semaphore_targets** (~30 s per target host) — Pushes the Semaphore SSH public key into every host in the `semaphore_targets` inventory group.
-9. **semaphore_bootstrap** (~1 min) — Calls the Semaphore REST API on the home-server and idempotently provisions Projects, Keys, Repositories, Inventories and Templates.
+8. **semaphore_targets** (~30 s pro Target-Host) — Pusht den Semaphore-SSH-Public-Key in jeden Host der Inventory-Gruppe `semaphore_targets`.
+9. **semaphore_bootstrap** (~1 min) — Spricht die Semaphore-REST-API auf dem Home-Server an und legt Projects, Keys, Repositories, Inventories und Templates idempotent an.
 
-At the end, the playbook prints a summary with URLs.
+Am Ende druckt das Playbook eine Summary mit den URLs.
 
-**Running only specific roles** (via tags, see the per-role tag in `ansible/site.yml`):
+**Nur bestimmte Rollen ausführen** (via Tags, siehe Tag pro Rolle in `ansible/site.yml`):
 
 ```bash
-# Only the common role
+# Nur common
 make common
-# or:
+# oder:
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags common --ask-vault-pass
 
-# Only k3s and argocd
+# Nur k3s + argocd
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags k3s,argocd --ask-vault-pass
 
-# Only the split-DNS layer (after editing dnsmasq_hosts)
+# Nur die Split-DNS-Schicht (nach Änderung von dnsmasq_hosts)
 make dnsmasq
 
-# Skip tailscale entirely
+# Tailscale komplett überspringen
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --skip-tags tailscale --ask-vault-pass
 ```
 
-All convenience `make` targets are listed by `make help`.
+Alle Convenience-Targets siehst du mit `make help`.
 
-**The playbook is fully idempotent** — running it multiple times is safe and makes no unnecessary changes.
+**Das Playbook ist vollständig idempotent** — mehrfaches Ausführen ist sicher und führt zu keinen unnötigen Änderungen.
 
 ---
 
-## Step 7 — Verify Installation
+## Schritt 7 — Installation verifizieren
 
-SSH into the server and run these verification commands:
+Per SSH auf den Server und folgende Kommandos laufen lassen:
 
-### Check k3s Node Status
+### k3s-Node-Status
 
 ```bash
 ssh ubuntu@192.168.1.100
 kubectl get nodes
 ```
 
-Expected output:
+Erwartet:
 
 ```
 NAME         STATUS   ROLES                  AGE   VERSION
 homeserver   Ready    control-plane,master   5m    v1.29.3+k3s1
 ```
 
-### Check All System Pods
+### Alle System-Pods
 
 ```bash
 kubectl get pods -A
 ```
 
-All pods should be `Running` or `Completed`. Look especially for:
-- `kube-system` namespace: Traefik, CoreDNS, metrics-server, local-path-provisioner
-- `argocd` namespace: argocd-server, argocd-repo-server, argocd-application-controller, etc.
+Alle sollten `Running` oder `Completed` sein. Besonders prüfen:
 
-### Check ArgoCD Application Status
+- `kube-system`: Traefik, CoreDNS, metrics-server, local-path-provisioner
+- `argocd`: argocd-server, argocd-repo-server, argocd-application-controller, …
+
+### ArgoCD-Application-Status
 
 ```bash
 kubectl get applications -n argocd
-# Or
+# oder
 kubectl get applicationsets -n argocd
 ```
 
-### Check Tailscale Connection
+### Tailscale-Verbindung
 
 ```bash
 tailscale status
 ```
 
-Expected output shows your server connected with a `100.x.x.x` IP and status `Connected`.
+Erwartet: dein Server verbunden mit einer `100.x.x.x`-IP, Status `Connected`.
 
 ```bash
 tailscale ip -4
-# Outputs the Tailscale IP, e.g.: 100.101.102.103
+# Liefert die Tailscale-IP, z. B.: 100.101.102.103
 ```
 
-### Check ArgoCD Initial Password
+### Initial-Passwort von ArgoCD
 
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret \
@@ -273,34 +280,36 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 
 ---
 
-## Step 8 — Access Services
+## Schritt 8 — Services nutzen
 
-### ArgoCD Web UI
+### ArgoCD-Web-UI
 
-Open a browser and navigate to:
+Im Browser öffnen:
 
 ```
 http://<server-ip>:30080
 ```
 
-Or via Tailscale MagicDNS (if enabled):
+Oder via Tailscale-MagicDNS (sofern aktiviert):
 
 ```
 http://homeserver:30080
 ```
 
-Login credentials:
+Login:
+
 - **Username:** `admin`
-- **Password:** output of the command from Step 7
+- **Passwort:** Output aus Schritt 7
 
-**Important:** Change the password after first login:
-1. Click the user icon (top left)
-2. Click **User Info**
-3. Click **Update Password**
+**Wichtig:** Passwort nach dem ersten Login ändern:
 
-### ArgoCD CLI
+1. User-Icon (links oben)
+2. **User Info**
+3. **Update Password**
 
-Install the CLI on your local machine:
+### ArgoCD-CLI
+
+CLI lokal installieren:
 
 ```bash
 # Linux
@@ -315,39 +324,43 @@ brew install argocd
 Login:
 
 ```bash
-argocd login <server-ip>:30080 --username admin --password <initial-password> --insecure
+argocd login <server-ip>:30080 --username admin --password <initial-passwort> --insecure
 ```
 
-### kubectl from Local Machine
+### kubectl von der Control-Machine
 
-Copy the kubeconfig to your local machine:
+Kubeconfig vom Server holen:
 
 ```bash
-# From your local machine
+# Lokal
 scp ubuntu@192.168.1.100:~/.kube/config ~/.kube/home-server-config
 
-# Use it
+# Nutzen
 KUBECONFIG=~/.kube/home-server-config kubectl get nodes
 
-# Or merge into default kubeconfig
+# Oder in den Default-Kubeconfig mergen
 KUBECONFIG=~/.kube/config:~/.kube/home-server-config kubectl config view --merge --flatten > ~/.kube/merged-config
 mv ~/.kube/merged-config ~/.kube/config
 kubectl config get-contexts
-kubectl config use-context default   # or the context name shown
+kubectl config use-context default   # oder den angezeigten Context-Namen
 ```
 
-Note: The kubeconfig on the server uses `127.0.0.1:6443` as the API server address. For remote access, either:
-- Use SSH tunnel: `ssh -L 6443:localhost:6443 ubuntu@192.168.1.100`
-- Or update the kubeconfig server address to the Tailscale IP before copying
+Hinweis: Die kubeconfig auf dem Server zeigt auf `127.0.0.1:6443`. Für
+Remote-Zugriff entweder:
+
+- SSH-Tunnel: `ssh -L 6443:localhost:6443 ubuntu@192.168.1.100`
+- Oder die Server-Adresse in der kubeconfig auf die Tailscale-IP umschreiben, bevor sie kopiert wird.
 
 ---
 
-## Updating the Setup
+## Setup aktualisieren
 
-To apply configuration changes after the initial setup, re-run the playbook:
+Um Konfigurationsänderungen nach dem ersten Setup anzuwenden, einfach das
+Playbook erneut laufen lassen:
 
 ```bash
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
 ```
 
-For application changes managed by ArgoCD, simply commit and push to the git repository — ArgoCD will detect and apply changes automatically.
+Für Application-Changes, die ArgoCD verwaltet: commit + push ins Git-Repo —
+ArgoCD erkennt und appliziert die Änderung automatisch.

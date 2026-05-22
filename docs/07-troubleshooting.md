@@ -1,165 +1,162 @@
-# Troubleshooting Guide
+# Troubleshooting
 
-This document covers common issues and their solutions for each component.
+Diese Datei sammelt typische Probleme und ihre Lösungen pro Komponente.
 
 ---
 
-## k3s Fails to Start
+## k3s startet nicht
 
-### Symptoms
+### Symptome
 
-- `sudo systemctl status k3s` shows `failed` or `activating` state
-- `kubectl get nodes` returns `connection refused` or times out
-- Playbook fails at "Wait for k3s to be ready"
+- `sudo systemctl status k3s` zeigt `failed` oder `activating`.
+- `kubectl get nodes` antwortet mit `connection refused` oder Timeout.
+- Playbook bleibt bei „Wait for k3s to be ready" hängen.
 
-### Diagnostic Steps
+### Diagnose
 
 ```bash
-# Check service status
+# Service-Status
 sudo systemctl status k3s
 
-# View recent logs
+# Aktuelle Logs
 sudo journalctl -u k3s --since "10 minutes ago" -n 100
 
-# Check full logs without truncation
+# Vollständige Logs
 sudo journalctl -u k3s | tail -200
 
-# Check kernel requirements
+# Kernel-Anforderungen prüfen
 sudo k3s check-config
 
-# Verify the binary is present
+# Binary prüfen
 ls -la /usr/local/bin/k3s
 k3s --version
 ```
 
-### Common Causes and Fixes
+### Häufige Ursachen & Fixes
 
-**Port 6443 already in use:**
+**Port 6443 belegt:**
 
 ```bash
 sudo ss -tlnp | grep 6443
-# If something else is listening on 6443, stop it or reconfigure k3s
+# Belegt von anderem Prozess → stoppen oder k3s umkonfigurieren
 ```
 
-**Swap still enabled:**
+**Swap aktiv:**
 
 ```bash
 swapon --show
-# If swap is shown, disable it:
+# Falls aktiv:
 sudo swapoff -a
-# And remove from /etc/fstab permanently
 sudo sed -i '/ swap / s/^/#/' /etc/fstab
 ```
 
-**br_netfilter module not loaded:**
+**`br_netfilter`-Modul fehlt:**
 
 ```bash
 lsmod | grep br_netfilter
-# If not present:
+# Falls leer:
 sudo modprobe br_netfilter
 echo "br_netfilter" | sudo tee /etc/modules-load.d/k3s.conf
 ```
 
-**ip_forward not enabled:**
+**`ip_forward` deaktiviert:**
 
 ```bash
 cat /proc/sys/net/ipv4/ip_forward
-# Should be 1. If 0:
+# Sollte 1 sein. Falls 0:
 sudo sysctl -w net.ipv4.ip_forward=1
 echo "net.ipv4.ip_forward = 1" | sudo tee /etc/sysctl.d/99-k3s.conf
 sudo sysctl --system
 ```
 
-**Config file syntax error:**
+**YAML-Syntaxfehler in der Config:**
 
 ```bash
 cat /etc/rancher/k3s/config.yaml
-# Validate YAML syntax:
 python3 -c "import yaml; yaml.safe_load(open('/etc/rancher/k3s/config.yaml'))"
 ```
 
-**Reinstall k3s:**
+**k3s neu installieren:**
 
 ```bash
-# Uninstall
+# Deinstallieren
 sudo /usr/local/bin/k3s-uninstall.sh
 
-# Reinstall via Ansible
+# Re-Install via Ansible
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags k3s --ask-vault-pass
 ```
 
 ---
 
-## ArgoCD Not Syncing
+## ArgoCD synct nicht
 
-### Symptoms
+### Symptome
 
-- Applications show `OutOfSync` but don't auto-sync
-- Applications show `Unknown` health
-- ApplicationSet not creating Applications
-- Sync fails with error messages in the UI
+- Applications stehen auf `OutOfSync`, ohne sich zu syncen.
+- Apps zeigen `Unknown` Health.
+- ApplicationSet erzeugt keine Applications.
+- Sync schlägt mit Fehlermeldungen in der UI fehl.
 
-### Diagnostic Steps
+### Diagnose
 
 ```bash
-# Check ArgoCD pods
+# ArgoCD-Pods
 kubectl get pods -n argocd
 
-# Check ArgoCD server logs
+# Server-Logs
 kubectl logs -n argocd deployment/argocd-server --tail=100
 
-# Check application controller logs
+# Application-Controller-Logs
 kubectl logs -n argocd deployment/argocd-application-controller --tail=100
 
-# Check repo server logs
+# Repo-Server-Logs
 kubectl logs -n argocd deployment/argocd-repo-server --tail=100
 
-# Check applicationset controller logs
+# ApplicationSet-Controller-Logs
 kubectl logs -n argocd deployment/argocd-applicationset-controller --tail=100
 
-# List applications and their status
+# Apps und Status
 kubectl get applications -n argocd
 kubectl describe application example-whoami -n argocd
 
-# Check ApplicationSet
+# ApplicationSet
 kubectl get applicationsets -n argocd
 kubectl describe applicationset home-server-apps -n argocd
 ```
 
-### Common Causes and Fixes
+### Häufige Ursachen & Fixes
 
-**Repository not accessible:**
+**Repository nicht erreichbar:**
 
 ```bash
-# Check if ArgoCD can reach the repository
-# Via the UI: Settings → Repositories → Connection status
+# Im UI: Settings → Repositories → Connection-Status prüfen
 
-# Via kubectl
+# Per kubectl
 kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=repository
 
-# Test connectivity from argocd-repo-server pod
+# Verbindung aus dem argocd-repo-server-Pod testen
 kubectl exec -n argocd deployment/argocd-repo-server -- \
   git ls-remote https://github.com/YOUR_USER/home-server.git
 ```
 
-**Private repository missing credentials:**
+**Privates Repo ohne Credentials:**
 
-Add credentials as described in [05-argocd.md](05-argocd.md#repository-configuration).
+Credentials hinterlegen wie in [05-argocd.md](05-argocd.md#privates-repository) beschrieben.
 
-**Wrong repository URL in ApplicationSet:**
+**Falsche Repo-URL im ApplicationSet:**
 
 ```bash
 kubectl get applicationset home-server-apps -n argocd -o yaml | grep repoURL
-# Verify the URL matches your actual repository
+# URL muss zum echten Repo passen
 ```
 
-**YAML syntax error in app manifests:**
+**YAML-Syntaxfehler in App-Manifests:**
 
 ```bash
-# Check the ArgoCD repo server for parsing errors
+# Parser-Fehler im Repo-Server
 kubectl logs -n argocd deployment/argocd-repo-server | grep -i "error\|ERR"
 
-# Validate YAML locally
+# Lokal validieren
 find argocd/apps/ -name "*.yaml" -exec python3 -c "
 import yaml, sys
 for f in sys.argv[1:]:
@@ -171,20 +168,20 @@ for f in sys.argv[1:]:
 " {} +
 ```
 
-**ArgoCD server pod not ready:**
+**ArgoCD-Server-Pod nicht ready:**
 
 ```bash
 kubectl rollout status deployment/argocd-server -n argocd
 kubectl describe pod -n argocd -l app.kubernetes.io/name=argocd-server
 ```
 
-**Force a manual sync:**
+**Manuellen Sync erzwingen:**
 
 ```bash
-# Via CLI
+# Per CLI
 argocd app sync example-whoami --force
 
-# Via kubectl (add annotation to trigger sync)
+# Per kubectl (Annotation triggert Refresh)
 kubectl patch application example-whoami -n argocd \
   --type merge \
   -p '{"metadata": {"annotations": {"argocd.argoproj.io/refresh": "hard"}}}'
@@ -192,203 +189,198 @@ kubectl patch application example-whoami -n argocd \
 
 ---
 
-## Tailscale Not Connecting
+## Tailscale verbindet nicht
 
-### Symptoms
+### Symptome
 
-- `tailscale status` shows `stopped` or `connecting`
-- Server not appearing in Tailscale admin panel
-- Cannot reach server via Tailscale IP from other devices
+- `tailscale status` zeigt `stopped` oder `connecting`.
+- Server taucht im Tailscale-Admin-Panel nicht auf.
+- Server nicht über Tailscale-IP erreichbar.
 
-### Diagnostic Steps
+### Diagnose
 
 ```bash
-# Check tailscaled service
+# tailscaled-Service
 sudo systemctl status tailscaled
 
-# Check logs
+# Logs
 sudo journalctl -u tailscaled --since "10 minutes ago" -n 100
 
-# Network diagnostics
+# Netz-Diagnostik
 tailscale netcheck
 
-# Current status
+# Status
 tailscale status
 
-# Check if auth key was valid
+# Auth-Probleme
 sudo journalctl -u tailscaled | grep -i "auth\|error\|fail"
 ```
 
-### Common Causes and Fixes
+### Häufige Ursachen & Fixes
 
-**Invalid or expired auth key:**
+**Ungültiger oder abgelaufener Auth-Key:**
 
 ```bash
-# Reconnect with a new auth key
-sudo tailscale up --authkey=tskey-auth-YOUR_NEW_KEY --reset
+# Mit neuem Key reconnecten
+sudo tailscale up --authkey=tskey-auth-NEUER_KEY --reset
 ```
 
-**tailscaled service not running:**
+**tailscaled-Service läuft nicht:**
 
 ```bash
 sudo systemctl enable --now tailscaled
 sudo systemctl restart tailscaled
 ```
 
-**Firewall blocking Tailscale UDP:**
+**Firewall blockt Tailscale-UDP:**
 
 ```bash
-# Check UFW rules
+# UFW-Regeln
 sudo ufw status verbose | grep -i "41641\|tailscale"
 
-# Allow Tailscale
+# Tailscale freigeben
 sudo ufw allow 41641/udp comment "Tailscale WireGuard"
 ```
 
-**DERP relay fallback (no direct connection):**
+**Nur DERP-Relay (keine Direktverbindung):**
 
-If `tailscale netcheck` shows no direct paths, Tailscale will use DERP relay servers. This still works but has higher latency. Usually resolves itself.
+Wenn `tailscale netcheck` keine direkten Pfade meldet, nutzt Tailscale DERP-Relays.
+Funktioniert, hat aber höhere Latenz. Löst sich meist von selbst.
 
 ```bash
 tailscale netcheck
-# Look for: "No direct connection to X" warnings
-# This is usually not a problem — DERP relay works fine
+# Achten auf "No direct connection to X"
 ```
 
-**Re-authenticate:**
+**Re-Authentifizieren:**
 
 ```bash
 sudo tailscale up --force-reauth
-# Follow the URL shown to authenticate
+# Der angezeigten URL folgen
 ```
 
-**Already connected but shows wrong IP:**
+**Falsche IP angezeigt:**
 
 ```bash
 tailscale ip -4
-# Verify this matches what the admin panel shows
+# Muss zur Anzeige im Admin-Panel passen
 ```
 
 ---
 
-## Pod Stuck in Pending
+## Pod hängt in `Pending`
 
-### Symptoms
+### Symptome
 
-- `kubectl get pods -A` shows pods in `Pending` state
-- Pods never start
+- `kubectl get pods -A` zeigt Pods im Status `Pending`.
+- Pods starten nicht.
 
-### Diagnostic Steps
+### Diagnose
 
 ```bash
-# Describe the pod to see events
+# Pod-Details, Events am Ende beachten
 kubectl describe pod <pod-name> -n <namespace>
-# Look at the "Events" section at the bottom
 
-# Check node resources
+# Node-Resources
 kubectl describe node homeserver
-# Look at "Allocated resources" section
 kubectl top nodes
 ```
 
-### Common Causes and Fixes
+### Häufige Ursachen & Fixes
 
-**Insufficient resources:**
+**Zu wenig Ressourcen:**
 
 ```bash
-# Check node capacity vs requests
+# Allocatable vs. Requests
 kubectl describe node homeserver | grep -A10 "Allocatable:"
 kubectl describe node homeserver | grep -A10 "Allocated resources:"
 
-# If resources are tight, check what's using them
+# Was zieht Speicher/CPU?
 kubectl top pods -A --sort-by=memory
 kubectl top pods -A --sort-by=cpu
 ```
 
-**PersistentVolumeClaim not bound:**
+**PVC nicht gebunden:**
 
 ```bash
 kubectl get pvc -A
-# If STATUS is "Pending":
+# Falls STATUS "Pending":
 kubectl describe pvc <pvc-name> -n <namespace>
 
-# Check local-path provisioner
+# local-path-Provisioner
 kubectl logs -n kube-system -l app=local-path-provisioner
 ```
 
-**Toleration/affinity/node selector mismatch:**
+**Tolerations/Affinity/NodeSelector greifen nicht:**
 
 ```bash
 kubectl describe pod <pod-name> -n <namespace> | grep -A10 "Node-Selectors\|Tolerations\|Events"
 ```
 
-**Image pull failure (ImagePullBackOff or ErrImagePull):**
+**Image-Pull-Fehler (`ImagePullBackOff` / `ErrImagePull`):**
 
 ```bash
 kubectl describe pod <pod-name> -n <namespace> | grep -A5 "Events"
-# If image not found or registry unreachable:
-# - Verify image name/tag is correct
-# - Check internet connectivity from node
-# - For private registries, check imagePullSecrets
+# Bei „image not found" oder „registry unreachable":
+# - Image-Name/-Tag prüfen
+# - Internet vom Node prüfen
+# - Private Registry → imagePullSecrets prüfen
 ```
 
 ---
 
-## Storage Issues
+## Storage-Probleme
 
-### Symptoms
+### Symptome
 
-- PVC stays in `Pending` state
-- Pods fail with `volume mount` errors
-- Data lost between pod restarts
+- PVC bleibt `Pending`.
+- Pods schlagen mit `volume mount`-Fehlern fehl.
+- Daten zwischen Pod-Restarts verloren.
 
-### Diagnostic Steps
+### Diagnose
 
 ```bash
-# Check PVCs and PVs
+# PVCs und PVs
 kubectl get pvc -A
 kubectl get pv
 kubectl describe pvc <name> -n <namespace>
 kubectl describe pv <name>
 
-# Check local-path provisioner
+# local-path-Provisioner
 kubectl get pods -n kube-system -l app=local-path-provisioner
 kubectl logs -n kube-system -l app=local-path-provisioner
 
-# Check storage directory on host
+# Storage-Verzeichnis am Host
 sudo ls -la /var/lib/rancher/k3s/storage/
 sudo df -h /var/lib/rancher/k3s/storage/
 ```
 
-### Common Causes and Fixes
+### Häufige Ursachen & Fixes
 
-**Disk full:**
+**Disk voll:**
 
 ```bash
 df -h /
-# If full:
-# - Remove unused Docker images, logs, etc.
+# Aufräumen:
 sudo journalctl --vacuum-size=1G
-sudo docker system prune  # if docker is installed
+sudo docker system prune  # falls Docker installiert
 ```
 
-**local-path provisioner not running:**
+**local-path-Provisioner läuft nicht:**
 
 ```bash
 kubectl rollout restart deployment/local-path-provisioner -n kube-system
 ```
 
-**Wrong storage class name:**
+**Falsche StorageClass im PVC:**
 
 ```bash
 kubectl get storageclass
-# Default is "local-path" — verify PVC uses this name
+# Default ist "local-path" — PVC sollte das nutzen:
 # spec.storageClassName: local-path
 ```
 
-**PV bound to wrong namespace:**
-
-By default, `local-path` PVs are not namespace-scoped but the PVC binding is. Verify:
+**PV an falsche Claim gebunden:**
 
 ```bash
 kubectl get pvc <name> -n <namespace> -o yaml | grep volumeName
@@ -397,144 +389,139 @@ kubectl get pv <pv-name> -o yaml | grep claimRef
 
 ---
 
-## Network Connectivity Issues
+## Netzwerk-Probleme
 
-### Symptoms
+### Symptome
 
-- Pods can't reach each other
-- Services not reachable
-- Ingress not working
-- DNS not resolving
+- Pods erreichen sich gegenseitig nicht.
+- Services nicht erreichbar.
+- Ingress liefert keinen Inhalt.
+- DNS löst nicht auf.
 
-### Diagnostic Steps
+### Diagnose
 
 ```bash
-# Check Flannel pods
+# Flannel
 kubectl get pods -n kube-system -l app=flannel
 kubectl logs -n kube-system -l app=flannel
 
-# Check CoreDNS
+# CoreDNS
 kubectl get pods -n kube-system -l k8s-app=kube-dns
 kubectl logs -n kube-system -l k8s-app=kube-dns
 
-# Test DNS resolution from a pod
+# DNS-Auflösung aus einem Pod
 kubectl run dns-test --image=busybox:1.28 --rm -it --restart=Never -- nslookup kubernetes.default
 
-# Test pod-to-pod connectivity
+# Pod-zu-Pod
 kubectl run ping-test --image=busybox:1.28 --rm -it --restart=Never -- ping -c3 <pod-ip>
 
-# Check services
+# Services
 kubectl get svc -A
 kubectl describe svc <name> -n <namespace>
 
-# Check endpoints
+# Endpoints
 kubectl get endpoints <svc-name> -n <namespace>
 ```
 
-### Common Causes and Fixes
+### Häufige Ursachen & Fixes
 
-**Flannel VXLAN blocked by firewall:**
+**Flannel-VXLAN blockiert (Firewall):**
 
 ```bash
-# UDP 8472 must be allowed for Flannel VXLAN
+# UDP 8472 muss offen sein
 sudo ufw allow 8472/udp comment "Flannel VXLAN"
 ```
 
-**br_netfilter not loaded:**
+**`br_netfilter` nicht geladen:**
 
 ```bash
 lsmod | grep br_netfilter
-# If missing:
+# Falls leer:
 sudo modprobe br_netfilter
 ```
 
-**Traefik not routing:**
+**Traefik routet nicht:**
 
 ```bash
-# Check Traefik pods
 kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
 kubectl logs -n kube-system -l app.kubernetes.io/name=traefik
-
-# Check Traefik service
 kubectl get svc -n kube-system traefik
 
-# Describe ingress
+# Ingress-Details
 kubectl describe ingress <name> -n <namespace>
-
-# Check Ingress has correct ingressClassName
 kubectl get ingress <name> -n <namespace> -o yaml | grep ingressClassName
 ```
 
-**Service has no endpoints:**
+**Service ohne Endpoints:**
 
 ```bash
 kubectl get endpoints <svc-name> -n <namespace>
-# If no endpoints, check if pods are running and labels match selector
+# Falls leer: laufen die Pods und matchen die Labels?
 kubectl get pods -n <namespace> -l <selector-key>=<selector-value>
 ```
 
 ---
 
-## Ansible Playbook Failures
+## Ansible-Playbook-Fehler
 
-### Common Issues
+### Häufige Ursachen
 
-**SSH connection refused:**
+**SSH-Verbindung verweigert:**
 
 ```bash
-# Verify SSH access
+# SSH testen
 ssh -i ~/.ssh/id_rsa ubuntu@192.168.1.100 "echo connected"
 
-# Check ansible inventory
+# Inventory
 ansible -i ansible/inventory/hosts.yml homeserver -m ping
 ```
 
-**Sudo password required:**
+**sudo verlangt Passwort:**
 
 ```bash
-# Add NOPASSWD to sudoers on the server
+# Auf dem Server NOPASSWD-sudo eintragen
 ssh ubuntu@192.168.1.100
 echo "ubuntu ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ubuntu-nopasswd
 ```
 
-**Ansible collection not installed:**
+**Galaxy-Collection fehlt:**
 
 ```bash
 ansible-galaxy collection install -r ansible/requirements.yml --force
 ```
 
-**Vault password wrong:**
+**Falsches Vault-Passwort:**
 
 ```bash
-# If you get "Decryption failed" errors, you used the wrong vault password
-# Re-encrypt the secret if you forgot the password:
-ansible-vault encrypt_string 'tskey-auth-YOUR_KEY' --name 'tailscale_auth_key'
+# Bei "Decryption failed" wurde das falsche Passwort eingegeben.
+# Falls das Passwort komplett verloren ist, Secret neu verschlüsseln:
+ansible-vault encrypt_string 'tskey-auth-DEIN_KEY' --name 'tailscale_auth_key'
 ```
 
 ---
 
-## Useful Debug Commands
+## Nützliche Debug-Kommandos
 
-### System-wide Status
+### System-weiter Status
 
 ```bash
-# All failing pods
+# Alle nicht-laufenden Pods
 kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded
 
-# Recent cluster events sorted by time
+# Aktuelle Cluster-Events
 kubectl get events -A --sort-by='.lastTimestamp' | tail -30
 
-# Node conditions
+# Node-Conditions
 kubectl describe node homeserver | grep -A20 "Conditions:"
 
-# System resources
+# System-Ressourcen
 free -h && df -h && uptime
 
-# journald errors
+# journald-Errors
 sudo journalctl -p err --since "1 hour ago"
 ```
 
-### Quick Health Check Script
+### Quick-Health-Check-Skript
 
 ```bash
 #!/bin/bash
@@ -551,15 +538,15 @@ tailscale status
 
 echo ""
 echo "=== ArgoCD Apps ==="
-kubectl get applications -n argocd 2>/dev/null || echo "ArgoCD not installed"
+kubectl get applications -n argocd 2>/dev/null || echo "ArgoCD nicht installiert"
 
 echo ""
-echo "=== Disk Usage ==="
+echo "=== Disk-Verbrauch ==="
 df -h /
 
 echo ""
-echo "=== Memory Usage ==="
+echo "=== Memory ==="
 free -h
 ```
 
-Save this as `/home/ubuntu/healthcheck.sh` and run with `bash /home/ubuntu/healthcheck.sh`.
+Speichern als `/home/ubuntu/healthcheck.sh`, ausführen mit `bash /home/ubuntu/healthcheck.sh`.
