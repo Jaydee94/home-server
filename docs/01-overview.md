@@ -32,19 +32,34 @@ This document describes the high-level architecture of the home server setup.
 │  │  │ tailscaled │  │   chrony     │  │   UFW Firewall       │ │   │
 │  │  │ (Tailscale)│  │ (NTP sync)   │  │  (22,80,443,6443..)  │ │   │
 │  │  └────────────┘  └──────────────┘  └──────────────────────┘ │   │
+│  │  ┌──────────────┐  ┌─────────────────────────────────────┐  │   │
+│  │  │   dnsmasq    │  │   scanbd + SANE + scan_*.sh         │  │   │
+│  │  │ split-DNS    │  │   (Fujitsu USB scanner pipeline)    │  │   │
+│  │  │ *.homeserver │  │   ──► CIFS mount to UGREEN NAS      │  │   │
+│  │  │ :53 LAN+TS   │  │       (Paperless-NGX consume dir)   │  │   │
+│  │  └──────────────┘  └─────────────────────────────────────┘  │   │
 │  │                                                              │   │
 │  │  ┌──────────────────────────────────────────────────────┐   │   │
 │  │  │                   k3s (Kubernetes)                   │   │   │
 │  │  │                                                      │   │   │
 │  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │   │   │
 │  │  │  │   Traefik   │  │   ArgoCD    │  │  Workload   │  │   │   │
-│  │  │  │  (Ingress)  │  │  (GitOps)   │  │    Apps     │  │   │   │
-│  │  │  │  :80/:443   │  │  :30080     │  │             │  │   │   │
+│  │  │  │  (Ingress)  │  │  (GitOps)   │  │   Apps      │  │   │   │
+│  │  │  │  :80/:443   │  │  :30080     │  │  (see ↓)    │  │   │   │
 │  │  │  └──────┬──────┘  └──────┬──────┘  └─────────────┘  │   │   │
 │  │  │         │                │                           │   │   │
-│  │  │  ┌──────▼──────────────────────────────────────────┐ │   │   │
-│  │  │  │      Flannel VXLAN (Pod Network 10.42.0.0/16)   │ │   │   │
-│  │  │  └────────────────────────────────────────────────┘ │   │   │
+│  │  │  ┌──────┴────────────────┴──────────────────────┐   │   │   │
+│  │  │  │  argocd/apps/ — managed by ApplicationSet:   │   │   │   │
+│  │  │  │    monitoring (VictoriaMetrics + Grafana),   │   │   │   │
+│  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
+│  │  │  │    semaphore (Ansible UI),                   │   │   │   │
+│  │  │  │    headlamp (k8s dashboard), gotify (push),  │   │   │   │
+│  │  │  │    example-whoami                            │   │   │   │
+│  │  │  └─────────────────────────────────────────────┘   │   │   │
+│  │  │                                                      │   │   │
+│  │  │  ┌──────────────────────────────────────────────┐   │   │   │
+│  │  │  │   Flannel VXLAN (Pod Network 10.42.0.0/16)   │   │   │   │
+│  │  │  └──────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
 │  │  │  ┌──────────────────────────────────────────────┐   │   │   │
 │  │  │  │   local-path StorageClass (NVMe SSD)         │   │   │   │
@@ -61,6 +76,12 @@ This document describes the high-level architecture of the home server setup.
 │   home-server/                                                      │
 │   └── argocd/apps/          ← ArgoCD watches this directory        │
 │       ├── example-whoami/   ← Each subdirectory = one Application  │
+│       ├── monitoring/                                              │
+│       ├── sealed-secrets/                                          │
+│       ├── kubeseal-webgui/                                         │
+│       ├── headlamp/                                                │
+│       ├── semaphore/                                               │
+│       ├── gotify/                                                  │
 │       └── my-new-app/       ← Add directory → auto-deployed        │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -122,6 +143,51 @@ Tailscale provides a WireGuard-based mesh VPN. The home server acts as a node in
 
 Bundled with k3s, Traefik handles HTTP/HTTPS routing into the cluster. Services are exposed via Kubernetes `Ingress` resources or Traefik's native `IngressRoute` CRD.
 
+### dnsmasq (Split-DNS for `*.homeserver`)
+
+A bare-metal `dnsmasq` runs on the host and serves the `*.homeserver`
+zone on both the LAN interface and `tailscale0`. Every entry in
+`dnsmasq_hosts` (`ansible/group_vars/all.yml`) resolves to the server's
+LAN IP, which lets you reach apps as `grafana.homeserver`,
+`argocd.homeserver`, etc. from anywhere in the LAN or tailnet without
+touching the router or the Tailscale admin console for each new app.
+The architecture (and why the home-server is intentionally **not** your
+LAN-wide DNS server) is covered in detail in
+[`09-dns-architecture.md`](09-dns-architecture.md).
+
+### Scanner + Paperless Pipeline
+
+A Fujitsu USB scanner sits directly on the host. `scanbd` listens on the
+hardware button and triggers shell scripts (`scan_button.sh` →
+`scan_to_pdf.sh`) that produce a PDF and drop it onto a CIFS mount of
+the UGREEN NAS, where Paperless-NGX picks it up. Optional Gotify push
+notifications are sent from the same scripts. Full setup is in
+[`10-scanner.md`](10-scanner.md) and [`11-gotify.md`](11-gotify.md).
+
+### Monitoring Stack (VictoriaMetrics + Grafana)
+
+Deployed via `argocd/apps/monitoring/`. VMSingle stores 15 days of TSDB
+on a `local-path` PVC, VMAgent scrapes both `VMServiceScrape`/`VMPodScrape`
+CRDs and Prometheus `ServiceMonitor` CRDs (auto-converted), and Grafana
+ships pre-loaded dashboards (Node Exporter Full, VictoriaMetrics,
+Kubernetes Views) at `http://grafana.homeserver`.
+
+### Sealed Secrets
+
+Bitnami's `sealed-secrets` controller (under `argocd/apps/sealed-secrets/`)
+decrypts in-cluster `SealedSecret` CRDs into regular Kubernetes
+`Secret`s. `kubeseal-webgui` (under `argocd/apps/kubeseal-webgui/`)
+provides a small browser UI that encrypts plaintext values against the
+controller's public key — useful for committing per-app secrets safely
+to the GitOps repo.
+
+### Semaphore (Ansible Web UI)
+
+Runs as a k8s pod under `argocd/apps/semaphore/`. The
+`semaphore_bootstrap` Ansible role calls Semaphore's REST API to
+provision Projects, Inventories, Repositories and Templates idempotently,
+so the UI is ready to use after the first playbook run.
+
 ---
 
 ## Port Overview
@@ -129,6 +195,7 @@ Bundled with k3s, Traefik handles HTTP/HTTPS routing into the cluster. Services 
 | Port  | Protocol | Component       | Access         | Description                        |
 |-------|----------|-----------------|----------------|------------------------------------|
 | 22    | TCP      | SSH             | LAN + Tailscale| Server SSH access                  |
+| 53    | UDP+TCP  | dnsmasq         | LAN + Tailscale| Split-DNS for `*.homeserver`       |
 | 80    | TCP      | Traefik         | LAN + Tailscale| HTTP ingress                       |
 | 443   | TCP      | Traefik         | LAN + Tailscale| HTTPS ingress                      |
 | 6443  | TCP      | k3s API Server  | LAN + Tailscale| Kubernetes API                     |

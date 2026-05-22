@@ -124,15 +124,27 @@ generators:
 - The target namespace = directory name
 - ArgoCD syncs the directory contents to the cluster
 
-**Example directory structure:**
+**Current directory layout in this repo:**
 
 ```
 argocd/apps/
-├── example-whoami/          → Application "example-whoami" → namespace "example-whoami"
-├── monitoring/              → Application "monitoring"     → namespace "monitoring"
-├── homer-dashboard/         → Application "homer-dashboard"→ namespace "homer-dashboard"
-└── nextcloud/               → Application "nextcloud"      → namespace "nextcloud"
+├── example-whoami/      → Reference Helm chart used as a wiring test
+├── gotify/              → Push-notification server (Android/iOS client)
+├── headlamp/            → Web-based Kubernetes dashboard
+├── kubeseal-webgui/     → Browser UI that encrypts secrets with the
+│                          cluster's SealedSecrets public key
+├── monitoring/          → VictoriaMetrics + Grafana + node-exporter +
+│                          kube-state-metrics + Alertmanager
+├── sealed-secrets/      → bitnami-labs SealedSecrets controller
+│                          (decrypts SealedSecret CRDs into Secrets)
+└── semaphore/           → Web UI for running Ansible playbooks
 ```
+
+Each directory becomes an `Application` named after the directory, deployed
+into a namespace of the same name. To add another one, drop a folder under
+`argocd/apps/<name>/` with either plain Kubernetes manifests, a
+`kustomization.yaml`, or a Helm chart (`Chart.yaml` + `values.yaml`), then
+commit and push — ArgoCD picks it up within ~3 minutes.
 
 ---
 

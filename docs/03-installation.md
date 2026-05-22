@@ -82,6 +82,13 @@ $EDITOR ansible/group_vars/all.yml
 | `helm_version`              | `""` (empty)  | Empty ⇒ latest Helm 3                                                  |
 | `argocd_version`            | `""` (empty)  | Empty ⇒ latest Argo Helm chart                                         |
 | `hostname`                  | `homeserver`  | Hostname for the machine                                               |
+| `dnsmasq_hosts`             | list of apps  | Hostnames served by `dnsmasq` under `*.homeserver`                     |
+| `semaphore_vault_password`  | vault-block   | Ansible-Vault password used by Semaphore to decrypt secrets at runtime |
+| `scanner_usb_vendor_id` / `scanner_usb_product_id` | empty | USB IDs from `lsusb` — required if the scanner role is enabled    |
+| `scanner_smb_share` / `scanner_smb_username` / `scanner_smb_password` | — | NAS share + creds for the Paperless `consume` directory   |
+| `scanner_gotify_enabled`    | `false`       | Toggle Gotify push notifications from the scan pipeline                |
+| `scanner_gotify_url` / `scanner_gotify_token` | — | Gotify endpoint and (vault-encrypted) app token                     |
+| `gotify_admin_password`     | vault-block   | Optional vault entry to remember the Gotify admin password             |
 
 > **Tip.** Set `auto_upgrade: false` if you need reproducible builds (CI, lab snapshots) — Ansible will then only install missing packages and honour every pin.
 
@@ -169,25 +176,40 @@ Enter the vault password when prompted.
 
 **What the playbook does (in order):**
 
-1. **common role** (~3 min): Updates packages, configures firewall, kernel parameters, swap, chrony
-2. **tailscale role** (~1 min): Installs Tailscale and connects to your VPN
-3. **k3s role** (~5 min): Installs k3s, configures kubeconfig, installs Helm
-4. **argocd role** (~10 min): Deploys ArgoCD via Helm, applies bootstrap ApplicationSet
+1. **common** (~3 min) — APT updates, UFW firewall, kernel parameters, swap-off, chrony NTP sync.
+2. **dnsmasq** (~30 s) — Installs and configures `dnsmasq` to serve the `*.homeserver` zone on both the LAN interface and `tailscale0`.
+3. **tailscale** (~1 min) — Installs Tailscale and joins the tailnet using the vault-encrypted auth key.
+4. **k3s** (~5 min) — Installs k3s, writes the kubeconfig, installs Helm.
+5. **argocd** (~10 min) — Deploys ArgoCD via Helm chart and applies the root `ApplicationSet`.
+6. **scanner** (~2 min) — Installs `sane` + `scanbd`, mounts the NAS via CIFS, wires up the Fujitsu USB scanner (requires `scanner_usb_vendor_id`/`scanner_usb_product_id`).
+7. **semaphore_secrets** (~30 s) — Renders the Semaphore bootstrap Secret used by the in-cluster Semaphore pod.
+
+After the host-targeted roles, two extra plays run:
+
+8. **semaphore_targets** (~30 s per target host) — Pushes the Semaphore SSH public key into every host in the `semaphore_targets` inventory group.
+9. **semaphore_bootstrap** (~1 min) — Calls the Semaphore REST API on the home-server and idempotently provisions Projects, Keys, Repositories, Inventories and Templates.
 
 At the end, the playbook prints a summary with URLs.
 
-**Running only specific roles:**
+**Running only specific roles** (via tags, see the per-role tag in `ansible/site.yml`):
 
 ```bash
-# Only run the common role
+# Only the common role
+make common
+# or:
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags common --ask-vault-pass
 
-# Only run k3s and argocd
+# Only k3s and argocd
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags k3s,argocd --ask-vault-pass
 
-# Skip tailscale
+# Only the split-DNS layer (after editing dnsmasq_hosts)
+make dnsmasq
+
+# Skip tailscale entirely
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --skip-tags tailscale --ask-vault-pass
 ```
+
+All convenience `make` targets are listed by `make help`.
 
 **The playbook is fully idempotent** — running it multiple times is safe and makes no unnecessary changes.
 
