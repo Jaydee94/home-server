@@ -1,0 +1,83 @@
+---
+replicaCount: 1
+
+image:
+  repository: clusterzx/paperless-ai
+  pullPolicy: IfNotPresent
+  # Pinned for reproducibility. Bump to track upstream releases:
+  # https://hub.docker.com/r/clusterzx/paperless-ai/tags
+  tag: "3.0.9"
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+# The image manages file ownership via PUID/PGID, so it is not forced to run as
+# a non-root user. fsGroup makes the local-path PVC group-writable for gid 1000.
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  # The paperless-ai web UI / Node app listens on 3000; the internal Python RAG
+  # service uses 8000 (localhost only, not exposed).
+  targetPort: 3000
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  hosts:
+    - host: paperless-ai.homeserver
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+persistence:
+  enabled: true
+  storageClassName: local-path
+  # Holds config, the SQLite DB and RAG embeddings — larger than a plain app.
+  size: 5Gi
+  accessMode: ReadWriteOnce
+  mountPath: /app/data
+
+# Configuration (Paperless API URL, token, AI provider) is entered through the
+# in-app setup wizard at http://paperless-ai.homeserver on first start and
+# persisted in the PVC. No Paperless/AI secrets are stored in Git.
+env:
+  PUID: "1000"
+  PGID: "1000"
+  PAPERLESS_AI_PORT: "3000"
+  RAG_SERVICE_ENABLED: "true"
+  RAG_SERVICE_URL: "http://localhost:8000"
+
+extraEnv: []
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 512Mi
+  limits:
+    # RAG embeddings are memory-hungry; raise if the pod gets OOMKilled.
+    cpu: "1500m"
+    memory: 2Gi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

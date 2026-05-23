@@ -168,6 +168,7 @@ home-server/
         ├── headlamp/                       # Kubernetes-Web-Dashboard
         ├── kubeseal-webgui/                # Sealed-Secrets-Verschlüsselungs-UI
         ├── monitoring/                     # VictoriaMetrics + Grafana
+        ├── paperless-ai/                   # KI-Dokumentenanalyse für Paperless-NGX
         ├── sealed-secrets/                 # SealedSecrets-Controller
         └── semaphore/                      # Ansible-Web-UI
 ```
@@ -251,6 +252,7 @@ Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
 | [DNS-Architektur](docs/09-dns-architecture.md)                  | Warum der Home-Server NICHT dein LAN-DNS ist |
 | [Scanner & Paperless](docs/10-scanner.md)                       | Fujitsu-USB-Scanner → CIFS → Paperless-NGX   |
 | [Gotify-Push](docs/11-gotify.md)                                | Self-hosted Push-Notifications aus dem Stack |
+| [Paperless-AI](docs/12-paperless-ai.md)                         | KI-Dokumentenanalyse + RAG für Paperless-NGX |
 
 ---
 

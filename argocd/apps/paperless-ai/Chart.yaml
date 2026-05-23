@@ -1,0 +1,18 @@
+---
+apiVersion: v2
+name: paperless-ai
+description: AI-powered document analysis, tagging and RAG chat for Paperless-NGX.
+type: application
+version: 0.1.0
+appVersion: "3.0.9"
+keywords:
+  - paperless
+  - paperless-ngx
+  - ai
+  - rag
+  - documents
+home: https://clusterzx.github.io/paperless-ai/
+sources:
+  - https://github.com/clusterzx/paperless-ai
+maintainers:
+  - name: home-server-admin
