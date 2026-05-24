@@ -2,6 +2,8 @@
 # ============================================================
 # Provision one task template inside the current project.
 # Wires repository_id + inventory_id + playbook path together.
+# Note: ansible.builtin.uri returns 400 on this endpoint — all
+# mutating calls use curl via shell to work around this.
 # ============================================================
 
 - name: List existing templates in project {{ project_spec.name }}
@@ -28,78 +30,144 @@
            | list | first | default({})).id | default(none) }}
   when: template_exists
 
-# Body is built as a single Jinja dict so Python-native types survive
-# into the JSON encoder. With YAML scalars the folded `>-` wrapper
-# stringifies the rendered value, and Semaphore's strict *int
-# unmarshaler silently leaves nullable int columns (vault_key_id) NULL
-# when it receives a JSON string. See git log for the bug history.
+# Use Python + curl — uri module returns 400 on this endpoint.
+# vault_key_id is passed as the string 'null' when not applicable;
+# Python converts it to JSON null so Semaphore's int unmarshaler is satisfied.
 - name: Create template {{ template_spec.name }}
-  ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates"
-    method: POST
-    body_format: json
-    body: >-
-      {{
-        {
-          'project_id': project_id | int,
-          'inventory_id': project_inventory_map[template_spec.inventory] | int,
-          'repository_id': repository_id | int,
-          'environment_id': none,
-          'vault_key_id':
-            (project_key_map[template_spec.vault_key] | int)
-            if (template_spec.vault_key is defined
-                and template_spec.vault_key in project_key_map)
-            else none,
-          'name': template_spec.name,
-          'playbook': template_spec.playbook,
-          'arguments': '[]',
-          'description': template_spec.description | default(''),
-          'allow_override_args_in_task': false,
-          'app': 'ansible',
-          'git_branch': project_spec.repository.branch | default('main'),
-          'type': '',
-          'suppress_success_alerts': false,
-        }
-      }}
-    headers:
-      Cookie: "{{ semaphore_cookie }}"
-    status_code: [200, 201, 204]
+  ansible.builtin.shell: |
+    set -euo pipefail
+    python3 << 'PYEOF'
+    import json, subprocess, sys, os
+
+    vault_key_id_str = os.environ['VAULT_KEY_ID']
+    vault_key_id = None if vault_key_id_str == 'null' else int(vault_key_id_str)
+
+    body = {
+        'project_id':                  int(os.environ['PROJECT_ID']),
+        'inventory_id':                int(os.environ['INVENTORY_ID']),
+        'repository_id':               int(os.environ['REPOSITORY_ID']),
+        'environment_id':              None,
+        'vault_key_id':                vault_key_id,
+        'name':                        os.environ['TPL_NAME'],
+        'playbook':                    os.environ['TPL_PLAYBOOK'],
+        'arguments':                   '[]',
+        'description':                 os.environ['TPL_DESCRIPTION'],
+        'allow_override_args_in_task': False,
+        'app':                         'ansible',
+        'git_branch':                  os.environ['GIT_BRANCH'],
+        'type':                        '',
+        'suppress_success_alerts':     False,
+    }
+
+    result = subprocess.run(
+        ['curl', '-s', '-w', '\n%{http_code}',
+         '-X', 'POST',
+         os.environ['SEM_API_BASE'] + '/api/project/' + os.environ['PROJECT_ID'] + '/templates',
+         '-H', 'Content-Type: application/json',
+         '-H', 'Cookie: ' + os.environ['SEM_COOKIE'],
+         '-d', json.dumps(body)],
+        capture_output=True, text=True,
+    )
+    lines = result.stdout.strip().split('\n')
+    status = lines[-1]
+    body_resp = '\n'.join(lines[:-1])
+    if status not in ('200', '201'):
+        print(f'HTTP {status}: {body_resp}', file=sys.stderr)
+        sys.exit(1)
+    PYEOF
+  args:
+    executable: /bin/bash
+  environment:
+    PROJECT_ID:      "{{ project_id | string }}"
+    INVENTORY_ID:    "{{ project_inventory_map[template_spec.inventory] | string }}"
+    REPOSITORY_ID:   "{{ repository_id | string }}"
+    VAULT_KEY_ID:    "{{ (project_key_map[template_spec.vault_key] | string) if (template_spec.vault_key is defined and template_spec.vault_key in project_key_map) else 'null' }}"
+    TPL_NAME:        "{{ template_spec.name }}"
+    TPL_PLAYBOOK:    "{{ template_spec.playbook }}"
+    TPL_DESCRIPTION: "{{ template_spec.description | default('') }}"
+    GIT_BRANCH:      "{{ project_spec.repository.branch | default('main') }}"
+    SEM_COOKIE:      "{{ semaphore_cookie }}"
+    SEM_API_BASE:    "{{ semaphore_api_base }}"
+  register: sem_tpl_create
+  changed_when: true
   when: not template_exists
 
-# Existing templates may pre-date the vault_key_id wiring (or other field
-# changes). PUT the full desired body so re-running the bootstrap is
-# self-healing — Semaphore replaces the row wholesale.
+- name: Fail with details if template creation failed
+  ansible.builtin.fail:
+    msg: "Template '{{ template_spec.name }}' creation failed: {{ sem_tpl_create.stderr | default('unknown error') }}"
+  when:
+    - not template_exists
+    - sem_tpl_create is not skipped
+    - sem_tpl_create is failed
+
+# Existing templates may pre-date vault_key_id wiring or other field changes.
+# PUT the full desired body so re-running bootstrap is self-healing.
+# changed_when: false because a PUT of identical data is semantically a no-op.
 - name: Update template {{ template_spec.name }}
-  ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates/{{ template_id | int }}"
-    method: PUT
-    body_format: json
-    body: >-
-      {{
-        {
-          'id': template_id | int,
-          'project_id': project_id | int,
-          'inventory_id': project_inventory_map[template_spec.inventory] | int,
-          'repository_id': repository_id | int,
-          'environment_id': none,
-          'vault_key_id':
-            (project_key_map[template_spec.vault_key] | int)
-            if (template_spec.vault_key is defined
-                and template_spec.vault_key in project_key_map)
-            else none,
-          'name': template_spec.name,
-          'playbook': template_spec.playbook,
-          'arguments': '[]',
-          'description': template_spec.description | default(''),
-          'allow_override_args_in_task': false,
-          'app': 'ansible',
-          'git_branch': project_spec.repository.branch | default('main'),
-          'type': '',
-          'suppress_success_alerts': false,
-        }
-      }}
-    headers:
-      Cookie: "{{ semaphore_cookie }}"
-    status_code: [200, 204]
-  when: template_exists
+  ansible.builtin.shell: |
+    set -euo pipefail
+    python3 << 'PYEOF'
+    import json, subprocess, sys, os
+
+    vault_key_id_str = os.environ['VAULT_KEY_ID']
+    vault_key_id = None if vault_key_id_str == 'null' else int(vault_key_id_str)
+
+    body = {
+        'id':                          int(os.environ['TPL_ID']),
+        'project_id':                  int(os.environ['PROJECT_ID']),
+        'inventory_id':                int(os.environ['INVENTORY_ID']),
+        'repository_id':               int(os.environ['REPOSITORY_ID']),
+        'environment_id':              None,
+        'vault_key_id':                vault_key_id,
+        'name':                        os.environ['TPL_NAME'],
+        'playbook':                    os.environ['TPL_PLAYBOOK'],
+        'arguments':                   '[]',
+        'description':                 os.environ['TPL_DESCRIPTION'],
+        'allow_override_args_in_task': False,
+        'app':                         'ansible',
+        'git_branch':                  os.environ['GIT_BRANCH'],
+        'type':                        '',
+        'suppress_success_alerts':     False,
+    }
+
+    result = subprocess.run(
+        ['curl', '-s', '-w', '\n%{http_code}',
+         '-X', 'PUT',
+         os.environ['SEM_API_BASE'] + '/api/project/' + os.environ['PROJECT_ID'] + '/templates/' + os.environ['TPL_ID'],
+         '-H', 'Content-Type: application/json',
+         '-H', 'Cookie: ' + os.environ['SEM_COOKIE'],
+         '-d', json.dumps(body)],
+        capture_output=True, text=True,
+    )
+    lines = result.stdout.strip().split('\n')
+    status = lines[-1]
+    body_resp = '\n'.join(lines[:-1])
+    if status not in ('200', '204'):
+        print(f'HTTP {status}: {body_resp}', file=sys.stderr)
+        sys.exit(1)
+    PYEOF
+  args:
+    executable: /bin/bash
+  environment:
+    TPL_ID:          "{{ template_id | string }}"
+    PROJECT_ID:      "{{ project_id | string }}"
+    INVENTORY_ID:    "{{ project_inventory_map[template_spec.inventory] | string }}"
+    REPOSITORY_ID:   "{{ repository_id | string }}"
+    VAULT_KEY_ID:    "{{ (project_key_map[template_spec.vault_key] | string) if (template_spec.vault_key is defined and template_spec.vault_key in project_key_map) else 'null' }}"
+    TPL_NAME:        "{{ template_spec.name }}"
+    TPL_PLAYBOOK:    "{{ template_spec.playbook }}"
+    TPL_DESCRIPTION: "{{ template_spec.description | default('') }}"
+    GIT_BRANCH:      "{{ project_spec.repository.branch | default('main') }}"
+    SEM_COOKIE:      "{{ semaphore_cookie }}"
+    SEM_API_BASE:    "{{ semaphore_api_base }}"
+  register: sem_tpl_update
   changed_when: false
+  when: template_exists
+
+- name: Fail with details if template update failed
+  ansible.builtin.fail:
+    msg: "Template '{{ template_spec.name }}' update failed: {{ sem_tpl_update.stderr | default('unknown error') }}"
+  when:
+    - template_exists
+    - sem_tpl_update is not skipped
+    - sem_tpl_update is failed

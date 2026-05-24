@@ -2,6 +2,8 @@
 # ============================================================
 # Provision the project's Git repository entry. Uses the `git-none`
 # access key created earlier (public HTTPS clone, no auth).
+# Note: ansible.builtin.uri returns 400 on this endpoint — all
+# mutating calls use curl via shell to work around this.
 # ============================================================
 
 - name: List existing repositories in project {{ project_spec.name }}
@@ -20,27 +22,64 @@
            | selectattr('name', 'equalto', project_spec.repository.name)
            | list | first | default({})).id | default(none) }}
 
+# Use Python + curl — uri module returns 400 on this endpoint.
 - name: Create repository in project {{ project_spec.name }}
-  ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/repositories"
-    method: POST
-    body_format: json
-    body:
-      name: "{{ project_spec.repository.name }}"
-      project_id: "{{ project_id | int }}"
-      git_url: "{{ project_spec.repository.url }}"
-      git_branch: "{{ project_spec.repository.branch | default('main') }}"
-      ssh_key_id: "{{ project_key_map['git-none'] | int }}"
-    headers:
-      Cookie: "{{ semaphore_cookie }}"
-    status_code: [200, 201, 204]
-    return_content: true
+  ansible.builtin.shell: |
+    set -euo pipefail
+    python3 << 'PYEOF'
+    import json, subprocess, sys, os
+
+    body = {
+        'name':       os.environ['REPO_NAME'],
+        'project_id': int(os.environ['PROJECT_ID']),
+        'git_url':    os.environ['GIT_URL'],
+        'git_branch': os.environ['GIT_BRANCH'],
+        'ssh_key_id': int(os.environ['SSH_KEY_ID']),
+    }
+
+    result = subprocess.run(
+        ['curl', '-s', '-w', '\n%{http_code}',
+         '-X', 'POST',
+         os.environ['SEM_API_BASE'] + '/api/project/' + os.environ['PROJECT_ID'] + '/repositories',
+         '-H', 'Content-Type: application/json',
+         '-H', 'Cookie: ' + os.environ['SEM_COOKIE'],
+         '-d', json.dumps(body)],
+        capture_output=True, text=True,
+    )
+    lines = result.stdout.strip().split('\n')
+    status = lines[-1]
+    body_resp = '\n'.join(lines[:-1])
+    if status not in ('200', '201'):
+        print(f'HTTP {status}: {body_resp}', file=sys.stderr)
+        sys.exit(1)
+    resp = json.loads(body_resp)
+    print(resp['id'])
+    PYEOF
+  args:
+    executable: /bin/bash
+  environment:
+    REPO_NAME:    "{{ project_spec.repository.name }}"
+    PROJECT_ID:   "{{ project_id | string }}"
+    GIT_URL:      "{{ project_spec.repository.url }}"
+    GIT_BRANCH:   "{{ project_spec.repository.branch | default('main') }}"
+    SSH_KEY_ID:   "{{ project_key_map['git-none'] | string }}"
+    SEM_COOKIE:   "{{ semaphore_cookie }}"
+    SEM_API_BASE: "{{ semaphore_api_base }}"
   register: sem_repo_create
+  changed_when: true
   when: repository_id in [none, "None", ""]
+
+- name: Fail with details if repository creation failed
+  ansible.builtin.fail:
+    msg: "Repository '{{ project_spec.repository.name }}' creation failed: {{ sem_repo_create.stderr | default('unknown error') }}"
+  when:
+    - repository_id in [none, "None", ""]
+    - sem_repo_create is not skipped
+    - sem_repo_create is failed
 
 - name: Capture new repository id for project {{ project_spec.name }}
   ansible.builtin.set_fact:
-    repository_id: "{{ sem_repo_create.json.id }}"
+    repository_id: "{{ sem_repo_create.stdout | trim }}"
   when:
     - repository_id in [none, "None", ""]
     - sem_repo_create is not skipped
