@@ -2,6 +2,15 @@
 
 # Tasks to install Docker, prepare directories, render templates and deploy paperless-ngx
 
+- name: Assert required paperless secrets are set
+  ansible.builtin.assert:
+    that:
+      - paperless_db_password | length > 0
+      - paperless_secret_key | length > 0
+    fail_msg: >-
+      paperless_db_password and paperless_secret_key must be set via vault.
+      See ansible/host_vars/ugreen-nas/vault.yml.example for instructions.
+
 - name: Gather facts (ensure we know package manager)
   ansible.builtin.setup:
     gather_subset:

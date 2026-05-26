@@ -35,7 +35,8 @@ paperless_ai_enabled: false
 
 # Postgres settings (used inside docker-compose/.env)
 paperless_db_user: paperless
-paperless_db_password: paperless_pass_change_me
+paperless_db_password: ""
+paperless_secret_key: ""
 paperless_db_name: paperless
 
 # Postgres UID/GID (70:70 is standard for postgres:alpine images)
