@@ -11,8 +11,10 @@ PASS=0
 FAIL=0
 
 run_hook() {
-  local input="$1"
-  TOOL_INPUT="$input" CLAUDE_TOOL_NAME="Bash" bash "$HOOK"
+  local command="$1"
+  # Claude Code übergibt die Tool-Eingabe als JSON auf STDIN — genau so testen.
+  jq -nc --arg cmd "$command" '{tool_name: "Bash", tool_input: {command: $cmd}}' \
+    | bash "$HOOK"
 }
 
 assert_blocked() {
@@ -76,6 +78,8 @@ assert_allowed "git fetch (kein push)"              "git fetch origin"
 assert_allowed "git branch --show-current"          "git branch --show-current"
 assert_allowed "go test (kein git)"                 "go test ./..."
 assert_allowed "Redirektion nach /tmp/"             "echo x >> /tmp/debug.log"
+assert_allowed "stderr-Dup 2>&1 (kein Dateischreiben)" "git status 2>&1"
+assert_allowed "stdout-Dup >&2"                     "echo err >&2"
 assert_allowed "grep (lesen)"                       "grep -r 'TODO' ."
 assert_allowed "cat (lesen)"                        "cat README.md"
 

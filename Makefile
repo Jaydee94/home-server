@@ -63,11 +63,26 @@ semaphore-bootstrap-local: ## Bootstrap Semaphore natively on the home server (n
 	    --tags semaphore-bootstrap $(VAULT_OPTS)
 
 .PHONY: lint
-lint: ## Lint YAML, Ansible, and Helm chart.
+lint: ## Lint YAML, Ansible, and ALL Helm charts.
 	yamllint -c .yamllint ansible/ argocd/
 	ansible-lint $(ANSIBLE_DIR)/
-	@command -v helm >/dev/null && helm lint argocd/apps/example-whoami || \
-	    echo "helm not installed — skipping chart lint"
+	@if command -v helm >/dev/null; then \
+	    for chart in argocd/apps/*/; do \
+	        [ -f "$${chart}Chart.yaml" ] || continue; \
+	        if grep -q '^dependencies:' "$${chart}Chart.yaml"; then \
+	            echo "==> helm dependency build $${chart}"; \
+	            helm dependency build "$${chart}" || helm dependency update "$${chart}"; \
+	        fi; \
+	        echo "==> helm lint $${chart}"; \
+	        helm lint "$${chart}"; \
+	    done; \
+	else \
+	    echo "helm not installed — skipping chart lint"; \
+	fi
+
+.PHONY: render-bootstrap
+render-bootstrap: ## Regenerate argocd/bootstrap/root-applicationset.yaml from the role template.
+	ansible-playbook $(ANSIBLE_DIR)/render-bootstrap.yml --connection local $(VAULT_OPTS)
 
 .PHONY: vault-edit
 vault-edit: ## Edit the vault-encrypted vars file.

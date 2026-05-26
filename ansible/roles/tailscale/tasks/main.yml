@@ -12,7 +12,7 @@
 
 - name: Download Tailscale GPG signing key
   ansible.builtin.get_url:
-    url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+    url: "https://pkgs.tailscale.com/stable/ubuntu/{{ tailscale_repo_codename }}.noarmor.gpg"
     dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
     mode: '0644'
     force: false
@@ -21,7 +21,7 @@
   ansible.builtin.apt_repository:
     repo: >-
       deb [signed-by=/usr/share/keyrings/tailscale-archive-keyring.gpg]
-      https://pkgs.tailscale.com/stable/ubuntu noble main
+      https://pkgs.tailscale.com/stable/ubuntu {{ tailscale_repo_codename }} main
     filename: tailscale
     state: present
     update_cache: true
@@ -96,22 +96,11 @@
   failed_when: false
   when: tailscale_connected
 
-# ---- Enable IP Forwarding for Subnet Routing ----------------
-- name: Enable IPv4 forwarding (required for subnet routing)
-  ansible.posix.sysctl:
-    name: net.ipv4.ip_forward
-    value: "1"
-    sysctl_file: /etc/sysctl.d/99-tailscale.conf
-    reload: true
-    state: present
-
-- name: Enable IPv6 forwarding (required for subnet routing)
-  ansible.posix.sysctl:
-    name: net.ipv6.conf.all.forwarding
-    value: "1"
-    sysctl_file: /etc/sysctl.d/99-tailscale.conf
-    reload: true
-    state: present
+# ---- IP Forwarding for Subnet Routing -----------------------
+# net.ipv4.ip_forward and net.ipv6.conf.all.forwarding (required for subnet
+# routing) are owned by the `common` role (/etc/sysctl.d/99-k3s.conf), which
+# runs before this role. Do not re-declare them here — a second sysctl file
+# would create two sources of truth for the same kernel parameters.
 
 # ---- Verify Connection --------------------------------------
 - name: Get final Tailscale status

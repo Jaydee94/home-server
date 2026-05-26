@@ -1,3 +1,9 @@
+# Single source of truth for the bootstrap ApplicationSet.
+# The committed copy at argocd/bootstrap/root-applicationset.yaml is GENERATED
+# from this template — run `make render-bootstrap` after editing this file or
+# the argocd_repo_* / argocd_namespace vars in group_vars. Do not hand-edit the
+# committed copy.
+---
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:

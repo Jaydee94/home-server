@@ -107,9 +107,15 @@
     enabled: true
 
 # ---- Swap ---------------------------------------------------
+- name: Check for active swap devices
+  ansible.builtin.command: swapon --noheadings --show=NAME
+  register: common_active_swap
+  changed_when: false
+
 - name: Disable swap immediately
   ansible.builtin.command: swapoff -a
-  changed_when: false
+  when: common_active_swap.stdout | trim | length > 0
+  changed_when: true
 
 - name: Remove swap entries from /etc/fstab
   ansible.builtin.replace:
@@ -119,13 +125,10 @@
 
 - name: Ensure swap is not re-enabled by systemd
   ansible.builtin.systemd:
-    name: "{{ item }}"
+    name: swap.target
     enabled: false
     state: stopped
     masked: true
-  loop:
-    - swap.target
-  failed_when: false
 
 # ---- Kernel Modules -----------------------------------------
 - name: Create modules-load.d config for k3s/Kubernetes
@@ -136,15 +139,13 @@
       overlay
     mode: '0644'
 
-- name: Load br_netfilter kernel module
+- name: Load required kernel modules for k3s/Kubernetes
   community.general.modprobe:
-    name: br_netfilter
+    name: "{{ item }}"
     state: present
-
-- name: Load overlay kernel module
-  community.general.modprobe:
-    name: overlay
-    state: present
+  loop:
+    - br_netfilter
+    - overlay
 
 # ---- sysctl -------------------------------------------------
 - name: Configure sysctl parameters for Kubernetes

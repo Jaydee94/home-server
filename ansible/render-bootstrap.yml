@@ -1,0 +1,14 @@
+---
+# Regenerate the committed bootstrap ApplicationSet from the argocd role
+# template so the committed copy never drifts from what the playbook applies.
+# Usage: make render-bootstrap
+- name: Render committed bootstrap ApplicationSet
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Render argocd/bootstrap/root-applicationset.yaml from the role template
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/roles/argocd/templates/bootstrap-applicationset.yaml.j2"
+        dest: "{{ playbook_dir }}/../argocd/bootstrap/root-applicationset.yaml"
+        mode: "0644"

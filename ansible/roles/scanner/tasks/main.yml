@@ -50,8 +50,9 @@
       - cifs-utils
       - bc
       - util-linux
+      - usbutils
       - curl
-    state: "{{ 'latest' if auto_upgrade else 'present' }}"
+    state: "{{ 'latest' if auto_upgrade | bool else 'present' }}"
     update_cache: true
 
 # ---- User & group -----------------------------------------

@@ -7,7 +7,7 @@
 set -euo pipefail
 
 MOUNTPOINT="{{ scanner_consume_mountpoint }}"
-SCANNER_USER="{{ scanner_systemd_user }}"
+SCANNER_USB_ID="{{ scanner_usb_vendor_id }}:{{ scanner_usb_product_id }}"
 
 log_info()  { logger -t scanner-healthcheck -p user.info  "$*"; }
 log_warn()  { logger -t scanner-healthcheck -p user.warning "$*"; }
@@ -40,11 +40,16 @@ check_mount() {
 }
 
 check_scanner() {
-    if sudo -u "${SCANNER_USER}" scanimage -L >/dev/null 2>&1; then
-        log_info "scanner reachable via scanimage -L"
+    # Probe for USB device presence, NOT `scanimage -L`:
+    #  - scanbd holds the USB interface exclusively in direct mode, so
+    #    `scanimage -L` returns LIBUSB_ERROR_BUSY during normal operation.
+    #  - the service runs with NoNewPrivileges=true, so `sudo` (setuid) can't
+    #    escalate anyway. lsusb runs as root here and needs no escalation.
+    if lsusb -d "${SCANNER_USB_ID}" >/dev/null 2>&1; then
+        log_info "scanner present on USB (${SCANNER_USB_ID})"
         return 0
     fi
-    log_error "scanner not reachable (scanimage -L failed)"
+    log_error "scanner not present on USB (${SCANNER_USB_ID})"
     return 1
 }
 

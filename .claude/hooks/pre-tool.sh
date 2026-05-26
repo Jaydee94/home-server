@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-TOOL="${CLAUDE_TOOL_NAME:-}"
+# Claude Code übergibt die Tool-Eingabe als JSON auf STDIN (nicht über
+# Umgebungsvariablen wie $CLAUDE_TOOL_NAME/$TOOL_INPUT — die existieren nicht).
+# Wir lesen STDIN einmal und parsen Tool-Name + Bash-Kommando mit jq.
+INPUT_JSON="$(cat)"
+TOOL="$(printf '%s' "$INPUT_JSON" | jq -r '.tool_name // empty' 2>/dev/null)"
 
 case "$TOOL" in
   Edit|Write|MultiEdit)
@@ -13,7 +17,7 @@ case "$TOOL" in
   Bash)
     BRANCH=$(git branch --show-current 2>/dev/null)
     if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
-      INPUT="${TOOL_INPUT:-}"
+      INPUT="$(printf '%s' "$INPUT_JSON" | jq -r '.tool_input.command // empty' 2>/dev/null)"
 
       # git commit direkt auf main
       if echo "$INPUT" | grep -qE '(^|[;&|]|\brun\b)\s*git\s+commit\b'; then
@@ -45,8 +49,9 @@ case "$TOOL" in
         exit 0
       fi
 
-      # Schreib-Redirectionen in versionierte Dateien (nicht /tmp/)
-      if echo "$INPUT" | grep -qE '>+\s*[^/\s][^\s]*' && ! echo "$INPUT" | grep -qE '>+\s*/tmp/'; then
+      # Schreib-Redirectionen in versionierte Dateien (nicht /tmp/).
+      # `[^/&\s]` schließt File-Descriptor-Dups wie `2>&1` / `>&2` aus.
+      if echo "$INPUT" | grep -qE '>+\s*[^/&\s][^\s]*' && ! echo "$INPUT" | grep -qE '>+\s*/tmp/'; then
         printf '{"continue": false, "stopReason": "Schreib-Redirektion (> oder >>) in versionierte Datei auf main verboten. Branch anlegen oder /tmp/ verwenden."}'
         exit 0
       fi
@@ -61,4 +66,6 @@ esac
 # - git push [--force] origin main
 # - git reset --hard
 # - Schreib-Redirectionen (>> / >)
+# Eingabe-Contract: Claude Code liefert PreToolUse-Daten als JSON auf STDIN
+# (Felder .tool_name und .tool_input.command). Benötigt `jq` im PATH.
 # Hinweis: Dieser Hook ist keine alleinige Schutzschicht. GitHub Branch Protection ergänzen.

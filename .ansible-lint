@@ -10,3 +10,7 @@ skip_list:
 
 warn_list:
   - experimental
+  # Roles deliberately use short, non-role-prefixed var names as a repo-wide
+  # convention. Surface as a warning instead of failing CI; renaming ~60 vars
+  # across every role is a separate refactor.
+  - var-naming[no-role-prefix]
