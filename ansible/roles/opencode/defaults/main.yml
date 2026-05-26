@@ -1,0 +1,60 @@
+---
+# Default variables for opencode role
+# Aligned with upstream jmt-labs/opencode patterns.
+# See: https://github.com/jmt-labs/opencode/blob/main/docs/docker-compose.md
+
+# Image to run
+opencode_image: "ghcr.io/jmt-labs/opencode-k8s"
+opencode_version: "0.1.0"
+opencode_container_name: "opencode"
+
+# Build settings
+opencode_build_local_image: true
+opencode_build_platform: "{{ 'linux/arm64' if ansible_architecture in ['aarch64', 'arm64'] else 'linux/amd64' }}"
+opencode_local_source_dir: "{{ playbook_dir | dirname }}/jmt-labs/opencode"
+opencode_source_dir: "{{ opencode_install_dir }}/src"
+opencode_source_revision_file: "{{ opencode_source_dir }}/.source-revision"
+
+# Deployment directories (NAS-specific overrides in host_vars)
+opencode_install_dir: "/opt/opencode"
+opencode_persist_dir: "{{ opencode_install_dir }}/persist"
+
+# Docker Compose port binding
+opencode_port: 4096
+opencode_bind_addr: "0.0.0.0"  # 0.0.0.0 for LAN access; 127.0.0.1 for local only
+
+# Docker Named Volume (or empty string if not using a named volume)
+# For NAS: can be bound to a host path via driver_opts in the template
+opencode_persist_volume: "{{ opencode_container_name }}-persist"
+
+# Git repository bootstrap on first start
+# Leave empty to skip the initial clone and start with empty /persist/workspace
+opencode_git_repo: ""
+opencode_git_ref: "main"
+
+# When true: removes /persist/workspace/repo before container start so it gets
+# re-cloned on next boot. Set back to false after the first successful run.
+opencode_force_reclone: false
+
+# Git credentials for private repositories
+# Only used for the initial clone; not persisted afterward
+opencode_git_username: ""
+opencode_git_password: ""
+
+# GitHub API token available inside the OpenCode container.
+# Defaults to the git clone password/token to avoid duplicate secrets.
+opencode_github_token: "{{ opencode_git_password | default('', true) }}"
+
+# Agent and project profile bootstrap on first start
+opencode_agent_config_enabled: true
+opencode_bootstrap_project_ai_config: true
+opencode_project_profile: "mobile"
+
+# Admin mode: when true, apt packages in /persist/runtime/apt-packages.txt
+# are reinstalled on every container start.
+opencode_admin_mode: false
+
+# HTTP Basic Auth: when enabled, a random password is generated on first start
+# and stored at /persist/secrets/server-password inside the volume.
+# Username is always 'opencode'.
+opencode_server_auth_enabled: false

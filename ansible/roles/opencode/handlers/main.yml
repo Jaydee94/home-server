@@ -1,0 +1,5 @@
+---
+- name: Restart OpenCode
+  community.docker.docker_compose_v2:
+    project_src: "{{ opencode_install_dir }}"
+    state: restarted
