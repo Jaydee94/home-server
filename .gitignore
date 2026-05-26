@@ -23,6 +23,9 @@ ansible/collections/
 .vault_password
 *.vault
 
+# Host-specific vault files — must be encrypted before committing
+ansible/host_vars/*/vault.yml
+
 # Helm
 **/charts/
 **/Chart.lock
