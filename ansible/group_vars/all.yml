@@ -87,13 +87,54 @@ semaphore_vault_password: !vault |
 # Semaphore REST API and idempotently creates two projects:
 #
 #   - home-server      (this repo, deployed against the home-server itself)
-#   - ugreen-paperless (https://github.com/Jaydee94/ugreen-paperless.git
-#                       deployed to the UGREEN NAS)
+#   - ugreen-nas      (dieses Repo, ansible/ugreen-nas.yml,
+#                      deployed to the UGREEN NAS)
 #
 # To add a third project, copy/extend the `semaphore_projects` list from
 # ansible/roles/semaphore_bootstrap/defaults/main.yml here. The role only
 # creates resources that don't already exist — to change an existing one,
 # delete it in the UI and re-run `make semaphore-bootstrap`.
+
+semaphore_projects:
+  - name: home-server
+    description: "Deploy / re-provision the home-server itself."
+    repository:
+      name: home-server-git
+      url: "{{ argocd_repo_url }}"
+      branch: main
+    inventories:
+      - name: homeservers
+        type: static
+        ssh_key: semaphore-ssh-key
+        content: |
+          [homeservers]
+          homeserver ansible_host=192.168.178.127
+    templates:
+      - name: "Deploy Home Server"
+        playbook: ansible/site.yml
+        inventory: homeservers
+        vault_key: vault-password
+        description: "Run the full site.yml against the home-server (recursive)."
+
+  - name: ugreen-nas
+    description: "Deploy Docker-Compose-Dienste auf dem UGREEN NAS."
+    repository:
+      name: home-server-git
+      url: "{{ argocd_repo_url }}"
+      branch: main
+    inventories:
+      - name: ugreen-nas
+        type: static
+        ssh_key: semaphore-ssh-key
+        content: |
+          [ugreen_nas]
+          ugreen-nas ansible_host=192.168.178.118
+    templates:
+      - name: "Deploy UGREEN NAS"
+        playbook: ansible/ugreen-nas.yml
+        inventory: ugreen-nas
+        vault_key: vault-password
+        description: "Paperless-NGX, OpenCode, TinyTeller, Day Pilot auf dem NAS."
 
 # ---- Scanner / Paperless Ingestion ------------------------
 # Fujitsu USB-Scanner direkt am Home-Server; scanbd hört auf den

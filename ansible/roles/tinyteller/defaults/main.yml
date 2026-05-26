@@ -1,0 +1,25 @@
+---
+# Default variables for tinyteller role
+
+tinyteller_user: tinyteller
+tinyteller_group: tinyteller
+tinyteller_uid: 1201
+tinyteller_gid: 1201
+
+tinyteller_base_dir: /opt/tinyteller
+
+# Image tags — use a pinned version tag (e.g. "1.0.0") for reproducible deploys
+tinyteller_backend_image: ghcr.io/jaydee94/tiny-teller-backend
+tinyteller_frontend_image: ghcr.io/jaydee94/tiny-teller-frontend
+tinyteller_tag: edge
+
+# Host ports
+# Frontend is served by nginx inside the container on port 80
+tinyteller_frontend_port: 3002
+# Backend Fastify API listens on port 8080 inside the container
+tinyteller_backend_port: 8082
+
+# CORS origin — set to the public URL of the frontend so the backend
+# accepts cross-origin requests from the browser.
+# Defaults to localhost for local testing; override in host_vars for production.
+tinyteller_cors_origin: "http://localhost:{{ tinyteller_frontend_port }}"

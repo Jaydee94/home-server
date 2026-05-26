@@ -1,0 +1,27 @@
+---
+- name: Create node-exporter base directory
+  ansible.builtin.file:
+    path: "{{ node_exporter_base_dir }}"
+    state: directory
+    mode: '0755'
+
+- name: Deploy node-exporter docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ node_exporter_base_dir }}/docker-compose.yml"
+    mode: '0644'
+
+- name: Start node-exporter
+  ansible.builtin.shell: |
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+      docker compose up -d --force-recreate --remove-orphans
+    elif command -v docker-compose >/dev/null 2>&1; then
+      docker-compose up -d --force-recreate --remove-orphans
+    else
+      echo "No docker compose found"
+      exit 1
+    fi
+  args:
+    chdir: "{{ node_exporter_base_dir }}"
+  register: compose_up
+  changed_when: false

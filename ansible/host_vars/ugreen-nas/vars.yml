@@ -1,0 +1,41 @@
+---
+# ---- Paperless-NGX ------------------------------------------
+paperless_base_dir: /opt/paperless
+paperless_http_port: 8000
+paperless_ai_enabled: false
+
+paperless_admin_user: admin
+paperless_admin_email: admin@example.com
+paperless_admin_password: "{{ vault_paperless_admin_password }}"
+
+paperless_db_password: "{{ vault_paperless_db_password }}"
+paperless_secret_key: "{{ vault_paperless_secret_key }}"
+
+# ---- Node Exporter / cAdvisor -------------------------------
+node_exporter_base_dir: /opt/node-exporter
+cadvisor_port: 18080
+
+# ---- OpenCode -----------------------------------------------
+opencode_install_dir: /opt/opencode
+opencode_persist_dir: /opt/opencode/persist
+opencode_port: 4096
+opencode_build_local_image: false
+opencode_git_repo: ""
+opencode_git_username: "{{ vault_opencode_git_username | default('') }}"
+opencode_git_password: "{{ vault_opencode_git_password | default('') }}"
+opencode_github_token: "{{ vault_opencode_github_token | default('') }}"
+opencode_server_auth_enabled: false
+
+# ---- TinyTeller ---------------------------------------------
+tinyteller_base_dir: /opt/tinyteller
+tinyteller_frontend_port: 3002
+tinyteller_backend_port: 3004
+tinyteller_cors_origin: "http://ugreen-nas:3002"
+
+# ---- Day Pilot ----------------------------------------------
+day_pilot_base_dir: /opt/day-pilot
+day_pilot_frontend_port: 3003
+day_pilot_backend_port: 8001
+day_pilot_timezone: "Europe/Berlin"
+day_pilot_openai_api_key: "{{ vault_day_pilot_openai_api_key | default('') }}"
+day_pilot_github_token: "{{ vault_day_pilot_github_token | default('') }}"

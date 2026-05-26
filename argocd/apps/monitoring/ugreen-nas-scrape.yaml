@@ -1,0 +1,28 @@
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: ugreen-nas-node-exporter
+  namespace: monitoring
+spec:
+  jobName: ugreen-nas-node-exporter
+  targetEndpoints:
+    - targets:
+        - "jays-ugreen:9100"
+      labels:
+        job: node-exporter
+        instance: ugreen-nas
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMStaticScrape
+metadata:
+  name: ugreen-nas-cadvisor
+  namespace: monitoring
+spec:
+  jobName: ugreen-nas-cadvisor
+  targetEndpoints:
+    - targets:
+        - "jays-ugreen:18080"
+      labels:
+        job: cadvisor
+        instance: ugreen-nas

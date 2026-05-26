@@ -1,0 +1,61 @@
+---
+
+# Tasks to prepare directories, render templates, and deploy Day Pilot
+
+- name: Ensure group exists
+  ansible.builtin.group:
+    name: "{{ day_pilot_group }}"
+    gid: "{{ day_pilot_gid }}"
+    state: present
+
+- name: Ensure user exists
+  ansible.builtin.user:
+    name: "{{ day_pilot_user }}"
+    uid: "{{ day_pilot_uid }}"
+    group: "{{ day_pilot_group }}"
+    createhome: false
+    shell: /usr/sbin/nologin
+    state: present
+
+- name: Create day-pilot directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ day_pilot_user }}"
+    group: "{{ day_pilot_group }}"
+    mode: '0755'
+  loop:
+    - "{{ day_pilot_base_dir }}"
+    - "{{ day_pilot_base_dir }}/data"
+
+- name: Deploy .env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ day_pilot_base_dir }}/.env"
+    owner: "{{ day_pilot_user }}"
+    group: "{{ day_pilot_group }}"
+    mode: '0640'
+  notify: Restart day-pilot compose
+
+- name: Deploy docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ day_pilot_base_dir }}/docker-compose.yml"
+    owner: "{{ day_pilot_user }}"
+    group: "{{ day_pilot_group }}"
+    mode: '0644'
+  notify: Restart day-pilot compose
+
+- name: Start Day Pilot
+  ansible.builtin.shell: |
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+      docker compose up -d
+    elif command -v docker-compose >/dev/null 2>&1; then
+      docker-compose up -d
+    else
+      echo "No docker compose found"
+      exit 1
+    fi
+  args:
+    chdir: "{{ day_pilot_base_dir }}"
+  changed_when: false

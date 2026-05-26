@@ -1,0 +1,81 @@
+---
+# Default variables for day-pilot role
+
+day_pilot_user: day-pilot
+day_pilot_group: day-pilot
+day_pilot_uid: 1202
+day_pilot_gid: 1202
+
+day_pilot_base_dir: /opt/day-pilot
+
+# Images — tags can be pinned to a specific release (e.g. "1.0.0") for reproducible deploys
+day_pilot_backend_image: ghcr.io/jaydee94/day-pilot/backend
+day_pilot_frontend_image: ghcr.io/jaydee94/day-pilot/frontend
+day_pilot_tag: latest
+
+# Host ports (non-conflicting with other services on ugreen-nas)
+# Backend FastAPI listens on port 8000 inside the container
+day_pilot_backend_port: 8083
+# Frontend nginx listens on port 80 inside the container
+day_pilot_frontend_port: 3003
+
+# -------------------------------------------------------
+# General
+# -------------------------------------------------------
+day_pilot_app_name: "Day Pilot"
+day_pilot_timezone: Europe/Berlin
+# Time for the daily push notification (HH:MM in day_pilot_timezone)
+day_pilot_daily_summary_time: "07:00"
+
+# -------------------------------------------------------
+# PostgreSQL
+# -------------------------------------------------------
+day_pilot_postgres_db: daypilot
+day_pilot_postgres_user: daypilot
+day_pilot_postgres_password: change-me-in-production
+
+# -------------------------------------------------------
+# OpenAI
+# -------------------------------------------------------
+day_pilot_openai_api_key: ""
+day_pilot_openai_model: gpt-4o-mini
+
+# -------------------------------------------------------
+# AI Provider & Model selection
+# Set to "github" to use GitHub Models instead of OpenAI.
+# -------------------------------------------------------
+day_pilot_ai_provider: openai
+day_pilot_ai_model: ""
+
+# -------------------------------------------------------
+# GitHub Models (used when day_pilot_ai_provider=github)
+# -------------------------------------------------------
+day_pilot_github_token: ""
+
+# -------------------------------------------------------
+# Weather
+# -------------------------------------------------------
+day_pilot_weatherapi_api_key: ""
+# Deprecated alias kept for backward compatibility with existing host_vars.
+day_pilot_openweathermap_api_key: ""
+day_pilot_weather_city: Berlin
+day_pilot_weather_units: metric
+
+# -------------------------------------------------------
+# Apple Calendar via CalDAV
+# -------------------------------------------------------
+day_pilot_caldav_url: ""
+day_pilot_caldav_username: ""
+day_pilot_caldav_password: ""
+
+# -------------------------------------------------------
+# Push Notifications (ntfy.sh)
+# -------------------------------------------------------
+day_pilot_ntfy_server: "https://ntfy.sh"
+day_pilot_ntfy_topic: ""
+day_pilot_ntfy_token: ""
+
+# -------------------------------------------------------
+# Voice-control webhook
+# -------------------------------------------------------
+day_pilot_voice_webhook_secret: change-me-in-production

@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+# Configuration
+BACKUP_DIR="{{ paperless_backup_dir }}"
+EXPORT_DIR="{{ paperless_export_dir }}"
+RETENTION_DAYS="{{ paperless_backup_retention_days }}"
+COMPOSE_FILE="{{ paperless_base_dir }}/{{ paperless_compose_file }}"
+TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+BACKUP_FILE="$BACKUP_DIR/paperless-backup-$TIMESTAMP.tar.gz"
+
+echo "Starting Paperless backup at $(date)..."
+
+# Ensure backup directory exists
+mkdir -p "$BACKUP_DIR"
+
+# 1. Run document_exporter
+# This runs inside the container and exports to /usr/src/paperless/export,
+# which is mounted to {{ paperless_export_dir }} on the host.
+echo "Running document_exporter..."
+cd "{{ paperless_base_dir }}"
+docker compose -f "$COMPOSE_FILE" exec -T paperless document_exporter ../export
+
+# 2. Archive the export directory
+echo "Creating archive $BACKUP_FILE..."
+tar -czf "$BACKUP_FILE" -C "$EXPORT_DIR" .
+
+# 3. Cleanup old backups
+echo "Removing backups older than $RETENTION_DAYS days..."
+find "$BACKUP_DIR" -name "paperless-backup-*.tar.gz" -mtime +$RETENTION_DAYS -delete
+
+echo "Backup completed successfully at $(date)."

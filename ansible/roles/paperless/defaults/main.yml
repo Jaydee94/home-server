@@ -1,0 +1,50 @@
+---
+# Default variables for paperless role
+# These can be overridden in group_vars/host_vars or playbooks
+
+paperless_user: paperless
+paperless_group: paperless
+paperless_uid: 1100
+paperless_gid: 1100
+
+# Base directory where paperless files, db and media will live
+paperless_base_dir: /opt/paperless
+paperless_media_dir: "{{ paperless_base_dir }}/media"
+paperless_data_dir: "{{ paperless_base_dir }}/data"
+paperless_db_dir: "{{ paperless_base_dir }}/db"
+
+# Backup settings
+paperless_backup_dir: "{{ paperless_base_dir }}/backups"
+paperless_consume_dir: "{{ paperless_base_dir }}/consume"
+paperless_export_dir: "{{ paperless_base_dir }}/export"
+paperless_backup_retention_days: 7
+paperless_backup_schedule: "0 2 * * *"
+
+# Ports exposed on the host
+paperless_http_port: 8000
+
+# Images and tags
+paperless_image: ghcr.io/paperless-ngx/paperless-ngx:2.20.13
+paperless_db_image: postgres:16-alpine
+paperless_redis_image: redis:7-alpine
+paperless_ai_image: clusterzx/paperless-ai:3.0.9
+
+# Paperless-AI settings
+paperless_ai_port: 3000
+paperless_ai_enabled: false
+
+# Postgres settings (used inside docker-compose/.env)
+paperless_db_user: paperless
+paperless_db_password: ""
+paperless_secret_key: ""
+paperless_db_name: paperless
+
+# Postgres UID/GID (70:70 is standard for postgres:alpine images)
+paperless_db_uid: 70
+paperless_db_gid: 70
+
+# Compose file name
+paperless_compose_file: docker-compose.yml
+
+# Whether to attempt to use the community.docker.docker_compose module
+paperless_use_module: true

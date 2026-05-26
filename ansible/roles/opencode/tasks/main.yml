@@ -1,0 +1,194 @@
+---
+- name: Ensure OpenCode directory exists
+  ansible.builtin.file:
+    path: "{{ opencode_install_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+- name: Create OpenCode data directory
+  ansible.builtin.file:
+    path: "{{ opencode_persist_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+
+- name: Ensure OpenCode source directory exists
+  ansible.builtin.file:
+    path: "{{ opencode_source_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when: opencode_build_local_image | bool
+
+- name: Check whether OpenCode source is already unpacked
+  ansible.builtin.stat:
+    path: "{{ opencode_source_dir }}/scripts/build-image.sh"
+  when: opencode_build_local_image | bool
+  register: _opencode_source_tree
+
+- name: Resolve local OpenCode source revision on the control host
+  ansible.builtin.command:
+    cmd: "git rev-parse HEAD"
+    chdir: "{{ opencode_local_source_dir }}"
+  delegate_to: localhost
+  become: false
+  when: opencode_build_local_image | bool
+  register: _opencode_local_source_revision
+  changed_when: false
+
+- name: Check deployed OpenCode source revision on the target host
+  ansible.builtin.slurp:
+    src: "{{ opencode_source_revision_file }}"
+  when: opencode_build_local_image | bool
+  register: _opencode_remote_source_revision
+  failed_when: false
+  changed_when: false
+
+- name: Create temporary OpenCode source archive on the control host
+  ansible.builtin.tempfile:
+    state: file
+    suffix: ".tar.gz"
+  delegate_to: localhost
+  become: false
+  when:
+    - opencode_build_local_image | bool
+    - >-
+      not _opencode_source_tree.stat.exists or
+      _opencode_remote_source_revision.failed or
+      ((_opencode_remote_source_revision.content | default('') | b64decode | trim) !=
+      (_opencode_local_source_revision.stdout | trim))
+  register: _opencode_local_source_archive
+
+- name: Archive local OpenCode source on the control host
+  ansible.builtin.command:
+    cmd: "git archive --format=tar.gz --output={{ _opencode_local_source_archive.path }} HEAD"
+    chdir: "{{ opencode_local_source_dir }}"
+  delegate_to: localhost
+  become: false
+  when:
+    - opencode_build_local_image | bool
+    - _opencode_local_source_archive is defined
+    - _opencode_local_source_archive.path is defined
+  changed_when: true
+
+- name: Remove previous OpenCode source tree when local source changed
+  ansible.builtin.file:
+    path: "{{ opencode_source_dir }}"
+    state: absent
+  when:
+    - opencode_build_local_image | bool
+    - _opencode_local_source_archive is defined
+    - _opencode_local_source_archive.path is defined
+
+- name: Recreate OpenCode source directory
+  ansible.builtin.file:
+    path: "{{ opencode_source_dir }}"
+    state: directory
+    owner: "root"
+    group: "root"
+    mode: "0755"
+  when:
+    - opencode_build_local_image | bool
+    - _opencode_local_source_archive is defined
+    - _opencode_local_source_archive.path is defined
+
+- name: Unpack local OpenCode source archive onto the target host
+  ansible.builtin.unarchive:
+    src: "{{ _opencode_local_source_archive.path }}"
+    dest: "{{ opencode_source_dir }}"
+  when:
+    - opencode_build_local_image | bool
+    - _opencode_local_source_archive is defined
+    - _opencode_local_source_archive.path is defined
+
+- name: Record deployed OpenCode source revision on the target host
+  ansible.builtin.copy:
+    dest: "{{ opencode_source_revision_file }}"
+    content: "{{ _opencode_local_source_revision.stdout | trim }}\n"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  when:
+    - opencode_build_local_image | bool
+    - _opencode_local_source_revision is defined
+
+- name: Remove temporary OpenCode source archive from the control host
+  ansible.builtin.file:
+    path: "{{ _opencode_local_source_archive.path }}"
+    state: absent
+  delegate_to: localhost
+  become: false
+  when:
+    - opencode_build_local_image | bool
+    - _opencode_local_source_archive is defined
+    - _opencode_local_source_archive.path is defined
+
+- name: Check whether the OpenCode image already exists locally
+  ansible.builtin.command:
+    cmd: "docker image inspect {{ opencode_image }}:{{ opencode_version }}"
+  when: opencode_build_local_image | bool
+  register: _opencode_local_image
+  failed_when: false
+  changed_when: false
+
+- name: Check whether docker buildx is available on the target host
+  ansible.builtin.command:
+    cmd: "docker buildx version"
+  when:
+    - opencode_build_local_image | bool
+    - (_opencode_local_source_archive is defined and _opencode_local_source_archive.path is defined) or _opencode_local_image.rc != 0
+  register: _opencode_buildx_check
+  failed_when: false
+  changed_when: false
+
+- name: Build local OpenCode image with docker buildx
+  ansible.builtin.command:
+    cmd: "./scripts/build-image.sh {{ opencode_version }}"
+    chdir: "{{ opencode_source_dir }}"
+  environment:
+    IMAGE_REPOSITORY: "{{ opencode_image }}"
+    BUILD_PLATFORM: "{{ opencode_build_platform }}"
+  when:
+    - opencode_build_local_image | bool
+    - (_opencode_local_source_archive is defined and _opencode_local_source_archive.path is defined) or _opencode_local_image.rc != 0
+    - _opencode_buildx_check.rc == 0
+  register: _opencode_image_build
+  changed_when: true
+
+- name: Build local OpenCode image with classic docker build
+  ansible.builtin.command:
+    cmd: "docker build --tag {{ opencode_image }}:{{ opencode_version }} images/opencode-k8s"
+    chdir: "{{ opencode_source_dir }}"
+  when:
+    - opencode_build_local_image | bool
+    - (_opencode_local_source_archive is defined and _opencode_local_source_archive.path is defined) or _opencode_local_image.rc != 0
+    - _opencode_buildx_check.rc != 0
+  register: _opencode_image_build_fallback
+  changed_when: true
+
+- name: Remove existing workspace to force fresh clone
+  ansible.builtin.file:
+    path: "{{ opencode_persist_dir }}/workspace/repo"
+    state: absent
+  when: opencode_force_reclone | bool
+
+- name: Template docker-compose file for OpenCode
+  ansible.builtin.template:
+    src: "docker-compose.yml.j2"
+    dest: "{{ opencode_install_dir }}/docker-compose.yml"
+    owner: "root"
+    group: "root"
+    mode: "0644"
+  no_log: "{{ (opencode_git_password | default('', true) | length > 0) or (opencode_github_token | default('', true) | length > 0) or (opencode_server_auth_enabled | bool) }}"
+  notify: Restart OpenCode
+
+- name: Start OpenCode docker-compose project
+  community.docker.docker_compose_v2:
+    project_src: "{{ opencode_install_dir }}"
+    state: present
+    pull: "{{ 'never' if opencode_build_local_image | bool else 'always' }}"
+  register: _opencode_compose

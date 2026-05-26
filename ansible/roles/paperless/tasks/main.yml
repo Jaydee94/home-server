@@ -1,0 +1,210 @@
+---
+
+# Tasks to install Docker, prepare directories, render templates and deploy paperless-ngx
+
+- name: Assert required paperless secrets are set
+  ansible.builtin.assert:
+    that:
+      - paperless_db_password | length > 0
+      - paperless_secret_key | length > 0
+    fail_msg: >-
+      paperless_db_password and paperless_secret_key must be set via vault.
+      See ansible/host_vars/ugreen-nas/vault.yml.example for instructions.
+
+- name: Gather facts (ensure we know package manager)
+  ansible.builtin.setup:
+    gather_subset:
+      - '!all'
+      - 'min'
+
+- name: Set Docker apt architecture mapping for Debian/Ubuntu
+  ansible.builtin.set_fact:
+    docker_apt_arch: >-
+      {{ 'amd64' if ansible_facts['architecture'] in ['x86_64', 'i386', 'i686',
+      'amd64'] else ('arm64' if ansible_facts['architecture'] in ['aarch64',
+      'arm64'] else ansible_facts['architecture']) }}
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Ensure group exists
+  ansible.builtin.group:
+    name: "{{ paperless_group }}"
+    gid: "{{ paperless_gid }}"
+    state: present
+
+- name: Ensure user exists
+  ansible.builtin.user:
+    name: "{{ paperless_user }}"
+    uid: "{{ paperless_uid }}"
+    group: "{{ paperless_group }}"
+    createhome: false
+    shell: /usr/sbin/nologin
+    state: present
+
+- name: Ensure apt directories exist (Debian/Ubuntu)
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /var/lib/apt/lists
+    - /var/lib/apt/lists/partial
+    - /var/cache/apt
+    - /var/cache/apt/archives
+    - /var/cache/apt/archives/partial
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install packages on Debian/Ubuntu
+  ansible.builtin.apt:
+    name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - gnupg
+      - lsb-release
+    state: present
+    update_cache: true
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Add Docker GPG key (Debian)
+  ansible.builtin.apt_key:
+    url: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg"
+    state: present
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Add Docker apt repo
+  ansible.builtin.apt_repository:
+    repo: >
+      deb [arch={{ docker_apt_arch }}]
+      https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}
+      {{ ansible_facts['distribution_release'] }} stable
+    state: present
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install docker packages (Debian)
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+  when: ansible_facts['os_family'] == 'Debian'
+
+- name: Install Docker on RedHat/CentOS (yum/dnf)
+  ansible.builtin.dnf:
+    name:
+      - docker
+    state: present
+  when: ansible_facts['os_family'] == 'RedHat'
+
+- name: Ensure docker service is started and enabled
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
+
+- name: Create paperless backup and export directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ paperless_user }}"
+    group: "{{ paperless_group }}"
+    mode: '0755'
+  loop:
+    - "{{ paperless_backup_dir }}"
+    - "{{ paperless_export_dir }}"
+
+- name: Template backup script
+  ansible.builtin.template:
+    src: backup-paperless.sh.j2
+    dest: "{{ paperless_base_dir }}/backup-paperless.sh"
+    owner: "{{ paperless_user }}"
+    group: "{{ paperless_group }}"
+    mode: '0755'
+
+- name: Configure daily backup cron job
+  ansible.builtin.cron:
+    name: "Paperless Daily Backup"
+    minute: "{{ paperless_backup_schedule.split(' ')[0] }}"
+    hour: "{{ paperless_backup_schedule.split(' ')[1] }}"
+    day: "{{ paperless_backup_schedule.split(' ')[2] }}"
+    month: "{{ paperless_backup_schedule.split(' ')[3] }}"
+    weekday: "{{ paperless_backup_schedule.split(' ')[4] }}"
+    user: root
+    job: "{{ paperless_base_dir }}/backup-paperless.sh >> {{ paperless_backup_dir }}/backup.log 2>&1"
+
+- name: Add user to docker group
+  ansible.builtin.user:
+    name: "{{ paperless_user }}"
+    groups: docker
+    append: true
+
+- name: Create base directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ paperless_user }}"
+    group: "{{ paperless_group }}"
+    mode: '0755'
+  loop:
+    - "{{ paperless_base_dir }}"
+    - "{{ paperless_media_dir }}"
+    - "{{ paperless_data_dir }}"
+    - "{{ paperless_consume_dir }}"
+
+- name: Create database directory
+  ansible.builtin.file:
+    path: "{{ paperless_db_dir }}"
+    state: directory
+    owner: "{{ paperless_db_uid }}"
+    group: "{{ paperless_db_gid }}"
+    mode: '0700'
+
+- name: Deploy .env file
+  ansible.builtin.template:
+    src: env.j2
+    dest: "{{ paperless_base_dir }}/.env"
+    owner: "{{ paperless_user }}"
+    group: "{{ paperless_group }}"
+    mode: '0640'
+  notify: Restart paperless compose
+
+- name: Deploy docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ paperless_base_dir }}/{{ paperless_compose_file }}"
+    owner: "{{ paperless_user }}"
+    group: "{{ paperless_group }}"
+    mode: '0644'
+  notify: Restart paperless compose
+
+- name: Ensure docker compose v2 plugin or docker-compose available
+  ansible.builtin.shell: |
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+      echo "docker compose available"
+    elif command -v docker-compose >/dev/null 2>&1; then
+      echo "docker-compose available"
+    else
+      echo "none"
+    fi
+  register: compose_check
+  changed_when: false
+
+- name: Fallback to docker compose CLI when module disabled
+  ansible.builtin.shell: |
+    set -o pipefail
+    if docker compose ps | grep -q paperless; then
+      echo "Paperless stack already running, skipping compose up."
+    else
+      if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+        docker compose up -d
+      else
+        docker-compose up -d
+      fi
+    fi
+  args:
+    chdir: "{{ paperless_base_dir }}"
+  changed_when: false

@@ -1,0 +1,49 @@
+---
+
+# Tasks to prepare directories, render templates, and deploy TinyTeller
+
+- name: Ensure group exists
+  ansible.builtin.group:
+    name: "{{ tinyteller_group }}"
+    gid: "{{ tinyteller_gid }}"
+    state: present
+
+- name: Ensure user exists
+  ansible.builtin.user:
+    name: "{{ tinyteller_user }}"
+    uid: "{{ tinyteller_uid }}"
+    group: "{{ tinyteller_group }}"
+    createhome: false
+    shell: /usr/sbin/nologin
+    state: present
+
+- name: Create tinyteller directory
+  ansible.builtin.file:
+    path: "{{ tinyteller_base_dir }}"
+    state: directory
+    owner: "{{ tinyteller_user }}"
+    group: "{{ tinyteller_group }}"
+    mode: '0755'
+
+- name: Deploy docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ tinyteller_base_dir }}/docker-compose.yml"
+    owner: "{{ tinyteller_user }}"
+    group: "{{ tinyteller_group }}"
+    mode: '0644'
+  notify: Restart tinyteller compose
+
+- name: Start TinyTeller
+  ansible.builtin.shell: |
+    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+      docker compose up -d
+    elif command -v docker-compose >/dev/null 2>&1; then
+      docker-compose up -d
+    else
+      echo "No docker compose found"
+      exit 1
+    fi
+  args:
+    chdir: "{{ tinyteller_base_dir }}"
+  changed_when: false

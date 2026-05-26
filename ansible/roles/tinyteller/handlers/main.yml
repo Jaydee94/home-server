@@ -1,0 +1,9 @@
+---
+# Handlers for tinyteller
+- name: Restart tinyteller compose
+  become: true
+  ansible.builtin.shell: |
+    docker compose restart
+  args:
+    chdir: "{{ tinyteller_base_dir }}"
+  changed_when: true
