@@ -2,10 +2,14 @@
 
 ## Recent Activity
 
-### feat/ugreen-nas-migration (offen, PR ausstehend)
+### feat/ugreen-nas-migration (PR #47 offen, CI-Fix gepusht 2026-05-26)
 Migration ugreen-paperless → home-server: alle NAS-Dienste (Paperless-NGX,
 OpenCode, TinyTeller, Day Pilot) jetzt aus diesem Repo verwaltbar.
-16 Commits, branch gepusht, Review-Issues behoben.
+17 Commits, PR #47 erstellt, CI-Fixes für ansible-lint gepusht.
+
+CI-Fixes:
+- `ansible.builtin.yum` → `ansible.builtin.dnf` (fqcn[action-core])
+- Lange `when:`-Bedingung in opencode gesplittet (yaml[line-length])
 
 ### claude/open-issues-batch-pr-rNHG0 (gemergt via PR #46)
 9 Review-Issues aus Epic #34 in einem PR adressiert.
@@ -21,7 +25,7 @@ OpenCode, TinyTeller, Day Pilot) jetzt aus diesem Repo verwaltbar.
 - node_exporter_nas: changed_when: false + force-recreate (pre-existing, kein Blocker)
 
 ## Was als nächstes kommt
-1. PR feat/ugreen-nas-migration reviewen/mergen
+1. CI auf PR #47 abwarten und mergen
 2. vault.yml für ugreen-nas mit echten Secrets befüllen
 3. `make semaphore-bootstrap` ausführen
 4. `make nas` erstmalig gegen NAS ausführen

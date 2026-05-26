@@ -1,11 +1,10 @@
 # Active Context
 
 ## Aktueller Branch
-feat/ugreen-nas-migration
+feat/ugreen-nas-migration (PR #47 offen, CI läuft)
 
 ## Aktueller Fokus
-Migration des ugreen-paperless Repos: alle NAS-Rollen in home-server integriert,
-sodass UGREEN NAS und Home-Server aus einem einzigen Repo gepflegt werden.
+CI-Fix für PR #47 gepusht — ansible-lint Fehler behoben, warte auf grünes CI.
 
 ## Erledigt in diesem Branch
 - Inventory erweitert: `ugreen-nas` in Gruppe `ugreen_nas`, auch in `semaphore_targets`
@@ -19,6 +18,8 @@ sodass UGREEN NAS und Home-Server aus einem einzigen Repo gepflegt werden.
 - ArgoCD Monitoring: `VMStaticScrape` für NAS Node-Exporter (9100) und cAdvisor (18080)
 - Semaphore: `semaphore_projects` in group_vars/all.yml — ugreen-paperless → ugreen-nas
 - CLAUDE.md: Commands und Service URLs aktualisiert
+- CI-Fix: `ansible.builtin.yum` → `ansible.builtin.dnf` (paperless/tasks/main.yml:97)
+- CI-Fix: lange `when:`-Bedingung in opencode/tasks/main.yml:59 gesplittet (yaml[line-length])
 
 ## Nicht migriert (gefallene Entscheidungen)
 - `gotify` — läuft als k8s-App im Cluster
