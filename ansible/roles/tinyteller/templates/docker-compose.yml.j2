@@ -1,0 +1,29 @@
+services:
+  backend:
+    image: "{{ tinyteller_backend_image }}:{{ tinyteller_tag }}"
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      NODE_ENV: production
+      CORS_ORIGIN: "{{ tinyteller_cors_origin }}"
+    ports:
+      - "{{ tinyteller_backend_port }}:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    image: "{{ tinyteller_frontend_image }}:{{ tinyteller_tag }}"
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "{{ tinyteller_frontend_port }}:80"
+
+networks:
+  default:
+    name: tinyteller_net
