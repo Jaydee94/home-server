@@ -25,12 +25,16 @@
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/repositories"
     method: POST
     body_format: json
-    body:
-      name: "{{ project_spec.repository.name }}"
-      project_id: "{{ project_id | int }}"
-      git_url: "{{ project_spec.repository.url }}"
-      git_branch: "{{ project_spec.repository.branch | default('main') }}"
-      ssh_key_id: "{{ project_key_map['git-none'] | int }}"
+    body: >-
+      {{
+        {
+          'name': project_spec.repository.name,
+          'project_id': project_id | int,
+          'git_url': project_spec.repository.url,
+          'git_branch': project_spec.repository.branch | default('main'),
+          'ssh_key_id': project_key_map['git-none'] | int,
+        }
+      }}
     headers:
       Cookie: "{{ semaphore_cookie }}"
     status_code: [200, 201, 204]

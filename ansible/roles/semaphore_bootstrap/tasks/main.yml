@@ -33,6 +33,29 @@
     loop_var: project_spec
     label: "{{ project_spec.name }}"
 
+- name: List all projects for orphan cleanup
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/projects"
+    method: GET
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    return_content: true
+  register: sem_all_projects
+
+- name: Delete orphan projects not in semaphore_projects
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ item.id }}"
+    method: DELETE
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    status_code: [204]
+  loop: >-
+    {{ sem_all_projects.json
+       | rejectattr('name', 'in', semaphore_projects | map(attribute='name') | list)
+       | list }}
+  loop_control:
+    label: "{{ item.name }}"
+
 - name: Display Semaphore bootstrap summary
   ansible.builtin.debug:
     msg:

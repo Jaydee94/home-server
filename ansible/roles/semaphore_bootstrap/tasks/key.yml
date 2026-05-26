@@ -3,6 +3,11 @@
 # Provision one access key inside the current project.
 # Type "ssh" carries the Semaphore-owned id_ed25519 private key;
 # type "none" is for public-HTTPS git repositories.
+#
+# body_format: raw + to_json is intentional: Ansible's body_format: json
+# serializes "{{ project_id | int }}" as a JSON string instead of an integer,
+# which causes Semaphore's Go JSON decoder to return HTTP 400. Building the
+# dict literal inside Jinja2 and piping to to_json preserves native int type.
 # ============================================================
 
 - name: List existing keys in project {{ project_spec.name }}
@@ -34,17 +39,15 @@
   ansible.builtin.uri:
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/keys"
     method: POST
-    body_format: json
-    body:
-      name: "{{ key_spec.name }}"
-      type: ssh
-      project_id: "{{ project_id | int }}"
-      ssh:
-        login: "{{ key_spec.login }}"
-        passphrase: ""
-        private_key: "{{ (sem_ssh_priv_slurp.content | b64decode | trim) + '\n' }}"
+    body_format: raw
+    body: >-
+      {{ {'name': key_spec.name, 'type': 'ssh', 'project_id': project_id | int,
+          'ssh': {'login': key_spec.login, 'passphrase': '',
+                  'private_key': (sem_ssh_priv_slurp.content | b64decode | trim) + '\n'}
+         } | to_json }}
     headers:
       Cookie: "{{ semaphore_cookie }}"
+      Content-Type: "application/json"
     status_code: [200, 201, 204]
     return_content: true
   no_log: true
@@ -69,13 +72,12 @@
   ansible.builtin.uri:
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/keys"
     method: POST
-    body_format: json
-    body:
-      name: "{{ key_spec.name }}"
-      type: none
-      project_id: "{{ project_id | int }}"
+    body_format: raw
+    body: >-
+      {{ {'name': key_spec.name, 'type': 'none', 'project_id': project_id | int} | to_json }}
     headers:
       Cookie: "{{ semaphore_cookie }}"
+      Content-Type: "application/json"
     status_code: [200, 201, 204]
   when:
     - not key_exists
@@ -85,16 +87,14 @@
   ansible.builtin.uri:
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/keys"
     method: POST
-    body_format: json
-    body:
-      name: "{{ key_spec.name }}"
-      type: login_password
-      project_id: "{{ project_id | int }}"
-      login_password:
-        login: ""
-        password: "{{ semaphore_vault_password }}"
+    body_format: raw
+    body: >-
+      {{ {'name': key_spec.name, 'type': 'login_password', 'project_id': project_id | int,
+          'login_password': {'login': '', 'password': semaphore_vault_password}
+         } | to_json }}
     headers:
       Cookie: "{{ semaphore_cookie }}"
+      Content-Type: "application/json"
     status_code: [200, 201, 204]
   no_log: true
   register: sem_vaultkey_create
@@ -107,7 +107,7 @@
   ansible.builtin.fail:
     msg: >-
       Vault key creation returned HTTP {{ sem_vaultkey_create.status }}:
-      {{ sem_vaultkey_create.msg | default('no message') }}
+      {{ sem_vaultkey_create.content | default(sem_vaultkey_create.msg | default('no message')) }}
   when:
     - not key_exists
     - key_spec.type == "login_password"
