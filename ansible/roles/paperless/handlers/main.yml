@@ -1,0 +1,9 @@
+---
+# Handlers for paperless
+- name: Restart paperless compose
+  become: true
+  ansible.builtin.shell: |
+    docker compose restart
+  args:
+    chdir: "{{ paperless_base_dir }}"
+  changed_when: true

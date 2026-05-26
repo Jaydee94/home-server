@@ -1,0 +1,57 @@
+services:
+  broker:
+    image: "{{ paperless_redis_image }}"
+    restart: unless-stopped
+    volumes: []
+
+  db:
+    image: "{{ paperless_db_image }}"
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: "{{ paperless_db_user }}"
+      POSTGRES_PASSWORD: "{{ paperless_db_password }}"
+      POSTGRES_DB: "{{ paperless_db_name }}"
+    volumes:
+      - "./db:/var/lib/postgresql/data"
+
+  paperless:
+    image: "{{ paperless_image }}"
+    restart: unless-stopped
+    depends_on:
+      - db
+      - broker
+    env_file:
+      - .env
+    volumes:
+      - "./data:/usr/src/paperless/data"
+      - "./media:/usr/src/paperless/media"
+      - "./export:/usr/src/paperless/export"
+      - "./consume:/usr/src/paperless/consume"
+    ports:
+      - "{{ paperless_http_port }}:8000"
+
+{% if paperless_ai_enabled %}
+  paperless-ai:
+    image: "{{ paperless_ai_image }}"
+    container_name: paperless-ai
+    restart: unless-stopped
+    environment:
+      - PUID={{ paperless_uid }}
+      - PGID={{ paperless_gid }}
+      - PAPERLESS_AI_PORT=3000
+      - RAG_SERVICE_URL=http://paperless:8000
+      - RAG_SERVICE_ENABLED=true
+    ports:
+      - "{{ paperless_ai_port }}:3000"
+    volumes:
+      - paperless-ai_data:/app/data
+{% endif %}
+
+networks:
+  default:
+    name: paperless_net
+
+{% if paperless_ai_enabled %}
+volumes:
+  paperless-ai_data:
+{% endif %}
