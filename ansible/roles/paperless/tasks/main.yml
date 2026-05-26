@@ -94,7 +94,7 @@
   when: ansible_facts['os_family'] == 'Debian'
 
 - name: Install Docker on RedHat/CentOS (yum/dnf)
-  ansible.builtin.yum:
+  ansible.builtin.dnf:
     name:
       - docker
     state: present

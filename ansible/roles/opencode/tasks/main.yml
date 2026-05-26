@@ -56,7 +56,11 @@
   become: false
   when:
     - opencode_build_local_image | bool
-    - not _opencode_source_tree.stat.exists or _opencode_remote_source_revision.failed or ((_opencode_remote_source_revision.content | default('') | b64decode | trim) != (_opencode_local_source_revision.stdout | trim))
+    - >-
+      not _opencode_source_tree.stat.exists or
+      _opencode_remote_source_revision.failed or
+      ((_opencode_remote_source_revision.content | default('') | b64decode | trim) !=
+      (_opencode_local_source_revision.stdout | trim))
   register: _opencode_local_source_archive
 
 - name: Archive local OpenCode source on the control host
