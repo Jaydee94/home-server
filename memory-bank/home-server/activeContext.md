@@ -1,42 +1,34 @@
 # Active Context
 
 ## Aktueller Branch
-claude/open-issues-batch-pr-rNHG0
+feat/ugreen-nas-migration
 
 ## Aktueller Fokus
-Batch-Bearbeitung der offenen Review-Issues aus Epic #34 in einem gemeinsamen PR
-(#35, #37, #38, #39, #40, #42, #43, #44, #45). #36 und #41 waren bereits
-geschlossen.
+Migration des ugreen-paperless Repos: alle NAS-Rollen in home-server integriert,
+sodass UGREEN NAS und Home-Server aus einem einzigen Repo gepflegt werden.
 
 ## Erledigt in diesem Branch
-- #35 Scanner-Healthcheck: nicht-invasive USB-Presence-Probe via `lsusb -d
-      <vendor>:<product>` statt `sudo -u saned scanimage -L` (sudo scheitert an
-      NoNewPrivileges, scanimage an LIBUSB_ERROR_BUSY). `usbutils` ergänzt.
-- #37 Tailscale: Codename dynamisch via `ansible_distribution_release`
-      (overridebar `tailscale_repo_codename`). 26.04 = resolute, von Tailscale
-      publiziert.
-- #38 Doppelte ip_forward-sysctl aus tailscale entfernt — `common` ist Owner.
-- #39 dnsmasq: systemd-resolved-Drop-in (DNS=static, FallbackDNS=gateway,
-      Domains=~.) + Stub-Symlink statt direktem /etc/resolv.conf-Overwrite.
-- #40 ArgoCD-Bootstrap: Single source = .j2-Template; committed manifest ist
-      generiertes Artefakt (`make render-bootstrap`); revision HEAD -> main.
-- #42 CI-Lint-Pipeline `.github/workflows/lint.yml` + `make lint` über ALLE
-      Charts (helm dependency build bei Charts mit deps).
-- #43 pre-tool.sh liest PreToolUse-Daten als stdin-JSON via jq
-      (.tool_name/.tool_input.command) statt nicht-existenter Env-Vars;
-      Redirection-Regex schliesst 2>&1 aus; Regressionstests ergänzt.
-- #44 no_log in semaphore_secrets (admin-pw, AEK, SSH-privkey); ArgoCD-Passwort-
-      debug redigiert (Retrieval-Kommando, Flag argocd_show_initial_password).
-- #45 Hygiene: swapoff gated, swap.target ohne Loop, modprobe-Loop,
-      auto_upgrade|bool in dnsmasq/scanner, Inventory-Kommentar 24.04->26.04,
-      totes autoscaling im whoami-Chart entfernt.
+- Inventory erweitert: `ugreen-nas` in Gruppe `ugreen_nas`, auch in `semaphore_targets`
+- `ansible/host_vars/ugreen-nas/vars.yml` mit allen Service-Variablen angelegt
+- `ansible/host_vars/ugreen-nas/vault.yml.example` als Dokumentations-Template
+- `.gitignore` um `ansible/host_vars/*/vault.yml` erweitert
+- 5 Rollen migriert: `paperless`, `node_exporter_nas`, `opencode`, `tinyteller`, `day_pilot`
+- Sicherheits-Fix: paperless_db_password/secret_key Defaults auf "" + assert-Guard
+- Neues Playbook `ansible/ugreen-nas.yml` (hosts: ugreen_nas)
+- Makefile: `make nas` und `make nas-check` Targets
+- ArgoCD Monitoring: `VMStaticScrape` für NAS Node-Exporter (9100) und cAdvisor (18080)
+- Semaphore: `semaphore_projects` in group_vars/all.yml — ugreen-paperless → ugreen-nas
+- CLAUDE.md: Commands und Service URLs aktualisiert
 
-## Investigation-Ergebnisse
-- Headlamp `token-secret.yaml`: bewusst angelegtes langlebiges SA-Token
-      (k8s >=1.24 erzeugt keine Token-Secrets automatisch) -> behalten.
-- Makefile `clean`: Collection-Pfade {ansible,community,kubernetes} decken
-      requirements.yml (ansible.posix, community.general, kubernetes.core) ab
-      -> keine Änderung nötig.
+## Nicht migriert (gefallene Entscheidungen)
+- `gotify` — läuft als k8s-App im Cluster
+- `monitoring` — NAS-Metriken via VMStaticScrape in bestehenden Stack integriert
+- `paperless-ai` — kubepi existiert nicht mehr
+- `scanner-pi` — kubepi existiert nicht mehr
 
-## Offene Fragen / Blocker
-- helm lokal nicht installiert -> `helm lint` der Charts nur via CI verifizierbar.
+## Offene Punkte nach Merge
+- vault.yml für ugreen-nas mit echten Secrets befüllen (vault.yml.example als Vorlage)
+- `make semaphore-bootstrap` ausführen um Semaphore-Projekt ugreen-nas zu erstellen
+- `make nas` erstmalig gegen NAS ausführen
+- ugreen-paperless Repo auf GitHub archivieren (read-only)
+- node_exporter_nas Idempotenz: changed_when: false + force-recreate (pre-existing, separater Task)
