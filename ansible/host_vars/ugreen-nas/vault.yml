@@ -1,0 +1,17 @@
+---
+# Diese Datei MUSS mit ansible-vault encrypt_string verschlüsselt werden.
+# Workflow:
+#   ansible-vault encrypt_string 'WERT' --name 'vault_VARIABLENNAME'
+#   => !vault |-Block in diese Datei einfügen
+#
+# Pflicht-Secrets (ohne diese startet das Playbook nicht sinnvoll):
+vault_paperless_db_password: "CHANGE_ME"
+vault_paperless_admin_password: "CHANGE_ME"
+vault_paperless_secret_key: "CHANGE_ME"
+#
+# Optional — nur setzen wenn die Services genutzt werden:
+# vault_opencode_git_username: ""
+# vault_opencode_git_password: ""
+# vault_opencode_github_token: ""
+# vault_day_pilot_openai_api_key: ""
+# vault_day_pilot_github_token: ""
