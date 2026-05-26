@@ -351,6 +351,8 @@ make semaphore      # Bootstrap Semaphore Secret on the home-server
 make semaphore-targets  # Push Semaphore SSH key to all managed targets
 make semaphore-bootstrap # Provision Projects/Repos/Inventories/Templates in Semaphore via API
 make semaphore-bootstrap-local # Run semaphore-bootstrap natively on the home server (no SSH)
+make nas             # Deploy alle Services auf dem UGREEN NAS
+make nas-check       # Dry-run des NAS-Playbooks (keine Änderungen)
 
 make lint           # yamllint + ansible-lint + helm lint
 make vault-edit     # Edit vault-encrypted vars (ansible/group_vars/all.yml)
@@ -406,6 +408,10 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Headlamp  | http://headlamp.homeserver  | Kubernetes dashboard               |
 | Semaphore | http://semaphore.homeserver | Ansible UI                         |
 | Gotify    | http://gotify.homeserver    | Push notifications (docs/11-gotify.md) |
+| Paperless-NGX | http://jays-ugreen:8000  | NAS (Docker Compose)               |
+| OpenCode      | http://jays-ugreen:4096  | NAS (Docker Compose)               |
+| TinyTeller    | http://jays-ugreen:3002  | NAS (Docker Compose)               |
+| Day Pilot     | http://jays-ugreen:3003  | NAS (Docker Compose)               |
 
 ```bash
 # Retrieve Grafana admin password:
