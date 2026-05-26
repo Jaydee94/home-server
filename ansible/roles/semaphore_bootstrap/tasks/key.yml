@@ -42,10 +42,11 @@
       ssh:
         login: "{{ key_spec.login }}"
         passphrase: ""
-        private_key: "{{ sem_ssh_priv_slurp.content | b64decode }}"
+        private_key: "{{ (sem_ssh_priv_slurp.content | b64decode | trim) + '\n' }}"
     headers:
       Cookie: "{{ semaphore_cookie }}"
     status_code: [200, 201, 204]
+    return_content: true
   no_log: true
   register: sem_key_create
   failed_when: false
@@ -57,7 +58,7 @@
   ansible.builtin.fail:
     msg: >-
       SSH key creation returned HTTP {{ sem_key_create.status }}:
-      {{ sem_key_create.msg | default(sem_key_create.json | default('no body') | string) }}
+      {{ sem_key_create.content | default(sem_key_create.json | default('no body') | string) }}
   when:
     - not key_exists
     - key_spec.type == "ssh"
