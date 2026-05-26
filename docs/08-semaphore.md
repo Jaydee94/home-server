@@ -153,10 +153,10 @@ Semaphore **zwei Projekte schon vollständig konfiguriert** — Key Store,
 Repository, Inventory und Task Template inklusive. Du musst in der UI
 nichts mehr klicken außer ▶ **Run**.
 
-| Project              | Repository                                                | Inventory   | Template                  | Playbook              |
-|----------------------|-----------------------------------------------------------|-------------|---------------------------|-----------------------|
-| `home-server`        | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `homeservers` (192.168.178.127) | `Deploy Home Server`      | `ansible/site.yml`    |
-| `ugreen-paperless`   | `https://github.com/Jaydee94/ugreen-paperless.git`        | `ugreen-nas` (192.168.178.118)  | `Deploy ugreen-paperless` | `ugreen-paperless.yml`|
+| Project              | Repository                                                | Inventory   | Template                  | Playbook                  |
+|----------------------|-----------------------------------------------------------|-------------|---------------------------|---------------------------|
+| `home-server`        | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `homeservers` (192.168.178.127) | `Deploy Home Server`      | `ansible/site.yml`        |
+| `ugreen-nas`         | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `ugreen_nas` (jays-ugreen)      | `Deploy ugreen-nas`       | `ansible/ugreen-nas.yml`  |
 
 ### Workflow
 
