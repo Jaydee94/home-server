@@ -15,7 +15,7 @@
 - name: Install dnsmasq
   ansible.builtin.apt:
     name: dnsmasq
-    state: "{{ 'latest' if auto_upgrade else 'present' }}"
+    state: "{{ 'latest' if auto_upgrade | bool else 'present' }}"
     update_cache: true
 
 - name: Deploy dnsmasq configuration
@@ -53,12 +53,40 @@
     enabled: true
     state: started
 
-- name: Set resolv.conf — dnsmasq primary, Fritz!Box fallback
+# ---- Host DNS via systemd-resolved -------------------------
+# Don't clobber /etc/resolv.conf directly: on Ubuntu it's a symlink managed by
+# systemd-resolved, which would fight (and likely revert) a hand-written static
+# file on the next network event. Instead point resolved at dnsmasq as primary
+# DNS — dnsmasq answers *.homeserver locally and forwards everything else to the
+# gateway (Fritz!Box) — and keep /etc/resolv.conf as the resolved stub symlink.
+- name: Ensure systemd-resolved drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Point systemd-resolved at dnsmasq (primary) + gateway (fallback)
   ansible.builtin.copy:
-    content: |
-      nameserver {{ network_static_ip }}
-      nameserver {{ network_gateway }}
-    dest: /etc/resolv.conf
+    dest: /etc/systemd/resolved.conf.d/dnsmasq.conf
     owner: root
     group: root
     mode: "0644"
+    content: |
+      # Managed by Ansible (dnsmasq role).
+      # Domains=~. routes ALL host lookups through dnsmasq so *.homeserver
+      # resolves locally; dnsmasq itself forwards non-local names to the gateway.
+      [Resolve]
+      DNS={{ network_static_ip }}
+      FallbackDNS={{ network_gateway }}
+      Domains=~.
+  notify: Restart systemd-resolved
+
+- name: Ensure /etc/resolv.conf is the systemd-resolved stub symlink
+  ansible.builtin.file:
+    path: /etc/resolv.conf
+    src: ../run/systemd/resolve/stub-resolv.conf
+    state: link
+    force: true
+  notify: Restart systemd-resolved

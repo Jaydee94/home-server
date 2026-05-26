@@ -1,0 +1,8 @@
+---
+# Ubuntu codename used to build the Tailscale APT repo + GPG key URL.
+# Defaults to the detected release (e.g. "resolute" on 26.04, "noble" on 24.04)
+# so the role is portable across Ubuntu versions. Override only if Tailscale
+# has not yet published packages for a brand-new release and you need to pin
+# a known-good codename:
+#   tailscale_repo_codename: noble
+tailscale_repo_codename: "{{ ansible_distribution_release }}"

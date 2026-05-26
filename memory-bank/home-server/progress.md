@@ -1,18 +1,24 @@
 # Progress
 
 ## Recent Activity
-adc93bb Merge pull request #31 from Jaydee94/claude/markdown-docs-review-xiq3H
-8efa437 docs: translate all English docs to German for consistency
-c828822 docs: refresh README, CLAUDE.md skills/vars and mirror AGENTS.md
-f6ffede docs: refactor overview, argocd app list and installation guide
-b10365e docs: fix outdated commands and hardcoded IPs + add make dnsmasq target
-4a4f1ed Merge pull request #30 from Jaydee94/fix/scanbd-conf-saned-syntax
-b7f6e19 fix(scanner): correct saned field in scanbd.conf — string not block
-22fbd45 Merge pull request #29 from Jaydee94/fix/scanbd-conf-saned
-1d13849 fix(scanner): add missing = in saned group in scanbd.conf
-2f88ddb Merge pull request #28 from Jaydee94/fix/scanner-daemon-reload
+Batch-PR auf branch `claude/open-issues-batch-pr-rNHG0`: 9 Review-Issues aus
+Epic #34 in einem PR adressiert (Details in activeContext.md).
+
+## Verifikation (lokal)
+- `.claude/hooks/pre-tool-test.sh`: 22/22 grün (inkl. neuer 2>&1-/`>&2`-Regression).
+- `yamllint -c .yamllint ansible/ argocd/`: nur vorbestehende Warnungen
+  (gotify line-length); generiertes Manifest hat `---`.
+- `ansible-lint ansible/`: 0 Fehler (60 var-naming[no-role-prefix] als Warnung
+  via warn_list — repo-weite Konvention, separater Refactor).
+- `make render-bootstrap`-Template == committed root-applicationset.yaml
+  (diff: IDENTICAL, kein Drift).
+- Lint-Loop erkennt alle 8 Charts; 4 mit deps (headlamp, kubeseal-webgui,
+  monitoring, sealed-secrets) lösen `helm dependency build` aus.
 
 ## Known Issues
-Keine offenen TODOs oder FIXMEs gefunden (Stand: 2026-05-22).
+- helm lokal nicht installierbar -> `helm lint` nur über CI gedeckt.
+- 60 vorbestehende var-naming[no-role-prefix] bewusst als Warnung belassen.
 
 ## Was als nächstes kommt
+PR reviewen/mergen; GitHub schliesst #35/#37/#38/#39/#40/#42/#43/#44/#45 via
+"Closes" automatisch. Epic #34 danach manuell schliessen.

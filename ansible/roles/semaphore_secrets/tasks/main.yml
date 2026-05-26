@@ -25,6 +25,7 @@
   ansible.builtin.set_fact:
     semaphore_generated_admin_password: "{{ lookup('community.general.random_string', length=24, special=false) }}"
   when: not semaphore_admin_pw_stat.stat.exists
+  no_log: true
 
 - name: Persist the admin password on disk (first run only)
   ansible.builtin.copy:
@@ -34,15 +35,18 @@
     group: root
     mode: '0600'
   when: not semaphore_admin_pw_stat.stat.exists
+  no_log: true
 
 - name: Read admin password from disk
   ansible.builtin.slurp:
     src: "{{ semaphore_state_dir }}/admin_password"
   register: semaphore_admin_pw_slurp
+  no_log: true
 
 - name: Expose admin password as a fact
   ansible.builtin.set_fact:
     semaphore_admin_password: "{{ semaphore_admin_pw_slurp.content | b64decode | trim }}"
+  no_log: true
 
 # ---- Access key encryption key (32 bytes, base64) ----------
 - name: Check whether the access key encryption file already exists
@@ -66,10 +70,12 @@
   ansible.builtin.slurp:
     src: "{{ semaphore_state_dir }}/access_key_encryption"
   register: semaphore_aek_slurp
+  no_log: true
 
 - name: Expose access key encryption key as a fact
   ansible.builtin.set_fact:
     semaphore_access_key_encryption: "{{ semaphore_aek_slurp.content | b64decode | trim }}"
+  no_log: true
 
 # ---- SSH keypair (dedicated for Semaphore → targets) -------
 - name: Generate Semaphore SSH keypair (first run only)
@@ -95,6 +101,7 @@
   ansible.builtin.slurp:
     src: "{{ semaphore_state_dir }}/id_ed25519"
   register: semaphore_ssh_priv_slurp
+  no_log: true
 
 - name: Read Semaphore SSH public key
   ansible.builtin.slurp:
@@ -105,6 +112,7 @@
   ansible.builtin.set_fact:
     semaphore_ssh_private_key: "{{ semaphore_ssh_priv_slurp.content | b64decode }}"
     semaphore_ssh_public_key: "{{ semaphore_ssh_pub_slurp.content | b64decode | trim }}"
+  no_log: true
 
 # ---- k8s namespace ----------------------------------------
 # ArgoCD will create the namespace too (CreateNamespace=true) but we may

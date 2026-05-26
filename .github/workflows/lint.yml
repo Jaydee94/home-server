@@ -1,0 +1,57 @@
+---
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  yamllint:
+    name: yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install yamllint
+        run: pip install yamllint
+      - name: Run yamllint
+        run: yamllint -c .yamllint ansible/ argocd/
+
+  ansible-lint:
+    name: ansible-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install ansible + ansible-lint
+        run: pip install ansible ansible-lint
+      - name: Install required collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+      - name: Run ansible-lint
+        run: ansible-lint ansible/
+
+  helm-lint:
+    name: helm lint (all charts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: azure/setup-helm@v4
+      - name: Lint every chart under argocd/apps/*
+        run: |
+          set -euo pipefail
+          rc=0
+          for chart in argocd/apps/*/; do
+            [ -f "${chart}Chart.yaml" ] || continue
+            if grep -q '^dependencies:' "${chart}Chart.yaml"; then
+              echo "==> helm dependency build ${chart}"
+              helm dependency build "${chart}" || helm dependency update "${chart}"
+            fi
+            echo "==> helm lint ${chart}"
+            helm lint "${chart}" || rc=1
+          done
+          exit "${rc}"

@@ -111,7 +111,26 @@
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: argocd_secret_check.stdout | length > 0
 
-- name: Display ArgoCD initial credentials
+# Don't print the password by default — it lands in terminal scrollback, -v
+# output and any CI/Semaphore job log that captures stdout. Show the retrieval
+# command instead; pass `-e argocd_show_initial_password=true` to reveal it.
+- name: Display ArgoCD initial credentials (password redacted)
+  ansible.builtin.debug:
+    msg:
+      - "=================================================="
+      - "ArgoCD Initial Credentials"
+      - "=================================================="
+      - "URL:      http://{{ ansible_default_ipv4.address }}:30080"
+      - "Username: admin"
+      - "Password: retrieve with —"
+      - "  kubectl -n {{ argocd_namespace }} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo"
+      - "  (re-run with -e argocd_show_initial_password=true to print it here)"
+      - "=================================================="
+      - "IMPORTANT: Change this password after first login!"
+      - "=================================================="
+  when: not (argocd_show_initial_password | default(false) | bool)
+
+- name: Display ArgoCD initial credentials (password shown)
   ansible.builtin.debug:
     msg:
       - "=================================================="
@@ -123,6 +142,7 @@
       - "=================================================="
       - "IMPORTANT: Change this password after first login!"
       - "=================================================="
+  when: argocd_show_initial_password | default(false) | bool
 
 # ---- Bootstrap ApplicationSet ------------------------------
 - name: Template bootstrap ApplicationSet

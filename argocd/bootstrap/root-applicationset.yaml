@@ -1,8 +1,9 @@
+# Single source of truth for the bootstrap ApplicationSet.
+# The committed copy at argocd/bootstrap/root-applicationset.yaml is GENERATED
+# from this template — run `make render-bootstrap` after editing this file or
+# the argocd_repo_* / argocd_namespace vars in group_vars. Do not hand-edit the
+# committed copy.
 ---
-# Reference manifest — the playbook's `argocd` role templates and applies a
-# parametrized copy of this from group_vars (argocd_repo_url, argocd_namespace,
-# argocd_repo_revision). Edit this file too if you also apply it directly via
-# `kubectl apply -f argocd/bootstrap/root-applicationset.yaml`.
 apiVersion: argoproj.io/v1alpha1
 kind: ApplicationSet
 metadata:
@@ -13,8 +14,8 @@ spec:
   goTemplateOptions: ["missingkey=error"]
   generators:
     - git:
-        repoURL: https://github.com/Jaydee94/home-server.git
-        revision: HEAD
+        repoURL: "https://github.com/Jaydee94/home-server.git"
+        revision: "main"
         directories:
           - path: "argocd/apps/*"
   template:
@@ -23,8 +24,8 @@ spec:
     spec:
       project: default
       source:
-        repoURL: https://github.com/Jaydee94/home-server.git
-        targetRevision: HEAD
+        repoURL: "https://github.com/Jaydee94/home-server.git"
+        targetRevision: "main"
         path: "{{.path.path}}"
       destination:
         server: https://kubernetes.default.svc
