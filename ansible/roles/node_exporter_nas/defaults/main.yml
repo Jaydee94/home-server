@@ -1,0 +1,6 @@
+---
+# Default variables for the node-exporter role
+node_exporter_image: prom/node-exporter:v1.9.1
+node_exporter_base_dir: /opt/node-exporter
+cadvisor_image: gcr.io/cadvisor/cadvisor:v0.51.0
+cadvisor_port: 18080
