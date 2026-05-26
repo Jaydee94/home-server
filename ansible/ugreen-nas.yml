@@ -1,0 +1,25 @@
+---
+# ============================================================
+# NAS Playbook — deployt Docker-Compose-basierte Dienste auf
+# dem UGREEN NAS (jays-ugreen / 192.168.178.118).
+#
+# Run with:
+#   make nas
+# Dry-run:
+#   make nas-check
+# ============================================================
+
+- name: Deploy NAS services
+  hosts: ugreen_nas
+  become: true
+  roles:
+    - role: paperless
+      tags: [paperless]
+    - role: node_exporter_nas
+      tags: [node-exporter]
+    - role: opencode
+      tags: [opencode]
+    - role: tinyteller
+      tags: [tinyteller]
+    - role: day_pilot
+      tags: [day-pilot]
