@@ -1,4 +1,6 @@
 ---
+ansible_become_password: "{{ vault_nas_become_password }}"
+
 # ---- Paperless-NGX ------------------------------------------
 paperless_base_dir: /opt/paperless
 paperless_http_port: 8000
