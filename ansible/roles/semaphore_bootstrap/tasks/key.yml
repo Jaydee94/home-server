@@ -32,7 +32,6 @@
   register: sem_ssh_priv_slurp
   no_log: true
   when:
-    - not key_exists
     - key_spec.type == "ssh"
 
 - name: Create SSH access key in project {{ project_spec.name }}
@@ -67,6 +66,38 @@
     - key_spec.type == "ssh"
     - sem_key_create is not skipped
     - sem_key_create.status not in [200, 201, 204]
+
+- name: Find existing ssh key id for {{ key_spec.name }}
+  ansible.builtin.set_fact:
+    _existing_ssh_key_id: >-
+      {{ (sem_keys_existing.json
+          | selectattr('name', 'equalto', key_spec.name)
+          | list | first | default({})).id | default(none) }}
+  when:
+    - key_exists
+    - key_spec.type == "ssh"
+
+- name: Update SSH key {{ key_spec.name }} in project {{ project_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/keys/{{ _existing_ssh_key_id }}"
+    method: PUT
+    body_format: raw
+    body: >-
+      {{ {'id': _existing_ssh_key_id | int, 'name': key_spec.name,
+          'type': 'ssh', 'project_id': project_id | int,
+          'override_secret': true,
+          'ssh': {'login': key_spec.login, 'passphrase': '',
+                  'private_key': (sem_ssh_priv_slurp.content | b64decode | trim) + '\n'}
+         } | to_json }}
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+      Content-Type: "application/json"
+    status_code: [200, 204]
+  no_log: true
+  changed_when: false
+  when:
+    - key_exists
+    - key_spec.type == "ssh"
 
 - name: Create None access key in project {{ project_spec.name }}
   ansible.builtin.uri:
@@ -113,3 +144,34 @@
     - key_spec.type == "login_password"
     - sem_vaultkey_create is not skipped
     - sem_vaultkey_create.status not in [200, 201, 204]
+
+- name: Find existing login_password key id for {{ key_spec.name }}
+  ansible.builtin.set_fact:
+    _existing_key_id: >-
+      {{ (sem_keys_existing.json
+          | selectattr('name', 'equalto', key_spec.name)
+          | list | first | default({})).id | default(none) }}
+  when:
+    - key_exists
+    - key_spec.type == "login_password"
+
+- name: Update login_password key {{ key_spec.name }} in project {{ project_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/keys/{{ _existing_key_id }}"
+    method: PUT
+    body_format: raw
+    body: >-
+      {{ {'id': _existing_key_id | int, 'name': key_spec.name,
+          'type': 'login_password', 'project_id': project_id | int,
+          'override_secret': true,
+          'login_password': {'login': '', 'password': semaphore_vault_password}
+         } | to_json }}
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+      Content-Type: "application/json"
+    status_code: [200, 204]
+  no_log: true
+  changed_when: false
+  when:
+    - key_exists
+    - key_spec.type == "login_password"

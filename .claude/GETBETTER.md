@@ -1,6 +1,6 @@
 # GETBETTER
 
-_Letzte Aktualisierung: 2026-05-22_
+_Letzte Aktualisierung: 2026-05-26_
 
 ## Entscheidungen
 
