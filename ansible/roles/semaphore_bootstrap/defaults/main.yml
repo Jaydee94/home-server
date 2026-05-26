@@ -66,22 +66,22 @@ semaphore_projects:
         vault_key: vault-password
         description: "Run the full site.yml against the home-server (recursive)."
 
-  - name: ugreen-nas
-    description: "Deploy Docker-Compose-Dienste auf dem UGREEN NAS."
+  - name: ugreen-paperless
+    description: "Deploy Paperless-ngx on the UGREEN NAS."
     repository:
-      name: home-server-git
-      url: "{{ argocd_repo_url }}"
+      name: ugreen-paperless-git
+      url: "https://github.com/Jaydee94/ugreen-paperless.git"
       branch: main
     inventories:
       - name: ugreen-nas
         type: static
         ssh_key: semaphore-ssh-key
         content: |
-          [ugreen_nas]
-          ugreen-nas ansible_host=192.168.178.118
+          [ugreen-nas]
+          ugreen ansible_host=192.168.178.118
     templates:
-      - name: "Deploy UGREEN NAS"
-        playbook: ansible/ugreen-nas.yml
+      - name: "Deploy ugreen-paperless"
+        playbook: ugreen-paperless.yml
         inventory: ugreen-nas
         vault_key: vault-password
-        description: "Paperless-NGX, OpenCode, TinyTeller, Day Pilot auf dem NAS."
+        description: "Provision Paperless-ngx stack on the UGREEN NAS."
