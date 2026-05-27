@@ -1,0 +1,19 @@
+{{- if .Values.ntfy.enabled -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "claude-agent.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.ntfy.service.type }}
+  selector:
+    {{- include "claude-agent.ntfy.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.ntfy.service.port }}
+      targetPort: {{ .Values.ntfy.service.targetPort }}
+      protocol: TCP
+{{- end }}

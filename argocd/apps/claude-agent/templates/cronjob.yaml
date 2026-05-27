@@ -1,0 +1,46 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: issue-controller
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "claude-agent.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.controller.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: issue-controller
+          restartPolicy: OnFailure
+          containers:
+            - name: controller
+              image: "{{ .Values.controller.image.repository }}:{{ .Values.controller.image.tag }}"
+              imagePullPolicy: {{ .Values.controller.image.pullPolicy }}
+              command: ["/usr/local/bin/issue-controller"]
+              envFrom:
+                - configMapRef:
+                    name: claude-agent-config
+              env:
+                - name: GITHUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.secrets.name }}
+                      key: GITHUB_TOKEN
+                - name: NTFY_AUTH_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.secrets.name }}
+                      key: NTFY_AUTH_TOKEN
+                      optional: true
+                - name: TARGET_REPO
+                  valueFrom:
+                    configMapKeyRef:
+                      name: claude-agent-config
+                      key: TARGET_REPO
+              resources:
+                {{- toYaml .Values.controller.resources | nindent 16 }}

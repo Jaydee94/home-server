@@ -1,0 +1,17 @@
+{{- if and .Values.ntfy.enabled .Values.ntfy.persistence.enabled -}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ntfy-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "claude-agent.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.ntfy.persistence.accessMode }}
+  storageClassName: {{ .Values.ntfy.persistence.storageClassName }}
+  resources:
+    requests:
+      storage: {{ .Values.ntfy.persistence.size }}
+{{- end }}

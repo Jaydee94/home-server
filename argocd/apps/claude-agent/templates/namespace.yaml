@@ -1,0 +1,11 @@
+---
+# Namespace with PodSecurity labels required for privileged agent containers
+# (Claude Code needs Docker-socket access inside the spawned Job pods).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Release.Namespace }}
+  labels:
+    {{- include "claude-agent.labels" . | nindent 4 }}
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: privileged

@@ -1,0 +1,102 @@
+---
+# ============================================================
+# claude-agent — autonomous GitHub Issue processor
+#
+# Quick-start checklist:
+#   1. Set controller.targetRepo to your GitHub repo (e.g. erlenfrosch/my-project)
+#   2. Seal secrets with kubeseal and paste ciphertext into secrets.*
+#   3. Optionally adjust ntfy.ingress.host and controller.schedule
+# ============================================================
+
+controller:
+  # Cron schedule for the issue-controller (default: every 10 minutes)
+  schedule: "*/10 * * * *"
+
+  image:
+    repository: ghcr.io/erlenfrosch/claude-agent
+    pullPolicy: Always
+    tag: "latest"
+
+  # GitHub repo the agent will clone and work on — MUST be set
+  # Example: "erlenfrosch/my-project"
+  targetRepo: ""
+
+  # Maximum number of concurrently running agent Jobs
+  maxPods: "4"
+
+  # GitHub Issue label that marks issues for the agent
+  labelFilter: "agent-backlog"
+
+  # forgecrate profile + flavors for the agent container
+  defaultProfile: "backend"
+  defaultFlavors: "github,gitops"
+
+  # Agent container image (the same image is used for the CronJob and the spawned Jobs)
+  agentImage: "ghcr.io/erlenfrosch/claude-agent:latest"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ============================================================
+# Secrets — seal each value with:
+#   echo -n "<plaintext>" \
+#     | kubeseal --raw --namespace claude-agent --name claude-agent-secrets \
+#         --from-file=/dev/stdin
+# Then paste the resulting ciphertext below.
+# ============================================================
+secrets:
+  name: claude-agent-secrets
+  # ANTHROPIC_API_KEY — from https://console.anthropic.com/
+  anthropicApiKey: "PLACEHOLDER_SEAL_ME"
+  # GITHUB_TOKEN — fine-grained PAT with Issues + Contents + Pull Requests write
+  githubToken: "PLACEHOLDER_SEAL_ME"
+  # NTFY_AUTH_TOKEN — only needed if ntfy access-control is enabled (optional)
+  ntfyAuthToken: "PLACEHOLDER_SEAL_ME"
+
+# ============================================================
+# ntfy — self-hosted push-notification server
+# Set enabled: false to use an external ntfy instance instead.
+# ============================================================
+ntfy:
+  enabled: true
+
+  image:
+    repository: binwiederhier/ntfy
+    pullPolicy: IfNotPresent
+    tag: "v2.11.0"
+
+  # ntfy listens on port 80 inside the container
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 80
+
+  ingress:
+    enabled: true
+    className: traefik
+    annotations: {}
+    host: ntfy.homeserver
+    tls: []
+
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    size: 1Gi
+    accessMode: ReadWriteOnce
+    mountPath: /var/cache/ntfy
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+  # ntfy topic the controller and agent publish to
+  topic: "claude-agent"

@@ -1,0 +1,17 @@
+---
+apiVersion: v2
+name: claude-agent
+description: Autonomous Claude Code agent that processes GitHub Issues labeled agent-backlog, spawning a K8s Job per issue.
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - claude
+  - ai-agent
+  - github
+  - automation
+home: https://github.com/erlenfrosch/claude-k8s-agent
+sources:
+  - https://github.com/erlenfrosch/claude-k8s-agent
+maintainers:
+  - name: home-server-admin
