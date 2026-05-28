@@ -19,7 +19,7 @@ controller:
 
   # GitHub repo the agent will clone and work on — MUST be set
   # Example: "erlenfrosch/my-project"
-  targetRepo: ""
+  targetRepo: "erlenfrosch/fun-nav"
 
   # Maximum number of concurrently running agent Jobs
   maxPods: "4"
