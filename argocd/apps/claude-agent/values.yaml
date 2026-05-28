@@ -80,4 +80,4 @@ gotify:
   #   echo -n "<app-token>" \
   #     | kubeseal --raw --namespace claude-agent --name claude-agent-secrets \
   #         --from-file=/dev/stdin
-  appToken: "PLACEHOLDER_SEAL_ME"
+  appToken: "AgBUdWrBfa5vycoEgiqN29sLpbQSgo5ZnyYYV7iZvUPNv+JmD11JTCqTISlBSQn+R9DLbMCsMaJfrIgDaJb4Q5HmTvQAtF5ePNOGzrKf5BzHRHxZk7SddDMOMx4DNBQJCWGGkI50e0u24UbraX3LpN45nmASfCS+UfgbhWS6LC5FBLlU0/gzn+HoihMD7az33z1qrUv1KzH4zBlk5QoTcGam3qolQdrBYnPRy6bVswzya0zGu6fJ2iMB3nFdhqern2BnwMesR4yDKXiGXrfg2JxM4snbsYlGcNeIUsGtQNFiydfokzfM7Bbf390rLoa6ZMSpLhPIN/uljbmAbzy66TwsX2cKotQexAy+INbYZ9SGMZg7lKAhAHdIOo88DHaFz/r7UNBPuMuldNJS8uX47k04yB1J8WfOtPWKGqIE1C6uJqjA39AGWtKP+ko7QFxAOOejoMNskBTXZSomS5Iw6u/tRIRft0vql+/oGlo+vaxeK6pXvxUVFzFkQM5orQHKTm7PmyDS7aaSTDI2GhDO+TKNAdDaluLhAPqbsSbPg8blJ9BlnYG45A6Y8bD9lUaez+tR54zZwn9Lj3BrNPywleDx6jfj/ubpQyz8zs17mTXxNc0vu5634MuyL7rRYQmyKO33fBOtnsvV+9f34k/mKFL7AzzEXom9SSnMINUw3Ztx16KsdXumP/uz5rm/eKkPQgWPC/cqS33fh+Xu5geAVxk="
