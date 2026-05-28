@@ -48,21 +48,3 @@ app.kubernetes.io/name: {{ include "claude-agent.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
-{{/*
-ntfy selector labels
-*/}}
-{{- define "claude-agent.ntfy.selectorLabels" -}}
-app.kubernetes.io/name: ntfy
-app.kubernetes.io/instance: {{ .Release.Name }}
-{{- end }}
-
-{{/*
-NTFY base URL — uses in-cluster service when ntfy.enabled, otherwise reads from controller.ntfyUrl.
-*/}}
-{{- define "claude-agent.ntfyUrl" -}}
-{{- if .Values.ntfy.enabled -}}
-http://ntfy.{{ .Release.Namespace }}.svc.cluster.local
-{{- else -}}
-{{- .Values.controller.ntfyUrl | default "" }}
-{{- end }}
-{{- end }}

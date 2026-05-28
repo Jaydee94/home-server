@@ -11,8 +11,7 @@ data:
   LABEL_FILTER: {{ .Values.controller.labelFilter | quote }}
   DEFAULT_PROFILE: {{ .Values.controller.defaultProfile | quote }}
   DEFAULT_FLAVORS: {{ .Values.controller.defaultFlavors | quote }}
-  NTFY_URL: {{ include "claude-agent.ntfyUrl" . | quote }}
-  NTFY_TOPIC: {{ .Values.ntfy.topic | quote }}
+  GOTIFY_URL: {{ .Values.gotify.url | quote }}
   AGENT_IMAGE: {{ printf "%s:%s" .Values.controller.image.repository .Values.controller.image.tag | quote }}
   NAMESPACE: {{ .Release.Namespace | quote }}
   SECRET_NAME: {{ .Values.secrets.name | quote }}

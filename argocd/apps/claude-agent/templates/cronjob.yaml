@@ -31,11 +31,11 @@ spec:
                     secretKeyRef:
                       name: {{ .Values.secrets.name }}
                       key: GITHUB_TOKEN
-                - name: NTFY_AUTH_TOKEN
+                - name: GOTIFY_TOKEN
                   valueFrom:
                     secretKeyRef:
                       name: {{ .Values.secrets.name }}
-                      key: NTFY_AUTH_TOKEN
+                      key: GOTIFY_TOKEN
                       optional: true
                 - name: TARGET_REPO
                   valueFrom:
