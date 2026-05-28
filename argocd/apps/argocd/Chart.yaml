@@ -1,0 +1,9 @@
+---
+apiVersion: v2
+name: argocd
+description: Traefik Ingress for the ArgoCD UI (ArgoCD itself is bootstrapped separately).
+type: application
+version: 0.1.0
+appVersion: "v3.4.2"
+maintainers:
+  - name: home-server-admin

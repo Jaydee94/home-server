@@ -1,0 +1,6 @@
+---
+ingress:
+  className: traefik
+  host: argocd.homeserver
+  annotations: {}
+  tls: []
