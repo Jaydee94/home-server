@@ -47,12 +47,24 @@ controller:
 #   echo -n "<plaintext>" \
 #     | kubeseal --raw --namespace claude-agent --name claude-agent-secrets \
 #         --from-file=/dev/stdin
-# Then paste the resulting ciphertext below.
+#
+# Or use the kubeseal web UI at https://kubeseal-webgui.homeserver
+#
+# Authentication: set EITHER anthropicApiKey OR claudeCredentials (not both):
+#   anthropicApiKey  → Anthropic pay-per-use API key (sk-ant-...)
+#   claudeCredentials → ~/.claude/.credentials.json from a Claude.ai Pro/Max login
+#                       (zero API cost, uses subscription quota instead)
 # ============================================================
 secrets:
   name: claude-agent-secrets
-  # ANTHROPIC_API_KEY — from https://console.anthropic.com/
+  # Option A: Anthropic API key (pay-per-use, ~$3-10/month for homelab use)
+  # Leave as PLACEHOLDER_SEAL_ME if using claudeCredentials instead.
   anthropicApiKey: "PLACEHOLDER_SEAL_ME"
+  # Option B: Claude.ai OAuth credentials (requires Pro/Max subscription, no extra cost)
+  # Extract with: cat ~/.claude/.credentials.json
+  # Then seal the full JSON string and paste below.
+  # Leave as PLACEHOLDER_SEAL_ME if using anthropicApiKey instead.
+  claudeCredentials: "PLACEHOLDER_SEAL_ME"
   # GITHUB_TOKEN — fine-grained PAT with Issues + Contents + Pull Requests write
   githubToken: "PLACEHOLDER_SEAL_ME"
   # NTFY_AUTH_TOKEN — only needed if ntfy access-control is enabled (optional)
