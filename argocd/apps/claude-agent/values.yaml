@@ -21,11 +21,14 @@ controller:
   # Example: "erlenfrosch/my-project"
   targetRepo: "erlenfrosch/fun-nav"
 
-  # Maximum number of concurrently running agent Jobs
-  maxPods: "4"
+  # Maximum number of concurrently running agent Jobs.
+  # "1" = ein Issue nach dem anderen (empfohlen wenn kein labelFilter gesetzt)
+  maxPods: "1"
 
-  # GitHub Issue label that marks issues for the agent
-  labelFilter: "agent-backlog"
+  # GitHub Issue label that marks issues for the agent.
+  # Leer = alle offenen Issues werden abgearbeitet (kein Label nötig).
+  # Gesetzt = nur Issues mit diesem Label werden verarbeitet.
+  labelFilter: ""
 
   # forgecrate profile + flavors for the agent container
   defaultProfile: "backend"
