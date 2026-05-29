@@ -153,10 +153,10 @@ Semaphore **zwei Projekte schon vollständig konfiguriert** — Key Store,
 Repository, Inventory und Task Template inklusive. Du musst in der UI
 nichts mehr klicken außer ▶ **Run**.
 
-| Project              | Repository                                                | Inventory   | Template                  | Playbook                  |
-|----------------------|-----------------------------------------------------------|-------------|---------------------------|---------------------------|
-| `home-server`        | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `homeservers` (192.168.178.127) | `Deploy Home Server`      | `ansible/site.yml`        |
-| `ugreen-nas`         | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `ugreen_nas` (192.168.178.118)  | `Deploy UGREEN NAS`       | `ansible/ugreen-nas.yml`  |
+| Project              | Repository                                                | Inventory   | Template                  | Playbook                  | Schedule       |
+|----------------------|-----------------------------------------------------------|-------------|---------------------------|---------------------------|----------------|
+| `home-server`        | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `homeservers` (192.168.178.127) | `Deploy Home Server`      | `ansible/site.yml`        | täglich 06:00  |
+| `ugreen-nas`         | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `ugreen_nas` (192.168.178.118)  | `Deploy UGREEN NAS`       | `ansible/ugreen-nas.yml`  | —              |
 
 ### Workflow
 
@@ -199,7 +199,14 @@ semaphore_projects:
       - name: "Deploy My Thing"
         playbook: site.yml
         inventory: my-targets
+    schedules:                        # optional — weglassen für kein Cron
+      - name: "Daily 06:00"
+        template: "Deploy My Thing"
+        cron: "0 6 * * *"
+        active: true
 ```
+
+Schedules werden in der Zeitzone `Europe/Berlin` ausgewertet (via `SEMAPHORE_SCHEDULE_TIMEZONE` im Semaphore-Deployment). Das Cron-Format ist Standard-5-Feld. Das Auto-Bootstrap ist idempotent: bei jedem `make semaphore-bootstrap` wird ein vorhandener Schedule per PUT aktualisiert (self-healing).
 
 **Wichtig:** das Auto-Bootstrap ist vollständig **idempotent** — Ressourcen werden
 bei jedem Run via PUT aktualisiert (self-healing). Ein manuelles Löschen in der UI
@@ -249,5 +256,5 @@ du es per UI anlegen:
 | `semaphore.homeserver` löst nicht | `semaphore` in `dnsmasq_hosts` (group_vars/all.yml) eintragen, dann `make dnsmasq` |
 | Pod CrashLoopBackOff              | `kubectl -n semaphore logs deploy/semaphore` — meist fehlt das Bootstrap-Secret |
 | Playbook scheitert mit "Permission denied (publickey)" | `make semaphore-targets` lief nicht — Public Key fehlt in authorized_keys auf dem Ziel |
-| Vault-Passwort wird nicht erkannt | `semaphore_vault_password` ist leer oder mit falschem PW verschlüsselt |
+| Vault-Passwort wird nicht erkannt | `semaphore_vault_password` ist leer oder mit falschem PW verschlüsselt; sicherstellen dass `ANSIBLE_VAULT_PASSWORD_FILE` im Semaphore Default-Environment gesetzt ist (wird ab Bootstrap automatisch injiziert) |
 | `semaphore-bootstrap` failt beim Login | Admin-PW in der UI geändert ohne `/etc/semaphore-secrets/admin_password` zu syncen, oder PVC enthält noch alte DB. Fix: PW dort hinterlegen oder PVC neu (löscht alle Projekte!). |
