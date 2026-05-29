@@ -25,6 +25,9 @@ ansible/collections/
 
 # Host-specific vault files — must be encrypted before committing
 ansible/host_vars/*/vault.yml
+# Exception: NAS vault.yml is encrypted (ansible-vault) and required by the
+# Semaphore-triggered run, which clones a fresh copy from GitHub main.
+!ansible/host_vars/ugreen-nas/vault.yml
 
 # Helm
 **/charts/
