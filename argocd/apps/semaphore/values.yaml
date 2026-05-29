@@ -18,6 +18,10 @@ image:
 nameOverride: ""
 fullnameOverride: ""
 
+# Timezone in which cron schedules are evaluated (Semaphore defaults to UTC).
+# A "0 6 * * *" schedule then fires at 06:00 local time, DST-safe.
+scheduleTimezone: "Europe/Berlin"
+
 # Persistent volume for the embedded BoltDB and Semaphore's config.json.
 persistence:
   enabled: true

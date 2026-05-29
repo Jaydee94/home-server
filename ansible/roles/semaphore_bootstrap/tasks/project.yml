@@ -123,3 +123,25 @@
   loop_control:
     loop_var: template_spec
     label: "{{ template_spec.name }}"
+
+- name: Re-list templates in project {{ project_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates"
+    method: GET
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    return_content: true
+  register: sem_tpl_list
+
+- name: Build template name→id map for project {{ project_spec.name }}
+  ansible.builtin.set_fact:
+    project_template_map: >-
+      {{ dict(sem_tpl_list.json
+              | map(attribute='name') | zip(sem_tpl_list.json | map(attribute='id'))) }}
+
+- name: Provision schedules for project {{ project_spec.name }}
+  ansible.builtin.include_tasks: schedule.yml
+  loop: "{{ project_spec.schedules | default([]) }}"
+  loop_control:
+    loop_var: schedule_spec
+    label: "{{ schedule_spec.name }}"

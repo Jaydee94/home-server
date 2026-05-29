@@ -123,6 +123,13 @@ spec:
             - name: SEMAPHORE_LDAP_ACTIVATED
               value: "no"
 
+            # Cron schedules are evaluated in this timezone (Semaphore default
+            # is UTC). Setting the home timezone makes a "0 6 * * *" schedule
+            # fire at 06:00 local time year-round, instead of drifting one hour
+            # between CET and CEST.
+            - name: SEMAPHORE_SCHEDULE_TIMEZONE
+              value: {{ .Values.scheduleTimezone | default "Europe/Berlin" | quote }}
+
           volumeMounts:
             - name: data
               mountPath: /etc/semaphore

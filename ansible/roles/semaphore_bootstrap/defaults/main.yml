@@ -86,6 +86,11 @@ semaphore_projects:
         environment: default-env
         vault_key: vault-password
         description: "Run the full site.yml against the home-server (recursive)."
+    schedules:
+      - name: "Daily 06:00"
+        template: "Deploy Home Server"
+        cron: "0 6 * * *"
+        active: true
 
   - name: ugreen-nas
     description: "Deploy NAS services on the UGREEN NAS."
@@ -109,3 +114,8 @@ semaphore_projects:
         environment: default-env
         vault_key: vault-password
         description: "Provision NAS services stack on the UGREEN NAS."
+    schedules:
+      - name: "Daily 06:00"
+        template: "Deploy UGREEN NAS"
+        cron: "0 6 * * *"
+        active: true
