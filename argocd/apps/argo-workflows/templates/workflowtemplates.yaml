@@ -1,0 +1,96 @@
+{{/*
+Static Argo CRs. Wrapped in a Helm raw block so Helm does NOT try to evaluate
+the Argo `{{...}}` placeholders (workflow/inputs/pod expressions) at render time.
+*/}}
+{{`
+---
+# git-ci — clone a git repo and run an arbitrary shell command in it.
+# For tests / linters / ansible-check style jobs. Step logs are archived to
+# MinIO automatically (controller artifactRepository.archiveLogs: true).
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: git-ci
+spec:
+  serviceAccountName: argo-workflow
+  entrypoint: main
+  arguments:
+    parameters:
+      - name: repo
+      - name: revision
+        value: main
+      - name: image
+        value: alpine:3.20
+      - name: cmd
+        value: "ls -la"
+  templates:
+    - name: main
+      inputs:
+        parameters:
+          - name: repo
+          - name: revision
+          - name: image
+          - name: cmd
+        artifacts:
+          - name: src
+            path: /work
+            git:
+              repo: "{{inputs.parameters.repo}}"
+              revision: "{{inputs.parameters.revision}}"
+      container:
+        image: "{{inputs.parameters.image}}"
+        workingDir: /work
+        command: [sh, -c]
+        args: ["{{inputs.parameters.cmd}}"]
+---
+# kaniko-build-push — build a container image from a git repo and push to a
+# registry (default target: GHCR). Uses the ghcr-push docker-config secret.
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: kaniko-build-push
+spec:
+  serviceAccountName: argo-workflow
+  entrypoint: main
+  arguments:
+    parameters:
+      - name: repo
+      - name: revision
+        value: main
+      - name: context
+        value: "."
+      - name: dockerfile
+        value: Dockerfile
+      - name: image
+  volumes:
+    - name: docker-config
+      secret:
+        secretName: ghcr-push
+        items:
+          - key: .dockerconfigjson
+            path: config.json
+  templates:
+    - name: main
+      inputs:
+        parameters:
+          - name: repo
+          - name: revision
+          - name: context
+          - name: dockerfile
+          - name: image
+        artifacts:
+          - name: src
+            path: /workspace
+            git:
+              repo: "{{inputs.parameters.repo}}"
+              revision: "{{inputs.parameters.revision}}"
+      container:
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+          - "--context=dir:///workspace/{{inputs.parameters.context}}"
+          - "--dockerfile={{inputs.parameters.dockerfile}}"
+          - "--destination={{inputs.parameters.image}}"
+        volumeMounts:
+          - name: docker-config
+            mountPath: /kaniko/.docker
+`}}

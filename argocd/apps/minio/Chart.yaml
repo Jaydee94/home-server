@@ -1,0 +1,29 @@
+---
+apiVersion: v2
+name: minio
+description: |
+  Standalone MinIO object store for the home-server k3s cluster.
+  Serves as the S3-compatible artifact repository and log archive for
+  Argo Workflows (bucket: argo-artifacts). Single replica, local-path PVC —
+  sized for a home CI workload, not production object storage.
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - minio
+  - s3
+  - object-storage
+  - artifacts
+  - argo-workflows
+home: https://min.io
+sources:
+  - https://github.com/minio/minio/tree/master/helm/minio
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # Community standalone chart. Floats like the monitoring/victoria chart;
+  # observed version at authoring time: 5.x (charts.min.io). Pin a concrete
+  # version here once verified against `helm search repo minio/minio`.
+  - name: minio
+    repository: https://charts.min.io
+    version: "*"

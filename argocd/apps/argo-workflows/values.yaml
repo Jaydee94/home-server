@@ -1,0 +1,89 @@
+---
+# Values passed through to the argo-workflows sub-chart (everything under the
+# `argo-workflows:` key). Top-level blocks below configure this chart's own
+# templates/ (SealedSecrets) — they are NOT passed to the sub-chart.
+argo-workflows:
+  # Restrict controller + server to the release namespace (argo-workflows).
+  # Simpler and safer than cluster-wide for a single-user home CI.
+  singleNamespace: true
+
+  crds:
+    install: true
+    keep: false
+
+  # ServiceAccount + RBAC that workflow pods run as.
+  workflow:
+    serviceAccount:
+      create: true
+      name: argo-workflow
+    rbac:
+      create: true
+
+  controller:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+  server:
+    # server auth-mode = no login, open on LAN/Tailnet (consistent with
+    # Grafana/Headlamp/Semaphore). Security via Tailnet isolation.
+    authModes:
+      - server
+    # Serve plain HTTP — TLS is terminated/none behind Traefik on the LAN.
+    secure: false
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 250m
+        memory: 256Mi
+    ingress:
+      enabled: true
+      ingressClassName: traefik
+      hosts:
+        - argo-workflows.homeserver
+      paths:
+        - /
+      pathType: Prefix
+
+  # S3 artifact repository + log archive, backed by the MinIO app
+  # (argocd/apps/minio) reachable cluster-internally. Credentials come from the
+  # argo-artifacts-s3 Secret rendered by templates/artifact-secret-sealedsecret.yaml.
+  artifactRepository:
+    archiveLogs: true
+    s3:
+      endpoint: minio.minio.svc.cluster.local:9000
+      bucket: argo-artifacts
+      insecure: true
+      keyFormat: "artifacts/{{workflow.name}}/{{pod.name}}"
+      accessKeySecret:
+        name: argo-artifacts-s3
+        key: accesskey
+      secretKeySecret:
+        name: argo-artifacts-s3
+        key: secretkey
+
+# --- Consumed by this chart's own templates/ (NOT the sub-chart) ---
+# SealedSecrets. Seal real values against the cluster controller, e.g.:
+#   echo -n "<value>" | kubeseal --raw --namespace argo-workflows \
+#     --name argo-artifacts-s3 --controller-name sealed-secrets-controller \
+#     --controller-namespace sealed-secrets --from-file=/dev/stdin
+# See docs/13-argo-workflows.md for the full workflow (incl. the GHCR token).
+
+# S3 access for the artifact repository — must match the MinIO root creds.
+artifactSecret:
+  name: argo-artifacts-s3
+  encryptedAccessKey: "REPLACE_ME_SEALED_accesskey"
+  encryptedSecretKey: "REPLACE_ME_SEALED_secretkey"
+
+# Docker config json for Kaniko to push images to GHCR (ghcr.io/jaydee94/...).
+# Build the dockerconfigjson, then seal it under the `.dockerconfigjson` key.
+ghcrSecret:
+  enabled: true
+  name: ghcr-push
+  encryptedDockerConfigJson: "REPLACE_ME_SEALED_dockerconfigjson"

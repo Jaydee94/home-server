@@ -1,0 +1,59 @@
+---
+# Values passed through to the minio sub-chart.
+# Everything under `minio:` is consumed by the dependency; the top-level
+# `rootCreds:` block below is consumed by this chart's own templates/.
+minio:
+  mode: standalone
+  # Standalone ignores replicas, but the chart's distributed default (16) must
+  # be overridden so scheduling/validation expects a single pod.
+  replicas: 1
+
+  # Root credentials come from the SealedSecret rendered by
+  # templates/root-creds-sealedsecret.yaml (keys: rootUser / rootPassword).
+  existingSecret: minio-root
+
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 10Gi
+    accessMode: ReadWriteOnce
+
+  # The chart defaults to requesting 16Gi of memory (distributed production
+  # sizing). That would never schedule on the home-server — override hard.
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+  # Auto-create the Argo Workflows artifact bucket on first start.
+  buckets:
+    - name: argo-artifacts
+      policy: none
+      purge: false
+
+  # MinIO web console at http://minio.homeserver (LAN + Tailnet via dnsmasq
+  # wildcard). The S3 API stays cluster-internal (minio.minio.svc:9000).
+  consoleIngress:
+    enabled: true
+    ingressClassName: traefik
+    path: /
+    hosts:
+      - minio.homeserver
+
+  # S3 API ingress not needed — Argo reaches MinIO over the cluster Service.
+  ingress:
+    enabled: false
+
+# --- Consumed by this chart's own templates/ (NOT the minio sub-chart) ---
+# SealedSecret holding the MinIO root credentials. Seal real values with:
+#   echo -n "<value>" | kubeseal --raw --namespace minio --name minio-root \
+#     --controller-name sealed-secrets-controller \
+#     --controller-namespace sealed-secrets --from-file=/dev/stdin
+# then paste the outputs below. See docs/13-argo-workflows.md.
+rootCreds:
+  name: minio-root
+  encryptedRootUser: "REPLACE_ME_SEALED_rootUser"
+  encryptedRootPassword: "REPLACE_ME_SEALED_rootPassword"

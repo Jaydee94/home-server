@@ -1,0 +1,33 @@
+---
+apiVersion: v2
+name: argo-workflows
+description: |
+  Argo Workflows as the home-server's private CI engine.
+  Controller + Server/UI in server auth-mode (open on LAN/Tailnet), with MinIO
+  (argocd/apps/minio) as the S3 artifact repository and log archive.
+
+  Split of concerns: Argo Workflows = CI (build/test/lint, image builds via
+  Kaniko → GHCR), ArgoCD = CD (deploy). Triggers: manual (UI / `argo submit`)
+  and CronWorkflows. Ships reusable WorkflowTemplates (git-ci, kaniko-build-push)
+  and a suspended nightly-lint CronWorkflow example.
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - argo-workflows
+  - ci
+  - cicd
+  - pipelines
+  - kaniko
+home: https://argo-workflows.readthedocs.io
+sources:
+  - https://github.com/argoproj/argo-helm/tree/main/charts/argo-workflows
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # Community chart. Floats like the monitoring/victoria chart; observed
+  # version at authoring time: 1.0.x (argo-helm). Pin a concrete version here
+  # once verified against `helm search repo argo/argo-workflows`.
+  - name: argo-workflows
+    repository: https://argoproj.github.io/argo-helm
+    version: "*"

@@ -408,6 +408,8 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Headlamp  | http://headlamp.homeserver  | Kubernetes dashboard               |
 | Semaphore | http://semaphore.homeserver | Ansible UI                         |
 | Gotify    | http://gotify.homeserver    | Push notifications (docs/11-gotify.md) |
+| Argo Workflows | http://argo-workflows.homeserver | Private CI (docs/13-argo-workflows.md) |
+| MinIO     | http://minio.homeserver     | S3 artifact store for Argo Workflows |
 | Paperless-NGX | http://jays-ugreen:8000  | NAS (Docker Compose)               |
 | OpenCode      | http://jays-ugreen:4096  | NAS (Docker Compose)               |
 | TinyTeller    | http://jays-ugreen:3002  | NAS (Docker Compose)               |

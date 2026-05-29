@@ -1,0 +1,32 @@
+{{/*
+Example CronWorkflow. suspend: true by default — resume it consciously once the
+secrets are sealed and the git-ci template works. Wrapped in a Helm raw block so
+Helm does not evaluate the Argo expressions.
+*/}}
+{{`
+---
+apiVersion: argoproj.io/v1alpha1
+kind: CronWorkflow
+metadata:
+  name: nightly-home-server-lint
+spec:
+  schedule: "0 3 * * *"
+  timezone: Europe/Berlin
+  suspend: true
+  concurrencyPolicy: Replace
+  startingDeadlineSeconds: 300
+  workflowSpec:
+    serviceAccountName: argo-workflow
+    arguments:
+      parameters:
+        - name: repo
+          value: https://github.com/Jaydee94/home-server.git
+        - name: revision
+          value: main
+        - name: image
+          value: alpine:3.20
+        - name: cmd
+          value: "ls -la && echo 'replace with real lint command'"
+    workflowTemplateRef:
+      name: git-ci
+`}}
