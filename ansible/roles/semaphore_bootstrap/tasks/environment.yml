@@ -1,0 +1,78 @@
+---
+# ============================================================
+# Provision one environment entry inside the current project.
+# Semaphore v2.18+ strips the Pod's container env when spawning
+# ansible tasks — env vars like ANSIBLE_VAULT_PASSWORD_FILE only
+# reach the playbook process if injected via a per-template
+# environment. Without this, vault-encrypted vars cannot be
+# decrypted during a Semaphore-triggered run.
+#
+# `env_spec.env` is a dict; we JSON-encode it because the
+# Semaphore API expects the `env` field as a stringified JSON object.
+# ============================================================
+
+- name: List existing environments in project {{ project_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/environment"
+    method: GET
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    return_content: true
+  register: sem_env_existing
+
+- name: Decide if environment exists for {{ env_spec.name }}
+  ansible.builtin.set_fact:
+    environment_exists: >-
+      {{ (sem_env_existing.json
+          | selectattr('name', 'equalto', env_spec.name)
+          | list | length) > 0 }}
+
+- name: Find existing environment id for {{ env_spec.name }}
+  ansible.builtin.set_fact:
+    environment_id: >-
+      {{ (sem_env_existing.json
+           | selectattr('name', 'equalto', env_spec.name)
+           | list | first | default({})).id | default(none) }}
+  when: environment_exists
+
+- name: Create environment {{ env_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/environment"
+    method: POST
+    body_format: json
+    body: >-
+      {{
+        {
+          'name': env_spec.name,
+          'project_id': project_id | int,
+          'json': env_spec.json | default('{}'),
+          'env': env_spec.env | to_json,
+          'secrets': [],
+        }
+      }}
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    status_code: [200, 201, 204]
+  when: not environment_exists
+
+- name: Update environment {{ env_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/environment/{{ environment_id | int }}"
+    method: PUT
+    body_format: json
+    body: >-
+      {{
+        {
+          'id': environment_id | int,
+          'name': env_spec.name,
+          'project_id': project_id | int,
+          'json': env_spec.json | default('{}'),
+          'env': env_spec.env | to_json,
+          'secrets': [],
+        }
+      }}
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    status_code: [200, 204]
+  when: environment_exists
+  changed_when: false

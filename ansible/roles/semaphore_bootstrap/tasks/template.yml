@@ -52,7 +52,11 @@
           'project_id': project_id | int,
           'inventory_id': project_inventory_map[template_spec.inventory] | int,
           'repository_id': repository_id | int,
-          'environment_id': none,
+          'environment_id':
+            (project_environment_map[template_spec.environment] | int)
+            if (template_spec.environment is defined
+                and template_spec.environment in (project_environment_map | default({})))
+            else none,
           'vault_key_id':
             (project_key_map[template_spec.vault_key] | int)
             if (template_spec.vault_key is defined
@@ -89,7 +93,11 @@
           'project_id': project_id | int,
           'inventory_id': project_inventory_map[template_spec.inventory] | int,
           'repository_id': repository_id | int,
-          'environment_id': none,
+          'environment_id':
+            (project_environment_map[template_spec.environment] | int)
+            if (template_spec.environment is defined
+                and template_spec.environment in (project_environment_map | default({})))
+            else none,
           'vault_key_id':
             (project_key_map[template_spec.vault_key] | int)
             if (template_spec.vault_key is defined

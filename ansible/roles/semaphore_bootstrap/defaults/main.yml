@@ -54,6 +54,15 @@ semaphore_default_keys:
 # Override in group_vars/all.yml to add more projects without
 # editing the role.
 # ============================================================
+# Semaphore v2.18+ strips the Pod's container env when spawning ansible
+# tasks. ANSIBLE_VAULT_PASSWORD_FILE only reaches the playbook process if
+# injected via a per-template environment — without this, vault-encrypted
+# vars cannot be decrypted during a Semaphore-triggered run.
+semaphore_default_environment:
+  name: default-env
+  env:
+    ANSIBLE_VAULT_PASSWORD_FILE: /var/run/semaphore-secrets/ansible_vault_password
+
 semaphore_projects:
   - name: home-server
     description: "Deploy / re-provision the home-server itself."
@@ -61,6 +70,8 @@ semaphore_projects:
       name: home-server-git
       url: "{{ argocd_repo_url }}"
       branch: main
+    environments:
+      - "{{ semaphore_default_environment }}"
     inventories:
       - name: homeservers
         type: static
@@ -72,6 +83,7 @@ semaphore_projects:
       - name: "Deploy Home Server"
         playbook: ansible/site.yml
         inventory: homeservers
+        environment: default-env
         vault_key: vault-password
         description: "Run the full site.yml against the home-server (recursive)."
 
@@ -81,6 +93,8 @@ semaphore_projects:
       name: ugreen-nas-git
       url: "{{ argocd_repo_url }}"
       branch: main
+    environments:
+      - "{{ semaphore_default_environment }}"
     inventories:
       - name: ugreen-nas
         type: static
@@ -92,5 +106,6 @@ semaphore_projects:
       - name: "Deploy UGREEN NAS"
         playbook: ansible/ugreen-nas.yml
         inventory: ugreen-nas
+        environment: default-env
         vault_key: vault-password
         description: "Provision NAS services stack on the UGREEN NAS."

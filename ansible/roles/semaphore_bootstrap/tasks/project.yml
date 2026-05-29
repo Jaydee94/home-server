@@ -95,6 +95,28 @@
       {{ dict(sem_inv_list.json
               | map(attribute='name') | zip(sem_inv_list.json | map(attribute='id'))) }}
 
+- name: Provision environments for project {{ project_spec.name }}
+  ansible.builtin.include_tasks: environment.yml
+  loop: "{{ project_spec.environments | default([]) }}"
+  loop_control:
+    loop_var: env_spec
+    label: "{{ env_spec.name }}"
+
+- name: Re-list environments in project {{ project_spec.name }}
+  ansible.builtin.uri:
+    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/environment"
+    method: GET
+    headers:
+      Cookie: "{{ semaphore_cookie }}"
+    return_content: true
+  register: sem_env_list
+
+- name: Build environment name→id map for project {{ project_spec.name }}
+  ansible.builtin.set_fact:
+    project_environment_map: >-
+      {{ dict(sem_env_list.json
+              | map(attribute='name') | zip(sem_env_list.json | map(attribute='id'))) }}
+
 - name: Provision templates for project {{ project_spec.name }}
   ansible.builtin.include_tasks: template.yml
   loop: "{{ project_spec.templates }}"
