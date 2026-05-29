@@ -17,8 +17,6 @@
       tags: [paperless]
     - role: node_exporter_nas
       tags: [node-exporter]
-    - role: opencode
-      tags: [opencode]
     - role: tinyteller
       tags: [tinyteller]
     - role: day_pilot
