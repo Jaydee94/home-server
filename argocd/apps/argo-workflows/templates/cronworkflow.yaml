@@ -10,7 +10,7 @@ kind: CronWorkflow
 metadata:
   name: nightly-home-server-lint
 spec:
-  schedule: "0 3 * * *"
+  schedules: ["0 3 * * *"]
   timezone: Europe/Berlin
   suspend: true
   concurrencyPolicy: Replace
