@@ -17,17 +17,6 @@ paperless_secret_key: "{{ vault_paperless_secret_key }}"
 node_exporter_base_dir: /opt/node-exporter
 cadvisor_port: 18080
 
-# ---- OpenCode -----------------------------------------------
-opencode_install_dir: /opt/opencode
-opencode_persist_dir: /opt/opencode/persist
-opencode_port: 4096
-opencode_build_local_image: false
-opencode_git_repo: ""
-opencode_git_username: "{{ vault_opencode_git_username | default('') }}"
-opencode_git_password: "{{ vault_opencode_git_password | default('') }}"
-opencode_github_token: "{{ vault_opencode_github_token | default('') }}"
-opencode_server_auth_enabled: false
-
 # ---- TinyTeller ---------------------------------------------
 tinyteller_base_dir: /opt/tinyteller
 tinyteller_frontend_port: 3002
