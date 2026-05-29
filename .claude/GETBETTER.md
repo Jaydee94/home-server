@@ -20,6 +20,12 @@ _Letzte Aktualisierung: 2026-05-29_
 
 - **Reboot-Skip via `lookup('env', 'SEMAPHORE_TASK_ID')`**: `common`-Role darf den Host nicht rebooten wenn das Playbook aus dem Semaphore-Pod heraus läuft — der Pod selbst läuft auf dem Host und würde sich selbst killen, der Task hängt für immer. Skip-Bedingung in der Reboot-Task, dazu eine Warn-Task die den Operator informiert manuell neu zu starten.
 
+- **`SEMAPHORE_SCHEDULE_TIMEZONE=Europe/Berlin` im Deployment statt UTC-Cron**: Semaphore evaluiert Cron-Schedules per Default in UTC. Ein `0 6 * * *` in UTC würde zwischen CET/CEST um eine Stunde verrutschen. Die TZ-Env im Pod (via Helm-`values`, default `Europe/Berlin`) lässt `0 6 * * *` ganzjährig um 06:00 Lokalzeit feuern — DST-sicher, ohne den Cron-String anzufassen. Robfigs `CRON_TZ=`-Präfix wäre die Alternative, aber unklar ob Semaphore es durchreicht; die Env ist dokumentiert und sicher.
+
+- **Schedules deklarativ im `semaphore_bootstrap`-Role**: Neue `schedule.yml` (idempotent: GET-list → POST-if-missing → PUT-self-heal, gleiches Jinja-Dict-Body-Muster wie `template.yml` für Integer-Typen); `project.yml` baut eine Template-Name→ID-Map nach dem Template-Loop. So sind Cron-Schedules reproduzierbar (überleben Neuaufsetzen) statt nur per API-Klick zu existieren.
+
+- **Laufende Secret-Werte auslesen statt neu erfinden**: Für `vault_paperless_*` die echten Werte aus der bereits deployten NAS-`.env` gelesen (become-PW aus committed `all.yml` via `.vault` entschlüsselt, dann `sudo -S cat`), nicht neu generiert. Ein neues DB-Passwort hätte die bestehende PostgreSQL-DB unzugänglich gemacht. Nur den `secret_key` (war nie in der `.env`) neu generiert — der invalidiert lediglich Login-Sessions, keine Daten.
+
 ## Anti-Patterns
 
 - **SANE net-Backend ausprobieren ohne Quellcode zu prüfen**: Stunden in Manager-Modus + saned investiert, obwohl scanbd im Quellcode `local_only=1` hartcodiert hat. Hätte zuerst das scanbd-Verhalten verstanden werden sollen (greife nach SANE_DEBUG-Logs, lies die Manpage/Source), bevor ein alternativer Architektur-Ansatz verfolgt wird.
@@ -47,6 +53,12 @@ _Letzte Aktualisierung: 2026-05-29_
 - **Self-Reboot in Playbooks die aus dem Pod heraus laufen**: Wenn der Ansible-Controller selbst auf dem Target läuft (Semaphore-Pod im k3s-Cluster), bricht der Reboot die laufende Task ab, der Task hängt für immer, Pod restarts. Vor jedem `reboot`-Task: prüfen ob der Controller außerhalb des Targets läuft.
 
 - **Bootstrap-Re-Runs ohne Test dazwischen**: Mehrfach hintereinander `make semaphore-bootstrap` ausgeführt in der Hoffnung dass der nächste Run hilft — der Bootstrap selbst hat den Key dabei jedes Mal wieder kaputt gemacht (gleicher `'\n'`-Bug). Vorgehen: nach jedem Run einen echten End-to-End-Test (Template starten, ersten Output-Step prüfen), bevor weiter "repariert" wird.
+
+- **`defaults/main.yml` editieren obwohl `all.yml` die Variable komplett überschreibt**: `schedules:` in den `semaphore_bootstrap`-defaults ergänzt — der Schedule-Loop blieb beim Bootstrap aber `skipping`, weil `semaphore_projects` in `group_vars/all.yml` definiert ist und die defaults **als Ganzes** ersetzt (Ansible merged Listen/Dicts nicht). Vor dem Editieren von Role-defaults prüfen ob dieselbe Variable in `group_vars/`/`host_vars/` überschrieben wird — sonst ist die Änderung wirkungslos. Schneller Check: `ansible localhost -m debug -a "var=<name>" -e @group_vars/all.yml`.
+
+- **Gitignored Secret-Datei + Semaphore-Frischklon**: `host_vars/ugreen-nas/vault.yml` war via `.gitignore` ausgeschlossen und existierte nur lokal. `make nas` lief damit, aber der Semaphore-Run klont das Repo frisch von GitHub main → `vault_paperless_*` fehlten → `undefined`. Secrets, die ein Semaphore-/CI-Run braucht, müssen **vault-verschlüsselt committet** sein (wie `group_vars/all.yml`), nicht in einer gitignorierten Datei. Symptom-Diagnose: `git status` zeigt die lokal geänderte Datei nicht an → sie ist ignoriert.
+
+- **Privates ghcr-Image ohne `docker login` + fine-grained PAT**: Der opencode-Role pullte `ghcr.io/jmt-labs/opencode-k8s` mit `--pull always`, hatte aber keine `docker login`-Task → `unauthorized`. Zusätzlich war der gespeicherte Token ein fine-grained PAT (`github_pat_…`), der bei ghcr.io für Package-Pulls unzuverlässig ist (Token-Exchange schlug fehl, 403). Für private Registry-Pulls in Ansible: explizite `community.docker.docker_login`-Task **und** klassischer PAT mit `read:packages`.
 
 ## Was funktioniert
 
@@ -81,3 +93,9 @@ _Letzte Aktualisierung: 2026-05-29_
 - **`VAULT_OPTS="--vault-password-file=.vault"`**: Non-interaktive `make`-Targets sind essentiell für Self-Testing innerhalb der Session. `.vault` wird via `*.vault` in `.gitignore` automatisch ausgeschlossen — kein Risiko für versehentliche Commits.
 
 - **Semaphore-API direkt für Verification**: Login via `/api/auth/login`, dann `/api/project/N/tasks` POST + Status-Polling. Ermöglicht End-to-End-Tests ohne Browser, schnelle Feedback-Loops für Bootstrap-Iterationen.
+
+- **Iteratives Semaphore-Testen deckt gestapelte Hürden auf**: triggern → pollen → bei `error` `/api/project/N/tasks/M/output` tailen → Root Cause fixen → erneut. Ein NAS-Run offenbarte so nacheinander drei unabhängige Blocker (fehlende vault.yml → privates ghcr-Image → grün), ohne im Voraus zu raten. Die `PLAY RECAP`-Zeile (`ok=`/`failed=`) zeigt sofort wie weit der Run kam — sprunghaft steigendes `ok=` zwischen Runs = Fortschritt.
+
+- **Externe Credentials vor dem Fix validieren**: Statt blind eine `docker_login`-Task zu bauen, erst den ghcr-Token gegen die Registry getestet (Token-Exchange `https://ghcr.io/token?scope=repository:ORG/IMG:pull` → Manifest-`HEAD` mit Bearer). 403 + leerer Bearer bewies sofort, dass der Token selbst das Problem ist — ein Login-Fix allein hätte nicht geholfen. Spart eine ganze Fix-Iteration.
+
+- **Secret-Werte beschaffen + verschlüsseln ohne Klartext-Leak**: In einem Bash-Block den Wert aus der Quelle lesen (`sudo -S cat`) und direkt in `ansible-vault encrypt_string --vault-password-file .vault --stdin-name NAME` pipen — nur der verschlüsselte `!vault`-Block landet im Tool-Output, der Klartext nie. `--stdin-name` (statt Positional-Arg) verträgt auch Sonderzeichen im Secret.
