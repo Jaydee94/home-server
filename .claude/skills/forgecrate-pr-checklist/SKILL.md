@@ -38,10 +38,9 @@ Systematische Überprüfung vor `gh pr create`. Alle offenen Punkte müssen adre
    ```
    Dateien mit "KEIN TEST" explizit auflisten.
 
-3. **Dokumentation aktuell?**
-   - `README.md` — deckt neue Features/Flags ab?
-   - `CLAUDE.md` — GENERATED-Block aktuell (falls vorhanden)?
-   - Inline-Kommentare für nicht-offensichtliches Verhalten vorhanden?
+3. **Dokumentation synchronisieren**
+
+   `/forgecrate-doc-sync` aufrufen — der Skill gleicht alle Docs mit dem aktuellen Code-Stand ab und aktualisiert veraltete Abschnitte direkt. Erst wenn der Skill durchgelaufen ist und seinen Report ausgegeben hat, gilt dieser Punkt als erledigt.
 
 4. **PR-Beschreibung vollständig?**
 

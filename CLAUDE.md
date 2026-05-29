@@ -33,7 +33,7 @@ referenziert.
 - Mindestens eine Quelle pro nicht-trivialer Planungsentscheidung
 - Quellen im Plan-Dokument (`docs/superpowers/plans/*.md`) referenzieren
 - Bei rein mechanischen Tasks (Rename, Typo, einzeiliger Fix) entfällt die Pflicht
-- Deaktivierbar via Flavor `no-research` (siehe `flavors/no-research/`)
+- Deaktivierbar via Flavor `no-research`
 
 ## Entwicklungs-Workflow
 
@@ -77,57 +77,26 @@ jedoch **keine alleinige Schutzschicht** — GitHub Branch Protection Rules müs
 zusätzlich konfiguriert werden, damit direkte Pushes auch serverseitig verhindert
 werden.
 
-## Konfliktbehandlung beim Deploy (`forgecrate update`)
-
-Ein Konflikt entsteht nur, wenn **beides** gleichzeitig zutrifft: die lokale
-Datei wurde seit dem letzten Deploy geändert, **und** die neue Upstream-Version
-unterscheidet sich von der lokalen Version. Stimmt die lokale Änderung zufällig
-mit dem Upstream überein, wird kein Konflikt ausgelöst.
-
-> **Wichtig:** Dateien ohne gespeicherten Hash (z. B. beim ersten Update nach
-> Einführung des Hash-Trackings) werden ohne Rückfrage überschrieben.
-
-Das Tool zeigt bei einem echten Konflikt:
-
-```
-KONFLIKT: .claude/settings.json
-  Deine Version: <erste Zeile der lokalen Datei, max. 80 Zeichen>
-  Neue Version:  <erste Zeile des Upstream>
-  [o]verwrite / [k]eep (default: keep):
-```
-
-**Entscheidung:**
-
-- `o` — Upstream-Version übernehmen, lokale Änderungen gehen verloren
-- `k` oder Enter — lokale Version behalten; der Hash der lokalen Version wird als
-  neue Basis gespeichert. Beim nächsten Update entsteht erneut ein Konflikt, falls
-  Upstream sich weiter ändert
-- `ü` oder `u` — wie `o` (Backwards-Kompatibilität)
-- `b` — wie `k` (Backwards-Kompatibilität)
-
-**Faustregel:**
-
-- Für `settings.json` und `CLAUDE.md`: Overrides in die CUSTOM-Sektion auslagern
-- Für Hooks (`.claude/hooks/**`): eigene, nicht-verwaltete Hook-Dateien verwenden
-
 ## Team-Rollen & Subagent-Konfiguration
 
 Der Hauptagent koordiniert als Team-Lead. Subagenten übernehmen Rollen
 entsprechend ihrer Aufgabe. Der Hauptagent kann bei Bedarf eigenständig von
 diesen Empfehlungen abweichen.
 
-<!-- Modell-IDs werden zentral in base/models.yaml verwaltet. -->
-<!-- Beim Upgrade: nur base/models.yaml ändern, dann forgecrate update ausführen. -->
+Das Hauptmodell der Session ist global (in `.claude/settings.json`). Die
+`Modell`-Spalte nennt den empfohlenen Wert für den `model`-Parameter beim
+Dispatch eines Subagenten über das Agent-Tool — gültig sind nur die Family-Aliase
+`opus`/`sonnet`/`haiku`.
 
-| Rolle | Superpowers-Skill | Modell | Effort | Recherche |
-|---|---|---|---|---|
-| Analyst / Product Owner | `superpowers:brainstorming` | `claude-opus-4-7` (models.planning) | high | Pflicht |
-| Tech Lead / Architekt | `superpowers:writing-plans` | `claude-opus-4-7` (models.planning) | high | Pflicht |
-| Entwickler | `superpowers:test-driven-development` | `claude-sonnet-4-6` (models.default) | medium | optional |
-| Implementierer (mechanisch) | `superpowers:subagent-driven-development` | `claude-haiku-4-5-20251001` (models.mechanical) | low | nein |
-| Reviewer | `superpowers:requesting-code-review` | `claude-sonnet-4-6` (models.review) | medium | Pflicht bei Architektur-Fragen |
-| QA / Abschluss | `superpowers:verification-before-completion` | `claude-sonnet-4-6` (models.review) | medium | nein |
-| Debugger | `superpowers:systematic-debugging` | `claude-sonnet-4-6` (models.default) | medium | Pflicht (CVE, Lib-Issues, Stack-Overflow) |
+| Rolle | Superpowers-Skill | Modell | Recherche |
+|---|---|---|---|
+| Analyst / Product Owner | `superpowers:brainstorming` | `opus` | Pflicht |
+| Tech Lead / Architekt | `superpowers:writing-plans` | `opus` | Pflicht |
+| Entwickler | `superpowers:test-driven-development` | `sonnet` | optional |
+| Implementierer (mechanisch) | `superpowers:subagent-driven-development` | `haiku` | nein |
+| Reviewer | `superpowers:requesting-code-review` | `sonnet` | Pflicht bei Architektur-Fragen |
+| QA / Abschluss | `superpowers:verification-before-completion` | `sonnet` | nein |
+| Debugger | `superpowers:systematic-debugging` | `sonnet` | Pflicht (CVE, Lib-Issues, Stack-Overflow) |
 
 ## Parallelisierung & Isolation
 
@@ -156,9 +125,9 @@ Läufen.
 
 ## MCP-Server
 
-Sechs MCP-Server sind im base layer deklariert und stehen automatisch zur
-Verfügung. Quelle der Wahrheit ist `base/extensions.yaml` — die Datei `.mcp.json`
-wird daraus generiert (siehe [MCP-Konfiguration](#mcp-konfiguration-single-source-of-truth)).
+Sechs MCP-Server stehen automatisch zur Verfügung. `.mcp.json` wird von forgecrate
+generiert — nicht von Hand editieren; MCP-Server-Änderungen über einen erneuten
+forgecrate-Lauf.
 
 | Server | Transport | Zweck |
 |---|---|---|
@@ -169,26 +138,19 @@ wird daraus generiert (siehe [MCP-Konfiguration](#mcp-konfiguration-single-sourc
 | `context-mode` | stdio (`npx`) | Automatisches Context-Budget und Session-History-Suche |
 | `context7` | stdio (`npx`) | Aktuelle Bibliotheks-Dokumentation aus Source-Repos |
 
-### GitHub (`github`)
+Routing-Grenzen (verhindern Falsch-Aufrufe):
 
-Für alle Operationen mit GitHub: Issues, PRs, Code-Suche, Branches, Checks,
-Labels.
+- **`github`** — alle GitHub-Operationen (Issues, PRs, Code-Suche, Labels). NICHT für
+  lokale Datei-/Git-Kommandos (→ Read/Edit/Bash). Voraussetzung:
+  `GITHUB_PERSONAL_ACCESS_TOKEN`.
+- **`fetch`** — externe Webinhalte (Docs, MDN, RFCs, Changelogs). NICHT für
+  GitHub-Inhalte (→ `github`) oder lokale Dateien (→ Read).
+- **`context-mode`** — sandboxt Tool-Output automatisch (kein Aufruf nötig). Explizit:
+  `ctx_search` (History-Suche nach Kompaktierung), `ctx_stats`, `ctx_doctor`.
+- **`context7`** — aktuelle Bibliotheks-Doku aus Source-Repos. NICHT für GitHub-Inhalte
+  (→ `github`), lokale Dateien (→ Read) oder allgemeine Programmierkonzepte.
 
-**Verwende es für:** Issues lesen/erstellen/kommentieren, PRs öffnen/reviewen/
-mergen, Code repo-übergreifend suchen, Workflow-Labels setzen.
-
-**Verwende es NICHT für:** Lokale Dateioperationen (→ Read/Edit/Bash), lokale
-Git-Kommandos (→ Bash mit git).
-
-**Voraussetzung:** `GITHUB_PERSONAL_ACCESS_TOKEN` als Umgebungsvariable.
-
-### Fetch (`fetch`)
-
-Externe Webinhalte abrufen: Dokumentation, MDN, RFCs, Changelogs, Release Notes,
-URLs aus Issues.
-
-**Verwende es NICHT für:** GitHub-Inhalte (→ github MCP), lokale Dateien
-(→ Read).
+`memory` und `memory-bank` haben eigene Pflicht-Regeln — siehe unten.
 
 ### Memory (`memory`)
 
@@ -232,50 +194,13 @@ ideal für laufenden Projekt-Kontext. `memory` (`.claude/memory.json`) ist
 graph-basiert und projektübergreifend — ideal für zeitlose
 Architektur-Entscheidungen mit Begründung.
 
-### Context-Mode (`context-mode`)
-
-Sandboxt Tool-Output automatisch — kein expliziter Aufruf nötig.
-
-**Explizit aufrufen:**
-
-- `ctx_search` — nach Context-Kompaktierung: relevante Infos aus der
-  Session-History finden (BM25-Suche)
-- `ctx_insight` — Überblick über bisherigen Session-Verlauf
-- `ctx_stats` — gespartes Context-Budget prüfen
-- `ctx_doctor` — bei Problemen mit dem Server
-
-### context7
-
-Aktuelle Bibliotheks-Dokumentation direkt aus den Source-Repositories abrufen.
-
-**Verwende es für:** Aktuelle API-Dokumentation, Versionsmigration,
-Framework-spezifisches Debugging, Changelog-Inhalte — überall wo Trainingsdaten
-veraltet sein könnten.
-
-**Verwende es NICHT für:** GitHub-Inhalte (→ github MCP), lokale Dateien
-(→ Read), allgemeine Programmierkonzepte.
-
-## MCP-Konfiguration: Single Source of Truth
-
-Die Datei `.mcp.json` wird aus `base/extensions.yaml` generiert. Änderungen an
-MCP-Servern (Kommandos, Umgebungsvariablen wie `MEMORY_FILE_PATH` oder
-`MEMORY_BANK_ROOT`) immer dort vornehmen, nicht direkt in `.mcp.json`.
-
 ## Fullstack-Profil
 
 Kombiniert Backend- und Frontend-Anforderungen.
 
 - API-Kontrakte explizit definieren bevor Implementierung auf beiden Seiten
 - Shared Types: einmal definieren, in beiden Schichten nutzen
-- End-to-End-Tests für kritische User-Flows
-
-## Playwright MCP
-
-Browser-Automatisierung direkt aus Claude heraus. Automatisch konfiguriert via `profiles/fullstack/extensions.yaml`.
-
-**Verwende es für:** E2E-Tests über Frontend und API hinweg, Screenshots, Formular-Interaktionen, visuelle Regressionstests.
-
-**Verwende es NICHT für:** reine API-Tests ohne UI-Beteiligung (→ direkte HTTP-Calls), GitHub-Operationen (→ github MCP).
+- End-to-End-Tests für kritische User-Flows (Playwright MCP siehe Frontend-Profil)
 
 ## GETBETTER-Flavor
 
@@ -300,12 +225,8 @@ Kontinuierliche Verbesserung durch Festhalten von Erkenntnissen aus jeder Sessio
 
 ## Multiagent & Subagenten
 
-Bei jeder Aufgabe im GitHub-Kontext proaktiv prüfen:
-- Task >1 min oder Ergebnis nicht sofort nötig → `run_in_background: true`
-- Feature-Branch, Multi-File-Änderung, langer Plan → `isolation: "worktree"`
-- Mehrere unabhängige Tasks gleichzeitig → beides kombinieren
-
-Warten ist kein Default — im Zweifelsfall Background nutzen.
+Parallelisierung/Isolation gemäß Base-Layer-Tabelle gelten auch hier — gerade bei
+Issue-Batches proaktiv Background-Mode und Worktrees nutzen.
 
 ## Strict-Review-Flavor
 
