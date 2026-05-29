@@ -118,6 +118,11 @@ semaphore_projects:
         environment: default-env
         vault_key: vault-password
         description: "Run the full site.yml against the home-server (recursive)."
+    schedules:
+      - name: "Daily 06:00"
+        template: "Deploy Home Server"
+        cron: "0 6 * * *"
+        active: true
 
   - name: ugreen-nas
     description: "Deploy Docker-Compose-Dienste auf dem UGREEN NAS."
@@ -140,7 +145,12 @@ semaphore_projects:
         inventory: ugreen-nas
         environment: default-env
         vault_key: vault-password
-        description: "Paperless-NGX, OpenCode, TinyTeller, Day Pilot auf dem NAS."
+        description: "Paperless-NGX, TinyTeller, Day Pilot, Node Exporter auf dem NAS."
+    schedules:
+      - name: "Daily 06:00"
+        template: "Deploy UGREEN NAS"
+        cron: "0 6 * * *"
+        active: true
 
 # ---- Scanner / Paperless Ingestion ------------------------
 # Fujitsu USB-Scanner direkt am Home-Server; scanbd hört auf den
