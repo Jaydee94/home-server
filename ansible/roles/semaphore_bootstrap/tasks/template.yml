@@ -28,6 +28,14 @@
            | list | first | default({})).id | default(none) }}
   when: template_exists
 
+- name: Assert inventory '{{ template_spec.inventory }}' exists in project {{ project_spec.name }}
+  ansible.builtin.assert:
+    that: "template_spec.inventory in project_inventory_map"
+    fail_msg: >-
+      Template '{{ template_spec.name }}' references unknown inventory
+      '{{ template_spec.inventory }}' in project '{{ project_spec.name }}'.
+      Available inventories: {{ project_inventory_map.keys() | list }}.
+
 # Body is built as a single Jinja dict so Python-native types survive
 # into the JSON encoder. With YAML scalars the folded `>-` wrapper
 # stringifies the rendered value, and Semaphore's strict *int

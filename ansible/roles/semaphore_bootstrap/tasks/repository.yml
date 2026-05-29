@@ -20,6 +20,14 @@
            | selectattr('name', 'equalto', project_spec.repository.name)
            | list | first | default({})).id | default(none) }}
 
+- name: Assert git-none key exists in project {{ project_spec.name }}
+  ansible.builtin.assert:
+    that: "'git-none' in project_key_map"
+    fail_msg: >-
+      Key 'git-none' not found in project_key_map for project
+      '{{ project_spec.name }}'. Available keys: {{ project_key_map.keys() | list }}.
+      Ensure 'git-none' is listed in semaphore_default_keys.
+
 - name: Create repository in project {{ project_spec.name }}
   ansible.builtin.uri:
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/repositories"

@@ -10,10 +10,10 @@ replicaCount: 1
 image:
   repository: semaphoreui/semaphore
   pullPolicy: IfNotPresent
-  # Bump to track upstream: https://hub.docker.com/r/semaphoreui/semaphore/tags
-  # `latest` is fine for a home setup; pin (e.g. "v2.10.34") if you want
-  # reproducibility.
-  tag: "latest"
+  # Pinned to a specific release for reproducibility — avoids surprise API
+  # breakage on ArgoCD sync. To upgrade: check https://github.com/semaphoreui/semaphore/releases
+  # and bump the tag here, then commit + push.
+  tag: "v2.18.4"
 
 nameOverride: ""
 fullnameOverride: ""

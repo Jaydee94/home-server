@@ -14,7 +14,7 @@ nie wieder eine YAML-Datei an, um eine neue Aktion auszulösen.
   ([Wichtiger Hintergrund zur DNS-Topologie und warum der Home-Server
   *nicht* der LAN-DNS-Server sein sollte → docs/09-dns-architecture.md](09-dns-architecture.md))
 - Ein-Klick-Run von Playbooks aus beliebigen Git-Repos
-  (z.B. `home-server`, `ugreen-paperless`, später beliebig viele mehr).
+  (z.B. `home-server`, `ugreen-nas`, später beliebig viele mehr).
 - Geteilter SSH-Key, der von Ansible verwaltet und automatisch auf alle
   konfigurierten Targets (Raspberry Pi, UGREEN NAS, …) verteilt wird.
 - Geteiltes Ansible-Vault-Password, sicher in einem k8s Secret abgelegt.
@@ -71,13 +71,13 @@ Der `semaphore-bootstrap` Secret im Namespace `semaphore` hält:
 | `admin_username`          | `admin` (Default)                           |
 | `admin_password`          | Auto-generiert, liegt unter `/etc/semaphore-secrets/admin_password` |
 | `access_key_encryption`   | 32-byte base64, verschlüsselt Semaphores DB-Secrets |
-| `ansible_vault_password`  | Dein Master-Vault-Password (optional)       |
+| `ansible_vault_password`  | Dein Master-Vault-Password (erforderlich)   |
 | `ssh_private_key`         | Ed25519-Key — Semaphore SSH-t damit raus    |
 | `ssh_public_key`          | Gegenstück, wird auf die Targets verteilt   |
 
 ## Erst-Setup (einmalig, ~5 Min)
 
-### 1. (Optional) Vault-Password vorbereiten
+### 1. Vault-Password vorbereiten
 
 Wenn du in irgendeinem Repo `ansible-vault encrypt_string` benutzt, muss
 Semaphore das Vault-Password kennen. Verschlüssele es **mit sich selbst**:
@@ -156,7 +156,7 @@ nichts mehr klicken außer ▶ **Run**.
 | Project              | Repository                                                | Inventory   | Template                  | Playbook                  |
 |----------------------|-----------------------------------------------------------|-------------|---------------------------|---------------------------|
 | `home-server`        | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `homeservers` (192.168.178.127) | `Deploy Home Server`      | `ansible/site.yml`        |
-| `ugreen-nas`         | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `ugreen_nas` (jays-ugreen)      | `Deploy ugreen-nas`       | `ansible/ugreen-nas.yml`  |
+| `ugreen-nas`         | dieses Repo (`argocd_repo_url` aus `group_vars/all.yml`)  | `ugreen_nas` (192.168.178.118)  | `Deploy UGREEN NAS`       | `ansible/ugreen-nas.yml`  |
 
 ### Workflow
 
@@ -181,7 +181,7 @@ erweitern und `make semaphore-bootstrap` laufen lassen:
 semaphore_projects:
   - name: home-server          # existierende Defaults beibehalten
     # ...
-  - name: ugreen-paperless
+  - name: ugreen-nas
     # ...
   - name: my-new-project       # neu
     repository:
@@ -201,12 +201,17 @@ semaphore_projects:
         inventory: my-targets
 ```
 
-**Wichtig:** das Auto-Bootstrap legt Resourcen **nur an, wenn sie noch
-nicht existieren** (skip-if-exists). Wenn du eine bestehende Inventory
-oder ein bestehendes Template ändern willst, lösche sie in der UI und
-führe `make semaphore-bootstrap` erneut aus — sie werden frisch angelegt.
+**Wichtig:** das Auto-Bootstrap ist vollständig **idempotent** — Ressourcen werden
+bei jedem Run via PUT aktualisiert (self-healing). Ein manuelles Löschen in der UI
+ist nicht nötig. Einzige Ausnahme: Umbenennen eines Projekts/Inventories/Templates
+erzeugt einen Orphan-Eintrag, der beim nächsten Run automatisch gelöscht wird.
 
 ## Manuelles Anlegen (Fallback / ad-hoc)
+
+> ⚠️ **Warnung:** Manuell in der UI angelegte Projekte werden beim nächsten
+> `make semaphore-bootstrap` **kommentarlos gelöscht** — der Bootstrap entfernt
+> alle Projekte, die nicht in `semaphore_projects` (`group_vars/all.yml`) definiert
+> sind. Für persistente Projekte immer `semaphore_projects` erweitern.
 
 Wenn du ein Einmal-Projekt willst, das nicht in Git stehen soll, kannst
 du es per UI anlegen:

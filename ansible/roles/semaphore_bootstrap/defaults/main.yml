@@ -29,12 +29,21 @@ semaphore_ssh_private_key_path: "/etc/semaphore-secrets/id_ed25519"
 semaphore_api_ready_retries: 60   # 60 * 5s = 5 min
 semaphore_api_ready_delay: 5
 
+# Vault password Semaphore uses to decrypt ansible-vault secrets in triggered
+# playbooks. Must not be empty — the role fails early with a clear message if
+# it is. Set this in group_vars/all.yml (ansible-vault encrypted).
+semaphore_vault_password: ""
+
+# SSH login used by Semaphore when connecting to managed targets.
+# Must match ansible_user on all targets.
+semaphore_ssh_login: "jaydee"
+
 # Three access keys are created in every project — name them once here.
 # `login` is only relevant for the ssh-type entry.
 semaphore_default_keys:
   - name: semaphore-ssh-key
     type: ssh
-    login: jaydee
+    login: "{{ semaphore_ssh_login }}"
   - name: git-none
     type: none
   - name: vault-password
@@ -66,22 +75,22 @@ semaphore_projects:
         vault_key: vault-password
         description: "Run the full site.yml against the home-server (recursive)."
 
-  - name: ugreen-paperless
-    description: "Deploy Paperless-ngx on the UGREEN NAS."
+  - name: ugreen-nas
+    description: "Deploy NAS services on the UGREEN NAS."
     repository:
-      name: ugreen-paperless-git
-      url: "https://github.com/Jaydee94/ugreen-paperless.git"
+      name: ugreen-nas-git
+      url: "{{ argocd_repo_url }}"
       branch: main
     inventories:
       - name: ugreen-nas
         type: static
         ssh_key: semaphore-ssh-key
         content: |
-          [ugreen-nas]
-          ugreen ansible_host=192.168.178.118
+          [ugreen_nas]
+          ugreen-nas ansible_host=192.168.178.118
     templates:
-      - name: "Deploy ugreen-paperless"
-        playbook: ugreen-paperless.yml
+      - name: "Deploy UGREEN NAS"
+        playbook: ansible/ugreen-nas.yml
         inventory: ugreen-nas
         vault_key: vault-password
-        description: "Provision Paperless-ngx stack on the UGREEN NAS."
+        description: "Provision NAS services stack on the UGREEN NAS."

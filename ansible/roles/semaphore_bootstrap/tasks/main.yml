@@ -6,6 +6,15 @@
 # resource with that name doesn't exist yet.
 # ============================================================
 
+- name: Pre-flight — semaphore_vault_password must not be empty
+  ansible.builtin.assert:
+    that: "semaphore_vault_password | length > 0"
+    fail_msg: >-
+      semaphore_vault_password is empty. This repo uses vault-encrypted secrets
+      (tailscale_auth_key, scanner_smb_password, etc.) — Semaphore cannot decrypt
+      them without a vault password. Set semaphore_vault_password in
+      group_vars/all.yml (ansible-vault encrypted).
+
 - name: Wait for the semaphore Deployment to roll out
   ansible.builtin.command:
     cmd: kubectl -n {{ semaphore_namespace }} rollout status deploy/semaphore --timeout=300s
