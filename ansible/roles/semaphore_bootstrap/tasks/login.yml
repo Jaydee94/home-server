@@ -41,3 +41,12 @@
   ansible.builtin.set_fact:
     semaphore_cookie: "{{ semaphore_login.cookies_string }}"
   no_log: true
+
+# YAML double-quoted "\n" decodes to a real newline char. Folded-scalar bodies
+# (>-) downstream see this fact as one newline char instead of the literal
+# 2-char string `\n` they'd get from `'\n'` written inline. Without this,
+# Semaphore stored PEM keys ending in a literal `\n` and rejected them with
+# "ssh: no key found".
+- name: Set newline-char fact for PEM body construction
+  ansible.builtin.set_fact:
+    semaphore_pem_newline: "\n"

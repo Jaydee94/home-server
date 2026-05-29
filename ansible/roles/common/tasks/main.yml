@@ -343,6 +343,7 @@
   when:
     - common_reboot_required.stat.exists
     - auto_reboot_if_required | bool
+    - lookup('env', 'SEMAPHORE_TASK_ID') | length == 0
 
 - name: Reboot required but auto_reboot_if_required is false — warn the operator
   ansible.builtin.debug:
@@ -353,3 +354,18 @@
   when:
     - common_reboot_required.stat.exists
     - not (auto_reboot_if_required | bool)
+    - lookup('env', 'SEMAPHORE_TASK_ID') | length == 0
+
+# Semaphore runs as a Pod on this very host — rebooting kills the Pod that's
+# executing the playbook, so the task hangs forever. Skip the reboot and tell
+# the operator to do it manually after the run finishes.
+- name: Reboot required but Semaphore is running this task — warn instead of self-killing
+  ansible.builtin.debug:
+    msg: >
+      A reboot is required (/var/run/reboot-required exists) but this playbook
+      is running inside Semaphore (SEMAPHORE_TASK_ID is set). Auto-reboot is
+      skipped to avoid killing the executor Pod. Reboot manually after the run
+      finishes: `ssh jaydee@homeserver "sudo reboot"`.
+  when:
+    - common_reboot_required.stat.exists
+    - lookup('env', 'SEMAPHORE_TASK_ID') | length > 0

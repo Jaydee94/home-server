@@ -34,6 +34,9 @@
   when:
     - key_spec.type == "ssh"
 
+# `semaphore_pem_newline` (set in login.yml) is a real LF char. Writing `'\n'`
+# inline in a folded scalar would produce a literal 2-char `\n` string — Semaphore
+# would then reject the stored PEM with "ssh: no key found".
 - name: Create SSH access key in project {{ project_spec.name }}
   ansible.builtin.uri:
     url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/keys"
@@ -42,7 +45,7 @@
     body: >-
       {{ {'name': key_spec.name, 'type': 'ssh', 'project_id': project_id | int,
           'ssh': {'login': key_spec.login, 'passphrase': '',
-                  'private_key': (sem_ssh_priv_slurp.content | b64decode | trim) + '\n'}
+                  'private_key': (sem_ssh_priv_slurp.content | b64decode | trim) + semaphore_pem_newline}
          } | to_json }}
     headers:
       Cookie: "{{ semaphore_cookie }}"
@@ -87,7 +90,7 @@
           'type': 'ssh', 'project_id': project_id | int,
           'override_secret': true,
           'ssh': {'login': key_spec.login, 'passphrase': '',
-                  'private_key': (sem_ssh_priv_slurp.content | b64decode | trim) + '\n'}
+                  'private_key': (sem_ssh_priv_slurp.content | b64decode | trim) + semaphore_pem_newline}
          } | to_json }}
     headers:
       Cookie: "{{ semaphore_cookie }}"
