@@ -435,6 +435,25 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Semaphore bootstrap — SSH-Key selbstheilend**: `key.yml` macht jetzt einen PUT-Update für SSH-Keys bei jedem Run (`override_secret: true`). Wenn der Key in Semaphore leer/korrupt ist (z.B. nach einem fehlgeschlagenen ersten Bootstrap), reicht `make semaphore-bootstrap` — kein manuelles Löschen in der UI nötig.
 - **Semaphore bootstrap — Orphan-Projekte automatisch gelöscht**: `main.yml` löscht nach dem Provisionieren alle Projekte die nicht in `semaphore_projects` stehen. Wenn ein Projekt umbenannt wird (z.B. `ugreen-paperless` → `ugreen-nas`), verschwindet der alte Eintrag beim nächsten `make semaphore-bootstrap` automatisch.
 
+## Automatic dependency updates
+
+Helm chart versions in `argocd/apps/*/Chart.yaml` are kept current by
+[Renovate](https://docs.renovatebot.com/) (config: `renovate.json` at the repo
+root). Renovate is run by the **hosted Mend Renovate GitHub App** — install it
+once from the GitHub Marketplace on `jaydee94/home-server`; no self-hosted
+workflow or PAT is required.
+
+- **kubeseal-webgui**: the OCI Helm chart dependency
+  (`oci://ghcr.io/jaydee94/kubeseal-webgui/charts`) auto-updates. `patch` and
+  `minor` bumps are **auto-merged** once the `lint` workflow passes; `major`
+  bumps open a PR for manual review. The version in `Chart.yaml` stays pinned and
+  reproducible — Renovate raises a PR to bump it, then ArgoCD syncs the new
+  version automatically after merge.
+- All other charts: Renovate opens PRs but does **not** auto-merge (no matching
+  `packageRule`). Extend `renovate.json` to opt more charts into auto-merge.
+- **Auto-merge prerequisite**: GitHub Branch Protection on `main` must mark the
+  `lint` status check as *required*, so auto-merge only fires on green CI.
+
 ## Claude Skills
 
 Project-scoped skills (live under `.claude/skills/`):
