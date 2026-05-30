@@ -1,0 +1,18 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "packageRules": [
+    {
+      "description": "Auto-merge patch and minor updates of the kubeseal-webgui OCI Helm chart; major updates open a PR for manual review.",
+      "matchManagers": ["helmv3"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["/kubeseal-webgui/"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true
+    }
+  ],
+  "platformAutomerge": true
+}
