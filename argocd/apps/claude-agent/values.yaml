@@ -61,13 +61,18 @@ controller:
 secrets:
   name: claude-agent-secrets
   # Option A: Anthropic API key (pay-per-use, ~$3-10/month for homelab use)
-  # Leave as PLACEHOLDER_SEAL_ME if using claudeCredentials instead.
+  # Leave as PLACEHOLDER_SEAL_ME if using claudeCodeOauthToken instead.
   anthropicApiKey: "PLACEHOLDER_SEAL_ME"
-  # Option B: Claude.ai OAuth credentials (requires Pro/Max subscription, no extra cost)
-  # Extract with: cat ~/.claude/.credentials.json
-  # Then seal the full JSON string and paste below.
-  # Leave as PLACEHOLDER_SEAL_ME if using anthropicApiKey instead.
-  claudeCredentials: "AgA4zxvgoFbT87dRx4V2kC9WK9ALcMqUmlQ/lnZrPkoA1JIelqWchOfFBdQZl2tayXBaPe3qZsPhaR9ieclsqbA2WD8qsP4DRLBHZjEiok9PQTL1mci5/WADgpN2yeiySgKsWC/aFDDYb2G3n17NoGR2enP+SpTp2y95gHI+8WCAJHA9LasN2S0F1vQ+oMP0H3xe/LJK98S4htm+FHNsPpmsAtOxk1ClhY+7guF65DZjpErzekkuKme0+S7xFKCoVyWTkHQ9Lwau5dB0Jt7NqDERDeiOOSr3YFztWi8ccZSXYefvs38avmrdPDymWcc4DqdYdnqbKacULhxw3qF/9HPdjmPKNtilB6uFmz6lvtj+RmF7Ef3txBYuMT5ccdwf/RS3W0qogcmMlYLgqRj/spPdJQQ2ogD1ZpG1kAmsJYdsNe4u5i0Iv9+mrfwzN9HYGjGpL7dKCrgavVNlGaSBHHcPzM1pv9zjqFzgfp/jSVQjRZqeRKx75zu4p99mJ+phBP6bGY6F61rTsOoGfpBgyg+hbf9yB0GC9gqYjep1Zy3yGF6JTJ/tuyCUNvDCqm6AGYXPvus+ag9ogYQDHgEDPj7nwVwmQdsDYgUlXyg23NiEe0XosZUl4mq1XxSdC31s6SJ+ofQhd1tFUcOU303B+Lksz3BbsP/rTsOfEgH537BB/iEicAJbcA/Wh5nInJYHW8r5bAS+v4IbJLkq336jplgYn9ikn3YjNokuvXHdgimNitgb6j6hLpFmSCAqxiMT7FtfNtoGVrTwHRYX2VYnVspyMU90YBREM7YTkE6UQuoWLlteLazTfLMlLE7kAir0Dwk5qAJhE//ATBapfQHWNWdch3zGIu6E+HVUvi09ZCpJ+whc3/QbMksBRpfSetElQjNUHM0GPYUKcHS4i40dOnYsi5QSqEZQBIH/ZZ7SzalBXoUVwuFBpzPCPmH/r8/7iggvli0ZzNDenh4qeLR4xAWZxOvPmyLh5JYYD9Hl0Bhbc3IRqVy5bNwhd2PvHDaoNJVjrVi39kBbb7o1JPVV+cM+1XringEfSoFW8Xl5qFMrn8SYgNP7qx/kTBYxIr9KC+rkAMmHRgosQ2ucgeMuSl5gh/QU2FNgHPD4YJuoZGAu9wMK3ieApa8HEjSRPLfWuFT9HDX/yRsKliicNp1ut4C2cjXwSk+h37QsxXfSXSJ8HgvlFVJjdAkTk5WC4xIsnnwSJTBpyg6CJif/69ghwLnK3DpOtGVP3fjLvXC5LmTjOmoSDH1rpTHlxCYtob9UktCGr3+/qLjFU5kJ7Xeg300LLqZ2Ik2OwKIgLxf0kbyeUmzy"
+  # Option B: Long-lived OAuth token (empfohlen, läuft ~1 Jahr, kein Handshake gegen claude.ai)
+  # Generieren mit: claude setup-token
+  # Versiegeln:
+  #   echo -n "<token>" \
+  #     | kubeseal --raw --namespace claude-agent --name claude-agent-secrets \
+  #         --from-file=/dev/stdin
+  claudeCodeOauthToken: "AgAw6XSqhgjyqXs3EhTm4m0eKlmVhQnCjmBomxnlpnDjW2NMNODMOHrzuZ/lEsq/e20wFKoFashgzN8DUEGdHPle6cACGrc1je3OVJD34ebdNXGpBF7eHimhbd7uVv8OuPhxGdNZ7C2N6Xxtlp+XvKOn6VeZptqDNYOnkNXK2uY1FnNJv8GI/FEW9yA2poofIBeCB+EhXnsoJNbW1LRe2zAedWYmaVlZXVHzCdnk/6ek88a+ww9/QEziYeW7FtE9yXbuoAq8JVsrFDuegjNDQLSDrJ+rCX/abWst3ptD7xoDZgP+afQjyEdJxRLcZyo27gRN0YJAyZJVvu9ovX1RHN2JF22oP1NzR7bx9jZS+zEQh1lzhFWIUkCqBD0hvzcjFGxY/DpZFFu8xdDvNB222/R0BicT2RlDghw972rvwMIvuVv0earfmVBhjiP4mSeTiRCBds37MOOkw0su/acfWCc0TUOBfT/gtx3H8YVijrShtyAMmQtXwvW6+hI/nvtVTo/l+5LIv3sF9dw+A4IXNjJ0RbHyn8cEkP3Nl2yv/weLmJQWpWY3bMMs1+kPZVccU+nUBXhtJCjk9r9U+BuxLl2zcLPkoRWT9FFmnHr3OvKq0O+ac11+Vol+sdOdhyjSNqSSmQcpHiCFceSXrv0iSte9c/jy11LzxP9r3k6n+g8OLRpISYQEXvJgS0USb8BSlumxghkTsS2UemV0GtIuAe+OpBs9sjhepi+nwNiwFLXBTc0G8OJg3uoF1xe9deJx4BBwdp4+pZgXnMz+LUHaU9pCH6kHfFobwwokzuwLuarVsGE8xdU0x0lbrC+vROSoMNR1uMs5owweY3TjNnu6"
+  # Option C: OAuth credentials.json (veraltet — schlägt in Clustern fehl, Cloudflare 403)
+  # Nur noch als Fallback; bevorzuge claudeCodeOauthToken.
+  claudeCredentials: "PLACEHOLDER_SEAL_ME"
   # GITHUB_TOKEN — fine-grained PAT with Issues + Contents + Pull Requests write
   githubToken: "AgBR4k1R/VELnj6lvOQ8Ebv5gEm18Fo87s2hOTDMJu06ch7URChOQz8sZ6TJ/LMSZ3p5gtO/iKtk8mDtHVcYyNI8rks/UnWeQe3osyFM0xC1vkrSV/3B0M1ujdjJJ3vO7/w5xUEtgq+bCgKYiqHdRIy/RdqwhJhxcXMWu5gMMn+RM45REIBVlFP+NwacSX/2p89udQSC3tzHSrnk8e1Aj07HflFLiuxKFDLSvkVcZfTzRXZhXe80q3gT6kyXWjujCZFx5tNTMaWlvp7H6SUhBBIddEp5NDeKzzDswzPuhp3Ptm8//7CW8pJqKE2VgznoSbXViCMOq+rCGuOLLF4RCrHgmEKhBaPyaLgAFghxt90z7qiB6RDbt8h8BLbrVk5FaJ1v6khPI1EiER0DLS5ISAGZ83DDTmyC3omF/Ake2JQ377xRGOrH8qycHfjT1X3xPMNbq8oIhxuWO0dpU1AOIoNAu/RnQz7z1gsEMdHYqT7jyZAQxtAamxkLwy0eMEA1u8EOvwSan+Ckbg9Frti2WO7HhINHbM9yN7QUywCgVs3mL7NUS59RlPhPTYCpJdIwdVLzU1wkfeApwZl9/NsE+hxakvNZXKiXADPAxqfsE052tKk9oo3GnLOZ9RdVKY9Nv+kPR5rXB3xK37sJXfoiue0ZGBBypLTqx3EBLXSiR8msSS6iXQBvX55Y3eQImJUlxg2oxYMC0+HE0v+IykwL59VTfL8FwOyJzCiUdtqYqXNnXBKtqZPr9Iqh/LytaS/CccyXTuCQO5WYg0AYs5ZcRukgd0raXIyJlK1rt4eOuwNxc4w7sNvo7xEmkpsku7Q="
 
