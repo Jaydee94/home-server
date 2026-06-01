@@ -6,7 +6,7 @@ image:
   pullPolicy: IfNotPresent
   # Pinned for reproducibility. Bump to track upstream releases:
   # https://hub.docker.com/r/gotify/server/tags
-  tag: "2.6.3"
+  tag: "2.9.1"
 
 nameOverride: ""
 fullnameOverride: ""
