@@ -28,13 +28,17 @@ _Letzte Aktualisierung: 2026-06-04_
 
 - **`CronWorkflow.spec.schedules` (Array) in Argo Workflows v4.x**: `spec.schedule` (String) wurde in v4.x aus dem CRD-Schema entfernt. Ersatz: `spec.schedules: ["0 3 * * *"]`.
 
-- **jameswynn/homepage Helm Chart als Wrapper (Ansatz A)**: Upstream-Dependency statt plain Manifests oder Custom Chart — folgt dem headlamp-Muster, Renovate hält Version aktuell. Konfiguration unter `homepage.config.*` (settings, services, widgets, bookmarks) — nicht direkt unter `homepage:`.
+- **jameswynn/homepage Helm Chart als Wrapper (Ansatz A)**: Upstream-Dependency statt plain Manifests oder Custom Chart — folgt dem headlamp-Muster, Renovate hält Version aktuell. Konfiguration unter `homepage.config.*` (settings, services, widgets, bookmarks) — nicht direkt unter `homepage:`. `homepage.config.kubernetes.mode: cluster` geht in `config:`, nicht in `kubernetes:` auf Top-Level.
 
 - **dnsmasq-Wildcard deckt neue Services automatisch ab**: `address=/homeserver/<ip>` in `dnsmasq.conf.j2` macht jeden `*.homeserver`-Namen direkt erreichbar ohne `dnsmasq_hosts`-Eintrag. Kein Update nötig für neue ArgoCD-Apps.
 
 - **`kubectl patch configmap` als ArgoCD-Konfigurationsweg ohne Ansible**: Wenn Ansible lokal nicht installiert ist, direkt `kubectl -n argocd patch configmap argocd-cm` nutzen — idempotent, sofort wirksam, idempotenter Helm-Upgrade überschreibt beim nächsten `make argocd`.
 
 - **Sealed Secrets Public Key via SSH fetchen für lokales kubeseal**: `kubectl -n sealed-secrets get secret -l sealedsecrets.bitnami.com/sealed-secrets-key=active -o jsonpath="{.items[0].data.tls\.crt}" | base64 -d > /tmp/sealed-secrets.crt` → `kubeseal --cert /tmp/sealed-secrets.crt` lokal nutzen ohne direkten Cluster-Zugriff via kubeconfig.
+
+- **Grafana-Passwort via `existingSecret` stabilisieren**: Wenn `adminPassword` und `existingSecret` leer sind, generiert Helm bei jedem ArgoCD-Sync ein neues Zufalls-Passwort (`randAlphaNum`). Fix: `grafana-admin` SealedSecret im Monitoring-Namespace anlegen, `admin.existingSecret: grafana-admin` in values.yaml setzen. Danach `grafana-cli reset-admin-password` einmalig ausführen um DB und Secret zu synchronisieren.
+
+- **selfh.st/icons GitHub API Tree für exakte Icon-Namen**: `curl -s "https://api.github.com/repos/selfhst/icons/git/trees/main?recursive=1"` listet alle SVG-Dateinamen auf. `argocd.svg` existiert nicht — korrekt ist `argo-cd.svg`. Kein Raten, keine 404-Überraschungen.
 
 ## Anti-Patterns
 
@@ -70,6 +74,16 @@ _Letzte Aktualisierung: 2026-06-04_
 
 - **Subagenten haben keinen SSH-/Netzwerk-Zugriff**: Subagenten können keine kubectl-, SSH- oder kubeseal-Befehle gegen den Home-Server ausführen. Server-Verifikation (Pod-Status, Secret-Check, ArgoCD-Sync) muss immer der Hauptagent übernehmen.
 
+- **Kubeseal ohne `tr -d '\n'` → Trailing-Newline im Sealed-Wert**: Wenn `cut -d= -f2` oder SSH-Output direkt zu `kubeseal --raw --from-file=/dev/stdin` gepiped wird, enthält der Input ein abschließendes `\n`. Das Sealed-Wert entschlüsselt dann zu `<password>\n` statt `<password>` → Authentifizierung schlägt fehl. Immer `| tr -d '\n'` vor kubeseal einfügen.
+
+- **Helm `randAlphaNum` + ArgoCD-Sync = instabiles Passwort**: Helm-Charts die `randAlphaNum` für Passwörter nutzen regenerieren bei jedem `helm upgrade` ein neues Zufalls-Passwort, wenn kein `existingSecret` referenziert wird. ArgoCD ruft `helm upgrade` bei jedem Sync auf. Betroffene Charts: Grafana (kube-prometheus-stack). Fix: immer `existingSecret` mit SealedSecret nutzen.
+
+- **`GF_SECURITY_ADMIN_PASSWORD` aktualisiert bestehende Grafana-DB nicht**: Wenn der Admin-User bereits in `grafana.db` existiert, übernimmt ein Neustart mit geändertem `GF_SECURITY_ADMIN_PASSWORD` das neue Passwort NICHT in die DB. Explizit: `/usr/share/grafana/bin/grafana cli --homepath /usr/share/grafana admin reset-admin-password <pw>` ausführen um DB und Env-Var zu synchronisieren.
+
+- **Grafana Brute-Force-Lock durch wiederholte falsche Passwörter**: Nach zu vielen fehlgeschlagenen Auth-Versuchen blockiert Grafana die IP des Requesters temporär (In-Memory-Block). Ein Pod-Restart oder `grafana-cli reset-admin-password` löscht den Counter. Symptom im Log: `"too many consecutive incorrect login attempts for user - login for user temporarily blocked"`.
+
+- **Manuelles Editieren langer base64-Sealed-Werte → Typo-Risiko**: Beim manuellen Ersetzen von Sealed-Werten via Edit-Tool können einzelne Zeichen verloren gehen oder korrumpiert werden. SealedSecret-Status prüfen: `kubectl get sealedsecret -n <ns> -o jsonpath="{.status.conditions[0].message}"`. Besser: Write-Tool statt Edit für die gesamte Datei verwenden wenn mehrere Werte geändert werden.
+
 ## Was funktioniert
 
 - **`SANE_DEBUG_SANEI_USB=1 scanimage -L` während scanbd läuft**: Zeigt sofort `LIBUSB_ERROR_BUSY`.
@@ -94,7 +108,7 @@ _Letzte Aktualisierung: 2026-06-04_
 
 - **CRD-Schema-Introspection für SSA-Fehler**: `kubectl get crd <name> -o jsonpath="{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}"` zeigt deklarierte Felder sofort.
 
-- **SealedSecret-Status über `.status.conditions[].message`**: `kubectl get sealedsecret -o json` zeigt "illegal base64 data at input byte 7" für Placeholder-Werte. Direkte Diagnose ohne Pod-Logs.
+- **SealedSecret-Status über `.status.conditions[].message`**: `kubectl get sealedsecret -o json` zeigt "illegal base64 data at input byte N" für fehlerhafte Werte. Direkte Diagnose ohne Pod-Logs.
 
 - **`kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard`**: Sofortiger ArgoCD-Sync ohne 3 Minuten warten — besonders nützlich direkt nach einem Push.
 
@@ -105,3 +119,13 @@ _Letzte Aktualisierung: 2026-06-04_
 - **Brainstorming → Research → Spec → Plan → Subagent-driven-development für GitOps-Deployments**: Der vollständige Workflow verhindert Annahmen-Fehler (dnsmasq-Wildcard, Chart-Struktur) die ohne Research falsch implementiert worden wären.
 
 - **`helm show values <chart>` vor values.yaml schreiben**: Zeigt die tatsächliche Chart-Struktur. Bei jameswynn/homepage: settings/services/widgets liegen unter `homepage.config.*`, nicht direkt unter `homepage:` — ohne diesen Check wäre die Konfiguration lautlos ignoriert worden.
+
+- **selfh.st/icons GitHub API Tree für exakte Icon-Namen**: `curl -s "https://api.github.com/repos/selfhst/icons/git/trees/main?recursive=1"` listet alle SVG-Dateinamen. Kein Raten ob `argocd.svg` oder `argo-cd.svg` — einfach suchen.
+
+- **Dashboard Icons CDN als Icon-Fallback**: `https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/<name>.svg` — deckt Apps ab die nicht auf selfh.st sind (opencode, actual-budget, firefly-iii).
+
+- **Direktes CDN-URL als Icon-Fallback wenn Shorthand scheitert**: Wenn `semaphore-ui.svg` als Shorthand nicht aufgelöst wird, direkte URL `https://cdn.jsdelivr.net/gh/selfhst/icons/svg/semaphore-ui.svg` einsetzen — wird zuverlässig vom Browser geladen.
+
+- **`/usr/share/grafana/bin/grafana cli admin reset-admin-password`**: Aktualisiert das DB-Passwort UND setzt den Brute-Force-Counter zurück — essenziell wenn sich Grafana-Credentials ändern und viele fehlgeschlagene Versuche stattgefunden haben.
+
+- **`kubectl -n monitoring exec deploy/monitoring-grafana -- env | grep GF_SECURITY_ADMIN_PASSWORD`**: Zeigt das tatsächlich verwendete Admin-Passwort — zuverlässiger als das Kubernetes-Secret zu lesen, da das Secret (monitoring-grafana) und der Pod-Env-Var bei Helm-generierten Passwörtern auseinanderlaufen können.
