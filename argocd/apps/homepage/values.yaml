@@ -122,7 +122,7 @@ homepage:
           - Semaphore:
               href: http://semaphore.homeserver
               description: Ansible UI
-              icon: semaphore-ui.svg
+              icon: https://cdn.jsdelivr.net/gh/selfhst/icons/svg/semaphore-ui.svg
       - NAS:
           - Paperless-NGX:
               href: http://jays-ugreen:8000
