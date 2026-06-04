@@ -7,10 +7,6 @@ homepage:
   serviceAccount:
     create: true
 
-  # Kubernetes-Widget: ServiceAccount-Token aus dem Cluster nutzen
-  kubernetes:
-    mode: cluster
-
   ingress:
     main:
       enabled: true
@@ -41,6 +37,9 @@ homepage:
       memory: 256Mi
 
   config:
+    kubernetes:
+      mode: cluster
+
     settings:
       title: Home Server
       theme: dark
@@ -95,7 +94,7 @@ homepage:
           - kubeseal-webgui:
               href: http://kubeseal-webgui.homeserver
               description: Sealed Secrets UI
-              icon: kubeseal.svg
+              icon: https://raw.githubusercontent.com/bitnami-labs/sealed-secrets/main/site/themes/template/static/img/sealedsecrets-logo.svg
       - Monitoring:
           - Grafana:
               href: http://grafana.homeserver
@@ -110,7 +109,7 @@ homepage:
           - ArgoCD:
               href: http://192.168.178.127:30080
               description: GitOps Controller
-              icon: argocd.svg
+              icon: argo-cd.svg
               widget:
                 type: argocd
                 url: http://argocd-server.argocd.svc.cluster.local
@@ -119,11 +118,11 @@ homepage:
           - Argo Workflows:
               href: http://argo-workflows.homeserver
               description: Private CI
-              icon: argocd.svg
+              icon: https://raw.githubusercontent.com/argoproj/argo-workflows/main/docs/assets/logo.png
           - Semaphore:
               href: http://semaphore.homeserver
               description: Ansible UI
-              icon: semaphore.svg
+              icon: semaphore-ui.svg
       - NAS:
           - Paperless-NGX:
               href: http://jays-ugreen:8000
@@ -132,11 +131,11 @@ homepage:
           - OpenCode:
               href: http://jays-ugreen:4096
               description: KI-Coding-Assistent
-              icon: opencode.svg
+              icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/opencode.svg
           - TinyTeller:
               href: http://jays-ugreen:3002
               description: Finanzen
-              icon: actual.svg
+              icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/actual-budget.svg
           - Day Pilot:
               href: http://jays-ugreen:3003
               description: Tagesplanung
