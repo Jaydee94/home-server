@@ -9,6 +9,11 @@ server:
     nodePortHttps: 30443
 
 configs:
+  cm:
+    accounts.readonly: apiKey
+  rbac:
+    policy.csv: |
+      g, readonly, role:readonly
   params:
     server.insecure: "{{ argocd_server_insecure | lower }}"
 

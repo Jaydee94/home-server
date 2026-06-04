@@ -54,6 +54,7 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
 │  │  │  │    semaphore (Ansible UI),                   │   │   │   │
 │  │  │  │    headlamp (k8s-Dashboard), gotify (Push),  │   │   │   │
+│  │  │  │    homepage (Startpage-Dashboard),           │   │   │   │
 │  │  │  │    example-whoami                            │   │   │   │
 │  │  │  └─────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
@@ -82,6 +83,7 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │       ├── headlamp/                                                │
 │       ├── semaphore/                                               │
 │       ├── gotify/                                                  │
+│       ├── homepage/                                               │
 │       └── my-new-app/       ← Verzeichnis anlegen → auto-deployed  │
 └─────────────────────────────────────────────────────────────────────┘
 ```

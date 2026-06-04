@@ -2,6 +2,12 @@
 # Erinnerung an Pflicht-Skills — wird bei jeder User-Nachricht ausgegeben.
 # Schlank halten: nur wenige Zeilen, vollständig cached nach erster Ausführung.
 
+HOOKS_DIR="$(dirname "$0")"
+
+if [ -f "$HOOKS_DIR/session-start.sh" ]; then
+  bash "$HOOKS_DIR/session-start.sh" >/dev/null 2>&1
+fi
+
 if command -v forgecrate >/dev/null 2>&1; then
   forgecrate hook prompt-submit
 else
