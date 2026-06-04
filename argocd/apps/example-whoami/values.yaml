@@ -6,7 +6,7 @@ image:
   pullPolicy: IfNotPresent
   # Pinned for reproducibility. Bump to track upstream releases:
   # https://hub.docker.com/r/traefik/whoami/tags
-  tag: "v1.10.3"
+  tag: "v1.11.0"
 
 nameOverride: ""
 fullnameOverride: ""
