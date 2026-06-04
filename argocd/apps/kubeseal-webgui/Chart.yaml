@@ -17,4 +17,4 @@ maintainers:
 dependencies:
   - name: kubeseal-webgui
     repository: oci://ghcr.io/jaydee94/kubeseal-webgui/charts
-    version: "6.0.11"
+    version: "6.0.13"
