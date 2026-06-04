@@ -102,6 +102,7 @@ homepage:
               icon: grafana.svg
               widget:
                 type: grafana
+                version: 2
                 url: http://monitoring-grafana.monitoring.svc.cluster.local
                 username: admin
                 password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
