@@ -94,7 +94,7 @@ homepage:
           - kubeseal-webgui:
               href: http://kubeseal-webgui.homeserver
               description: Sealed Secrets UI
-              icon: https://raw.githubusercontent.com/bitnami-labs/sealed-secrets/main/site/themes/template/static/img/sealedsecrets-logo.svg
+              icon: kubernetes.svg
       - Monitoring:
           - Grafana:
               href: http://grafana.homeserver
