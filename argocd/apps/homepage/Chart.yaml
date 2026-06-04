@@ -4,6 +4,7 @@ name: homepage
 description: gethomepage/homepage — self-hosted startpage for the home server.
 type: application
 version: 0.1.0
+appVersion: "2.1.0"
 keywords:
   - homepage
   - dashboard
