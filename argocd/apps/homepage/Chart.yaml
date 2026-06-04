@@ -1,0 +1,19 @@
+---
+apiVersion: v2
+name: homepage
+description: gethomepage/homepage — self-hosted startpage for the home server.
+type: application
+version: 0.1.0
+keywords:
+  - homepage
+  - dashboard
+  - startpage
+home: https://gethomepage.dev
+sources:
+  - https://github.com/gethomepage/homepage
+maintainers:
+  - name: home-server-admin
+dependencies:
+  - name: homepage
+    repository: https://jameswynn.github.io/helm-charts
+    version: "2.1.0"
