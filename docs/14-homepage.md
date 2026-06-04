@@ -19,6 +19,24 @@ Alle Einstellungen leben in `argocd/apps/homepage/values.yaml` (GitOps):
 
 Änderungen committen + auf `main` mergen → ArgoCD synct automatisch.
 
+## Design
+
+Google-/Material-inspiriertes Dark-Theme mit Teal-Akzent:
+
+- `theme: dark` (fest), `color: teal`, `headerStyle: clean`, `iconStyle: theme`
+- **Einheitliches Raster:** alle Gruppen `style: row, columns: 4`
+- **Gleich hohe Karten:** `useEqualHeights: true` — verhindert unterschiedlich
+  große Kacheln (Karten mit Widget wären sonst höher als Karten ohne)
+- Zentrierte Inhaltsspalte (kein `fullWidth`), Google-Suche + Quick Launch
+
+### Custom-CSS
+
+Der Google-/Material-Feinschliff (Roboto-Schrift, dezenter Hintergrund-Verlauf,
+weiche Material-Schatten + Hover-Lift, betonte Suchleiste) liegt in der ConfigMap
+`homepage-custom-css` (`argocd/apps/homepage/templates/configmap-custom-css.yaml`)
+und wird über `homepage.persistence.customcss` nach `/app/config/custom.css`
+gemountet — homepage lädt die Datei automatisch.
+
 ## Widget-Credentials rotieren
 
 Grafana-Passwort und ArgoCD-API-Token sind als SealedSecret `homepage-credentials`
@@ -66,6 +84,13 @@ Nach Änderungen: `make argocd` ausführen.
 - **ArgoCD intern:** Widget-URL ist `http://argocd-server.argocd.svc.cluster.local`.
 - **Icons:** selfh.st/icons — Icon-Dateinamen ohne Pfad angeben (z.B. `grafana.svg`).
   Bei 404: auf der Site suchen und Dateinamen korrigieren.
+- **Custom-CSS greift nicht / veraltet:** ConfigMap-Änderungen lösen je nach
+  Chart-Version keinen Pod-Neustart aus. Dann
+  `sudo kubectl -n homepage rollout restart deploy` ausführen. Homepage muss die
+  statische Seite neu generieren (Refresh-Icon unten rechts erzwingt das auch).
+- **`.service-card` / `#information-widgets`:** stabile homepage-Selektoren für
+  Custom-CSS (Karten bzw. Header). Hintergrundfarbe liegt auf `body` — der
+  Inhalts-Wrapper ist transparent, daher greift ein Verlauf auf `body`.
 - **dnsmasq:** Kein manueller DNS-Eintrag nötig — Wildcard `address=/homeserver/<ip>`
   deckt `home.homeserver` automatisch ab.
 - **Feature-Branch:** ArgoCD synct nur `main`. Homepage erscheint erst nach dem Merge des PRs.

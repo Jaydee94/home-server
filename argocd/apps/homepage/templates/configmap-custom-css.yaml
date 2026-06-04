@@ -1,0 +1,77 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: homepage-custom-css
+  namespace: homepage
+data:
+  custom.css: |
+    /* ===== Home Server — Google/Material Dark + Teal ===== */
+
+    @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap");
+
+    /* Roboto global setzen */
+    html,
+    body,
+    button,
+    input,
+    select,
+    textarea {
+      font-family: "Roboto", ui-sans-serif, system-ui, -apple-system,
+        "Segoe UI", sans-serif !important;
+    }
+
+    /* Dezenter dunkler Verlauf mit Teal-Schimmer (Content-Wrapper ist
+       transparent, der Hintergrund liegt auf body) */
+    body {
+      background-color: #0b1120 !important;
+      background-image:
+        radial-gradient(circle at 12% -5%, rgba(20, 184, 166, 0.10), transparent 42%),
+        radial-gradient(circle at 105% 110%, rgba(13, 148, 136, 0.08), transparent 46%),
+        linear-gradient(160deg, #0b1120 0%, #0f172a 55%, #0b1322 100%) !important;
+      background-attachment: fixed !important;
+    }
+
+    /* Service-Karten: Material-Look, weiche Elevation, dezenter Hover-Lift */
+    .service-card {
+      border-radius: 1rem !important;
+      border: 1px solid rgba(148, 163, 184, 0.10) !important;
+      box-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.30),
+        0 4px 12px rgba(0, 0, 0, 0.16) !important;
+      transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease,
+        background-color 0.18s ease !important;
+    }
+
+    .service-card:hover {
+      transform: translateY(-3px) !important;
+      border-color: rgba(45, 212, 191, 0.45) !important;
+      box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.35),
+        0 0 0 1px rgba(45, 212, 191, 0.18) !important;
+    }
+
+    /* Header etwas luftiger */
+    #information-widgets {
+      margin-bottom: 0.5rem;
+    }
+
+    /* Suchleiste betonen — Pill-Form, Teal-Fokus (Google-Gefühl) */
+    #quicklaunch input,
+    input[type="search"],
+    input[type="text"] {
+      border-radius: 9999px !important;
+      transition:
+        border-color 0.18s ease,
+        box-shadow 0.18s ease !important;
+    }
+
+    #quicklaunch input:focus,
+    input[type="search"]:focus {
+      border-color: rgba(45, 212, 191, 0.55) !important;
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.20) !important;
+      outline: none !important;
+    }

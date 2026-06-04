@@ -36,6 +36,16 @@ homepage:
       cpu: 200m
       memory: 256Mi
 
+  # Custom-CSS (Google-/Material-Polish) aus eigener ConfigMap nach
+  # /app/config/custom.css mounten — homepage lädt die Datei automatisch.
+  persistence:
+    customcss:
+      enabled: true
+      type: configMap
+      name: homepage-custom-css
+      mountPath: /app/config/custom.css
+      subPath: custom.css
+
   config:
     kubernetes:
       mode: cluster
@@ -43,24 +53,32 @@ homepage:
     settings:
       title: Home Server
       theme: dark
-      color: slate
-      headerStyle: boxed
+      color: teal
+      headerStyle: clean
+      iconStyle: theme
+      useEqualHeights: true
+      language: de
+      target: _blank
+      quicklaunch:
+        searchDescriptions: true
+        hideInternetSearch: false
+        showSearchSuggestions: true
       layout:
         Kubernetes:
           style: row
-          columns: 3
+          columns: 4
         Monitoring:
           style: row
-          columns: 2
+          columns: 4
         "GitOps & CI/CD":
           style: row
-          columns: 3
+          columns: 4
         NAS:
           style: row
           columns: 4
         Tools:
           style: row
-          columns: 2
+          columns: 4
 
     widgets:
       - kubernetes:
@@ -75,6 +93,11 @@ homepage:
             cpu: true
             memory: true
             showLabel: true
+      - resources:
+          label: Host
+          cpu: true
+          memory: true
+          disk: /
       - datetime:
           text_size: xl
           format:
@@ -82,8 +105,9 @@ homepage:
             timeStyle: short
             hour12: false
       - search:
-          provider: duckduckgo
+          provider: google
           target: _blank
+          showSearchSuggestions: true
 
     services:
       - Kubernetes:
