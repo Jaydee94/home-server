@@ -11,16 +11,23 @@ eigene Anpassungen gehören in den CUSTOM-Abschnitt der Root-`CLAUDE.md`.
 | Situation | Skill | Verhalten |
 |---|---|---|
 | Neues Feature / Bug-Fix | `superpowers:brainstorming` | MUSS vor Code aufgerufen werden |
+| Nach Brainstorming | `forgecrate-roadmap-triage` | MUSS aufgerufen werden — entscheidet ob jetzt oder Future Feature |
 | Implementierung | `superpowers:test-driven-development` | MUSS vor Code aufgerufen werden |
+| Vor jeder nicht-trivialen Änderung | `forgecrate-research` | MUSS aufgerufen werden |
 | Vor Commit/PR | `superpowers:verification-before-completion` | MUSS ausgeführt werden |
 | Debug | `superpowers:systematic-debugging` | MUSS vor Fix aufgerufen werden |
 | Bug gefunden (nach Debug) | `superpowers:test-driven-development` | Regressionstest schreiben, BEVOR der Fix committed wird |
+| Session-Start | `mcp__memory__read_graph` | Projektübergreifendes Wissen laden |
+| Architekturentscheidung / Debugging-Ergebnis | `mcp__memory__add_observations` | In memory MCP schreiben |
 
-## Recherche-Pflicht beim Planen
+**Codegraph-Pflicht** (wenn codegraph-Flavor aktiv): Vor jeder nicht-trivialen Änderung `codegraph_node` + `codegraph_callers` für betroffene Symbole ausführen — kein Edit/Write ohne vorherige Codegraph-Abfrage.
 
-Planungs-Rollen (Analyst, Tech Lead, Debugger, Reviewer) MÜSSEN vor jedem Plan
-mindestens ein Recherche-Tool nutzen. Raten ist verboten — Quellen werden im Plan
-referenziert.
+## Recherche-Pflicht
+
+**Alle** Rollen MÜSSEN vor jeder nicht-trivialen Code-Änderung mindestens ein
+Recherche-Tool nutzen — statt aus gelerntem Wissen zu arbeiten. Raten ist verboten;
+Quellen werden referenziert. Der `pre-tool.sh`-Hook **warnt** bei fehlender Recherche,
+blockiert aber nicht.
 
 | Frage-Typ | Tool | Beispiele |
 |---|---|---|
@@ -30,9 +37,9 @@ referenziert.
 
 **Regeln:**
 
-- Mindestens eine Quelle pro nicht-trivialer Planungsentscheidung
+- Mindestens eine Quelle pro nicht-trivialer Entscheidung; eine Recherche pro Session
+  schaltet weitere Warnungen für die Session ab
 - Quellen im Plan-Dokument (`docs/superpowers/plans/*.md`) referenzieren
-- Bei rein mechanischen Tasks (Rename, Typo, einzeiliger Fix) entfällt die Pflicht
 - Deaktivierbar via Flavor `no-research`
 
 ## Entwicklungs-Workflow
@@ -47,12 +54,16 @@ Für alle Features, Bugfixes und Änderungen:
 3. **Plan** — in `docs/superpowers/plans/YYYY-MM-DD-<thema>.md` schreiben und
    committen; Plan-Pfad im Issue ergänzen; Kommentar: "Plan fertig"
 4. **Implementierung** — nach jedem Task kurzer Kommentar im Issue
-5. **PR & Abschluss** — Vor dem PR: memory-bank aktualisieren
-   (`activeContext.md`, `progress.md`) und Inhalt in die PR-Beschreibung
-   einbeziehen. Existiert noch kein memory-bank-Inhalt, zuerst
-   `/forgecrate-repo-onboarding` ausführen. Dann PR erstellen, Issue im
-   PR-Body verlinken ("Closes #N"); Issue wird erst nach Merge des PR
-   geschlossen (GitHub macht das automatisch)
+5. **PR & Abschluss** — Vor `gh pr create` diese Sequenz vollständig ausführen:
+   1. `forgecrate-doc-sync` — Doku mit Code abgleichen
+   2. `forgecrate-handoff` — memory-bank aktualisieren (`activeContext.md`, `progress.md`)
+   3. `forgecrate-db-migration` — Migrations-Review
+   4. `accessibility-audit` — A11y-Prüfung
+   5. `ui-ux-audit` — UX-Review
+   6. `forgecrate-pr-checklist` — Abschluss-Checkliste
+
+   Dann PR erstellen, Issue im PR-Body verlinken ("Closes #N").
+   Issue wird nach Merge automatisch geschlossen.
 
 Ticket-Kommentare immer kurz (ein Satz): Fortschritt, Pfad oder Ergebnis.
 
@@ -71,11 +82,14 @@ Read-Tool auf `memory-bank/`-Dateien ist verboten.
 
 ## Hook-Schutz: Hinweis
 
-Der `pre-tool.sh`-Hook blockt destruktive Bash-Befehle auf `main` (z. B.
-`git commit`, `git push`, `git reset --hard`, Schreib-Redirectionen). Er ist
-jedoch **keine alleinige Schutzschicht** — GitHub Branch Protection Rules müssen
-zusätzlich konfiguriert werden, damit direkte Pushes auch serverseitig verhindert
-werden.
+Der `pre-tool.sh`-Hook **warnt** bei destruktiven Bash-Befehlen und fehlender
+Recherche — er blockiert nie. Die Verantwortung liegt beim Agenten: Warnungen
+bewusst wahrnehmen, einschätzen und eine informierte Entscheidung treffen.
+
+Für serverseitigen Schutz auf `main`: GitHub Branch Protection Rules konfigurieren.
+
+Bei fehlender Binary, fehlendem oder kaputtem Transcript verhält sich der Hook
+**fail-open** (keine Warnung).
 
 ## Team-Rollen & Subagent-Konfiguration
 
@@ -92,11 +106,11 @@ Dispatch eines Subagenten über das Agent-Tool — gültig sind nur die Family-A
 |---|---|---|---|
 | Analyst / Product Owner | `superpowers:brainstorming` | `opus` | Pflicht |
 | Tech Lead / Architekt | `superpowers:writing-plans` | `opus` | Pflicht |
-| Entwickler | `superpowers:test-driven-development` | `sonnet` | optional |
-| Implementierer (mechanisch) | `superpowers:subagent-driven-development` | `haiku` | nein |
-| Reviewer | `superpowers:requesting-code-review` | `sonnet` | Pflicht bei Architektur-Fragen |
-| QA / Abschluss | `superpowers:verification-before-completion` | `sonnet` | nein |
-| Debugger | `superpowers:systematic-debugging` | `sonnet` | Pflicht (CVE, Lib-Issues, Stack-Overflow) |
+| Entwickler | `superpowers:test-driven-development` | `sonnet` | Pflicht |
+| Implementierer (mechanisch) | `superpowers:subagent-driven-development` | `haiku` | Pflicht |
+| Reviewer | `superpowers:requesting-code-review` | `sonnet` | Pflicht |
+| QA / Abschluss | `superpowers:verification-before-completion` | `sonnet` | Pflicht |
+| Debugger | `superpowers:systematic-debugging` | `sonnet` | Pflicht |
 
 ## Parallelisierung & Isolation
 
@@ -131,7 +145,7 @@ forgecrate-Lauf.
 
 | Server | Transport | Zweck |
 |---|---|---|
-| `github` | HTTP (GitHub Copilot) | Issues, PRs, Code-Suche, Branches, Labels |
+| `github` | stdio (`npx`) | Issues, PRs, Code-Suche, Branches, Labels |
 | `fetch` | stdio (`npx`) | Externe Webinhalte: Docs, RFCs, Changelogs |
 | `memory` | stdio (`npx`) | Projektübergreifende Architektur-Entscheidungen |
 | `memory-bank` | stdio (`npx`) | Repo-spezifischer Projektkontext (laufender Stand) |
@@ -151,6 +165,19 @@ Routing-Grenzen (verhindern Falsch-Aufrufe):
   (→ `github`), lokale Dateien (→ Read) oder allgemeine Programmierkonzepte.
 
 `memory` und `memory-bank` haben eigene Pflicht-Regeln — siehe unten.
+
+## Claude Plugins
+
+Vier Plugins werden automatisch via `forgecrate deploy` installiert (`claude plugin install --scope project`).
+
+| Plugin | Zweck |
+|---|---|
+| `superpowers` | Skill-System: Workflows für TDD, Brainstorming, Debugging, Reviews |
+| `commit-commands` | Slash-Commands für standardisierte Commits und PRs |
+| `security-guidance` | Sicherheitshinweise und Best-Practices für Code-Reviews |
+| `claude-md-management` | Verwaltung und Verbesserung von CLAUDE.md-Dateien |
+
+Plugins stellen Slash-Commands und Skills bereit — sie sind nicht über MCP aufrufbar.
 
 ### Memory (`memory`)
 
@@ -194,6 +221,46 @@ ideal für laufenden Projekt-Kontext. `memory` (`.claude/memory.json`) ist
 graph-basiert und projektübergreifend — ideal für zeitlose
 Architektur-Entscheidungen mit Begründung.
 
+## Backend-Profil
+
+- API-Design: REST-First, klare Fehlercodes, keine unnötige Abstraktion
+- Datenbankzugriffe: typsicher, keine Raw-Queries ohne Parametrisierung
+- Tests: Integrationstests bevorzugt gegenüber reinen Unit-Tests mit Mocks
+- Kein ORM-Magic: explizite Queries sind verständlicher
+
+## Frontend-Profil
+
+- Komponenten: klein, fokussiert, eine Verantwortlichkeit
+- State: lokal wenn möglich, global nur wenn nötig
+- Kein CSS-in-JS ohne explizite Anforderung
+- Barrierefreiheit: semantisches HTML, ARIA-Attribute wo nötig
+- Tests: Behavior-Tests (was der Nutzer sieht), keine Implementierungsdetails
+
+## UI-Reviews
+
+- **`accessibility-audit`** — schnelle statische A11y-Checks pro geänderter Datei (alt, label, aria-*). Eignet sich für Pre-Commit / PR-Reviews.
+- **`ui-ux-audit`** — tiefgehender Audit der gesamten UI, gruppiert nach Bereichen, mit Severity-Bewertung und automatischer Erstellung kleinteiliger GitHub-Issues. Für Major-Releases oder größere UI-Refactorings.
+
+## Playwright MCP
+
+Browser-Automatisierung direkt aus Claude heraus. Automatisch konfiguriert via `profiles/frontend/extensions.yaml`.
+
+**Verwende es für:** UI-Tests, Screenshots, Formular-Interaktionen, visuelle Regressionstests, Debugging von Rendering-Problemen.
+
+**Verwende es NICHT für:** API-Tests ohne UI-Beteiligung (→ direkte HTTP-Calls), GitHub-Operationen (→ github MCP).
+
+## Design-Plugins
+
+Fünf spezialisierte Plugins für UI/UX-Arbeit — optimal in diesen Situationen:
+
+| Plugin | Optimal wenn… |
+|---|---|
+| `ui-ux-pro-max-skill` | Neue Komponente/Seite designen — generiert automatisch Design-System (Farben, Typografie, Spacing) passend zum Produkt; unterstützt React, Next.js, Vue, Tailwind, Flutter u.v.m. |
+| `interface-design` | UI über mehrere Sessions konsistent halten — speichert Design-Entscheidungen (Spacing, Elevation, Farben) in `.interface-design/system.md` und wendet sie session-übergreifend an |
+| `refactoring-ui-skill` | Bestehende UI überarbeiten — `/ui-refactor` verbessert Hierarchie, Spacing (8px-Raster), HSL-Farben und Schatten nach Refactoring-UI-Prinzipien |
+| `agent-skills` | Vercel-Deployments oder React Composition Patterns — auto-detects 40+ Frameworks, hilft bei Compound Components, State-Lifting und Edge-Funktionen |
+| `wondelai-skills` | UX-Strategie und Produktentscheidungen — 25 Skills nach Norman, Cialdini, Ries; deckt UX Design, Conversion-Optimierung und Produktstrategie ab |
+
 ## Fullstack-Profil
 
 Kombiniert Backend- und Frontend-Anforderungen.
@@ -206,16 +273,17 @@ Kombiniert Backend- und Frontend-Anforderungen.
 
 Kontinuierliche Verbesserung durch Festhalten von Erkenntnissen aus jeder Session.
 
-- Falls `.claude/GETBETTER.md` existiert, MUSS sie vor allem anderen gelesen werden.
+- Am Session-Start: `mcp__memory__read_graph` aufrufen, Entities vom Typ `session-reflection` lesen.
 - Am Sessionende: `/forgecrate-getbetter` aufrufen um Erkenntnisse zu speichern.
 
-**Was in `.claude/GETBETTER.md` gehört:**
+**Was gespeichert wird (memory MCP, Entity `session-reflection`):**
 - Wiederkehrende Fehler und deren Ursachen
 - Patterns die gut funktioniert haben
 - Entscheidungen die sich im Nachhinein als falsch erwiesen haben
 - Projektspezifische Gotchas die nicht aus dem Code ersichtlich sind
 
-**Format:** Freier Text oder Bullet-Liste — kein festes Schema. Die Datei wächst über Zeit.
+**Format pro Erkenntnis:** `[YYYY-MM-DD] <Kategorie>: <Erkenntnis in einem Satz>`
+Kategorien: `workflow`, `tooling`, `pattern`, `mistake`, `decision`.
 
 ## GitHub-Flavor
 

@@ -18,12 +18,18 @@
       "command": "npx",
       "args": [
         "-y",
-        "@modelcontextprotocol/server-fetch"
+        "mcp-fetch-server"
       ]
     },
     "github": {
-      "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/"
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
     },
     "memory": {
       "command": "npx",
