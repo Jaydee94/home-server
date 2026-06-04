@@ -1,0 +1,65 @@
+---
+# Alle Keys unter `homepage:` weil der Dependency-Name "homepage" lautet.
+homepage:
+  # RBAC: ServiceAccount + ClusterRole + ClusterRoleBinding auto-erstellt
+  enableRbac: true
+
+  serviceAccount:
+    create: true
+
+  # Kubernetes-Widget: ServiceAccount-Token aus dem Cluster nutzen
+  kubernetes:
+    mode: cluster
+
+  ingress:
+    main:
+      enabled: true
+      ingressClassName: traefik
+      annotations: {}
+      hosts:
+        - host: home.homeserver
+          paths:
+            - path: /
+              pathType: Prefix
+      tls: []
+
+  # PFLICHT: ohne HOMEPAGE_ALLOWED_HOSTS schlägt Kubernetes-Healthcheck fehl
+  env:
+    - name: HOMEPAGE_ALLOWED_HOSTS
+      value: "home.homeserver"
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  config:
+    settings:
+      title: Home Server
+      theme: dark
+      color: slate
+      headerStyle: boxed
+      layout:
+        Kubernetes:
+          style: row
+          columns: 3
+        Monitoring:
+          style: row
+          columns: 2
+        "GitOps & CI/CD":
+          style: row
+          columns: 3
+        NAS:
+          style: row
+          columns: 4
+        Tools:
+          style: row
+          columns: 2
+
+    # Platzhalter — werden in Task 5 befüllt
+    services: []
+    widgets: []
+    bookmarks: []
