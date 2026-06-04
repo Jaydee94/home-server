@@ -28,6 +28,10 @@ homepage:
     - name: HOMEPAGE_ALLOWED_HOSTS
       value: "home.homeserver"
 
+  envFrom:
+    - secretRef:
+        name: homepage-credentials
+
   resources:
     requests:
       cpu: 10m
@@ -59,7 +63,92 @@ homepage:
           style: row
           columns: 2
 
-    # Placeholders — populated in Task 5
-    services: []
-    widgets: []
+    widgets:
+      - kubernetes:
+          cluster:
+            show: true
+            cpu: true
+            memory: true
+            showLabel: true
+            label: "k3s"
+          nodes:
+            show: true
+            cpu: true
+            memory: true
+            showLabel: true
+      - datetime:
+          text_size: xl
+          format:
+            dateStyle: long
+            timeStyle: short
+            hour12: false
+      - search:
+          provider: duckduckgo
+          target: _blank
+
+    services:
+      - Kubernetes:
+          - Headlamp:
+              href: http://headlamp.homeserver
+              description: Kubernetes Dashboard
+              icon: headlamp.svg
+          - kubeseal-webgui:
+              href: http://kubeseal-webgui.homeserver
+              description: Sealed Secrets UI
+              icon: kubeseal.svg
+      - Monitoring:
+          - Grafana:
+              href: http://grafana.homeserver
+              description: Metriken & Dashboards
+              icon: grafana.svg
+              widget:
+                type: grafana
+                url: http://monitoring-grafana.monitoring.svc.cluster.local
+                username: admin
+                password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
+      - "GitOps & CI/CD":
+          - ArgoCD:
+              href: http://192.168.178.127:30080
+              description: GitOps Controller
+              icon: argocd.svg
+              widget:
+                type: argocd
+                url: http://argocd-server.argocd.svc.cluster.local
+                key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+                fields: ["apps", "synced", "healthy", "outOfSync"]
+          - Argo Workflows:
+              href: http://argo-workflows.homeserver
+              description: Private CI
+              icon: argocd.svg
+          - Semaphore:
+              href: http://semaphore.homeserver
+              description: Ansible UI
+              icon: semaphore.svg
+      - NAS:
+          - Paperless-NGX:
+              href: http://jays-ugreen:8000
+              description: Dokumenten-Management
+              icon: paperless-ngx.svg
+          - OpenCode:
+              href: http://jays-ugreen:4096
+              description: KI-Coding-Assistent
+              icon: opencode.svg
+          - TinyTeller:
+              href: http://jays-ugreen:3002
+              description: Finanzen
+              icon: actual.svg
+          - Day Pilot:
+              href: http://jays-ugreen:3003
+              description: Tagesplanung
+              icon: homer.svg
+      - Tools:
+          - Gotify:
+              href: http://gotify.homeserver
+              description: Push-Notifications
+              icon: gotify.svg
+          - MinIO:
+              href: http://minio.homeserver
+              description: S3 Artifact Store
+              icon: minio.svg
+
     bookmarks: []
