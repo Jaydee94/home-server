@@ -9,9 +9,16 @@ fi
 
 if command -v forgecrate >/dev/null 2>&1; then
   # Destruktive-Befehl-Warnung (alle Branches)
+  # forgecrate älterer Versionen gibt {"continue":false,...} zurück — in Warnung umwandeln
   OUT=$(printf '%s' "$STDIN_JSON" | forgecrate hook pre-tool)
   if [ -n "$OUT" ]; then
-    printf '%s' "$OUT"
+    if command -v jq >/dev/null 2>&1 && printf '%s' "$OUT" | jq -e '.continue == false' >/dev/null 2>&1; then
+      REASON=$(printf '%s' "$OUT" | jq -r '.stopReason // "Destruktiver Befehl erkannt"')
+      printf '%s' "$OUT" | jq --arg r "Warnung: $REASON" \
+        '{hookSpecificOutput:{hookEventName:"PreToolUse",additionalContext:$r}}'
+    else
+      printf '%s' "$OUT"
+    fi
   fi
 
   # Recherche-Empfehlung: warnt bei Edit/Write/MultiEdit ohne vorherige Recherche
