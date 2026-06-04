@@ -139,10 +139,8 @@ victoria-metrics-k8s-stack:
 
   # ---- Grafana --------------------------------------------
   # Exposed at http://grafana.homeserver via Traefik. Admin password is
-  # auto-generated and stored in the `monitoring-grafana` Secret. Retrieve
-  # with:
-  #   kubectl -n monitoring get secret monitoring-grafana \
-  #     -o jsonpath='{.data.admin-password}' | base64 -d; echo
+  # stored in the SealedSecret `grafana-admin` (monitoring namespace).
+  # See argocd/apps/monitoring/templates/sealedsecret-grafana-admin.yaml.
   grafana:
     enabled: true
     defaultDashboardsTimezone: browser
@@ -151,7 +149,9 @@ victoria-metrics-k8s-stack:
       - victoriametrics-metrics-datasource
 
     admin:
-      existingSecret: ""        # leave empty → auto-generated password
+      existingSecret: "grafana-admin"
+      userKey: admin-user
+      passwordKey: admin-password
 
     securityContext:
       runAsNonRoot: true
