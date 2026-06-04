@@ -1,6 +1,6 @@
 # GETBETTER
 
-_Letzte Aktualisierung: 2026-05-29_
+_Letzte Aktualisierung: 2026-06-04_
 
 ## Entscheidungen
 
@@ -14,65 +14,65 @@ _Letzte Aktualisierung: 2026-05-29_
 
 - **PDF-Rotation für Paperless via pikepdf Content-Stream, nicht /Rotate-Metadatum**: OCRmyPDF ignoriert beim Re-Processing das `/Rotate`-Metadatum zuverlässig. Rotation muss physisch in den Content-Stream eingebacken werden: `q\n-612 0 0 -792 612 792 cm\n/Im0 Do\nQ`. Zusätzlich OCR-XObjects (`/OCR-...`) aus `/Resources` entfernen, damit Paperless die Seite neu OCR'd.
 
-- **Semaphore-Environment statt deprecated `vault_key_id`**: Semaphore v2.18+ ignoriert `vault_key_id` im Template-Body und strippt zudem die Pod-Container-Env beim Task-Spawn. Lösung: per Projekt eine "default-env" Environment via API anlegen die `ANSIBLE_VAULT_PASSWORD_FILE` setzt, dann an jedes Template via `environment_id` koppeln. Im `semaphore_bootstrap` Role separat als `environment.yml` (idempotent POST/PUT) modelliert; `defaults/main.yml` definiert `semaphore_default_environment` zentral und beide Projekte referenzieren ihn.
+- **Semaphore-Environment statt deprecated `vault_key_id`**: Semaphore v2.18+ ignoriert `vault_key_id` im Template-Body und strippt zudem die Pod-Container-Env beim Task-Spawn. Lösung: per Projekt eine "default-env" Environment via API anlegen die `ANSIBLE_VAULT_PASSWORD_FILE` setzt, dann an jedes Template via `environment_id` koppeln.
 
-- **`+ semaphore_pem_newline` statt `+ '\n'` in Jinja2-Bodies**: PEM-Schlüssel werden in `key.yml` via API geschrieben. In einem YAML folded scalar `>-` wird `'\n'` als literaler 2-Char-String an Jinja2 weitergereicht — `to_json` serialisiert ihn dann als `\\n`, Semaphore speichert den Key kaputt, Go's `ssh.ParsePrivateKey` rejected ihn. Lösung: `semaphore_pem_newline: "\n"` in `login.yml` als `set_fact` (double-quoted YAML → echtes LF) und im Body via Variable referenzieren.
+- **`+ semaphore_pem_newline` statt `+ '\n'` in Jinja2-Bodies**: PEM-Schlüssel werden in `key.yml` via API geschrieben. In einem YAML folded scalar `>-` wird `'\n'` als literaler 2-Char-String an Jinja2 weitergereicht — `to_json` serialisiert ihn dann als `\\n`, Semaphore speichert den Key kaputt. Lösung: `semaphore_pem_newline: "\n"` in `login.yml` als `set_fact`.
 
-- **Reboot-Skip via `lookup('env', 'SEMAPHORE_TASK_ID')`**: `common`-Role darf den Host nicht rebooten wenn das Playbook aus dem Semaphore-Pod heraus läuft — der Pod selbst läuft auf dem Host und würde sich selbst killen, der Task hängt für immer. Skip-Bedingung in der Reboot-Task, dazu eine Warn-Task die den Operator informiert manuell neu zu starten.
+- **Reboot-Skip via `lookup('env', 'SEMAPHORE_TASK_ID')`**: `common`-Role darf den Host nicht rebooten wenn das Playbook aus dem Semaphore-Pod heraus läuft.
 
-- **`SEMAPHORE_SCHEDULE_TIMEZONE=Europe/Berlin` im Deployment statt UTC-Cron**: Semaphore evaluiert Cron-Schedules per Default in UTC. Ein `0 6 * * *` in UTC würde zwischen CET/CEST um eine Stunde verrutschen. Die TZ-Env im Pod (via Helm-`values`, default `Europe/Berlin`) lässt `0 6 * * *` ganzjährig um 06:00 Lokalzeit feuern — DST-sicher, ohne den Cron-String anzufassen.
+- **`SEMAPHORE_SCHEDULE_TIMEZONE=Europe/Berlin` im Deployment statt UTC-Cron**: DST-sicher, ohne den Cron-String anzufassen.
 
-- **Schedules deklarativ im `semaphore_bootstrap`-Role**: Neue `schedule.yml` (idempotent: GET-list → POST-if-missing → PUT-self-heal, gleiches Jinja-Dict-Body-Muster wie `template.yml` für Integer-Typen); `project.yml` baut eine Template-Name→ID-Map nach dem Template-Loop. So sind Cron-Schedules reproduzierbar (überleben Neuaufsetzen) statt nur per API-Klick zu existieren.
+- **Schedules deklarativ im `semaphore_bootstrap`-Role**: Neue `schedule.yml` (idempotent: GET-list → POST-if-missing → PUT-self-heal); `project.yml` baut eine Template-Name→ID-Map nach dem Template-Loop.
 
-- **Laufende Secret-Werte auslesen statt neu erfinden**: Für `vault_paperless_*` die echten Werte aus der bereits deployten NAS-`.env` gelesen (become-PW aus committed `all.yml` via `.vault` entschlüsselt, dann `sudo -S cat`), nicht neu generiert. Ein neues DB-Passwort hätte die bestehende PostgreSQL-DB unzugänglich gemacht. Nur den `secret_key` (war nie in der `.env`) neu generiert — der invalidiert lediglich Login-Sessions, keine Daten.
+- **Laufende Secret-Werte auslesen statt neu erfinden**: Für `vault_paperless_*` die echten Werte aus der bereits deployten NAS-`.env` gelesen — ein neues DB-Passwort hätte die bestehende PostgreSQL-DB unzugänglich gemacht.
 
-- **`CronWorkflow.spec.schedules` (Array) in Argo Workflows v4.x**: `spec.schedule` (String) wurde in v4.x aus dem CRD-Schema entfernt. Ersatz: `spec.schedules: ["0 3 * * *"]`. Da ArgoCD `ServerSideApply=true` nutzt, lehnt der API-Server undeklararierte Felder direkt ab — kein Retry hilft, nur der Schema-konforme Fix.
+- **`CronWorkflow.spec.schedules` (Array) in Argo Workflows v4.x**: `spec.schedule` (String) wurde in v4.x aus dem CRD-Schema entfernt. Ersatz: `spec.schedules: ["0 3 * * *"]`.
+
+- **jameswynn/homepage Helm Chart als Wrapper (Ansatz A)**: Upstream-Dependency statt plain Manifests oder Custom Chart — folgt dem headlamp-Muster, Renovate hält Version aktuell. Konfiguration unter `homepage.config.*` (settings, services, widgets, bookmarks) — nicht direkt unter `homepage:`.
+
+- **dnsmasq-Wildcard deckt neue Services automatisch ab**: `address=/homeserver/<ip>` in `dnsmasq.conf.j2` macht jeden `*.homeserver`-Namen direkt erreichbar ohne `dnsmasq_hosts`-Eintrag. Kein Update nötig für neue ArgoCD-Apps.
+
+- **`kubectl patch configmap` als ArgoCD-Konfigurationsweg ohne Ansible**: Wenn Ansible lokal nicht installiert ist, direkt `kubectl -n argocd patch configmap argocd-cm` nutzen — idempotent, sofort wirksam, idempotenter Helm-Upgrade überschreibt beim nächsten `make argocd`.
+
+- **Sealed Secrets Public Key via SSH fetchen für lokales kubeseal**: `kubectl -n sealed-secrets get secret -l sealedsecrets.bitnami.com/sealed-secrets-key=active -o jsonpath="{.items[0].data.tls\.crt}" | base64 -d > /tmp/sealed-secrets.crt` → `kubeseal --cert /tmp/sealed-secrets.crt` lokal nutzen ohne direkten Cluster-Zugriff via kubeconfig.
 
 ## Anti-Patterns
 
-- **SANE net-Backend ausprobieren ohne Quellcode zu prüfen**: Stunden in Manager-Modus + saned investiert, obwohl scanbd im Quellcode `local_only=1` hartcodiert hat. Hätte zuerst das scanbd-Verhalten verstanden werden sollen (greife nach SANE_DEBUG-Logs, lies die Manpage/Source), bevor ein alternativer Architektur-Ansatz verfolgt wird.
+- **SANE net-Backend ausprobieren ohne Quellcode zu prüfen**: Stunden in Manager-Modus + saned investiert, obwohl scanbd im Quellcode `local_only=1` hartcodiert hat.
 
-- **saned.socket deployen ohne inetd-Port-Belegung zu prüfen**: Ubuntus scanbd-Paket installiert `openbsd-inetd`, der bereits Port 6566 belegt. Das `ss -tlnp | grep 6566` vor dem Deploy hätte den Konflikt sofort sichtbar gemacht.
+- **saned.socket deployen ohne inetd-Port-Belegung zu prüfen**: Ubuntus scanbd-Paket installiert `openbsd-inetd`, der bereits Port 6566 belegt.
 
-- **Diagnose-Reihenfolge**: Die libusb-Busy-Ursache hätte früher mit `SANE_DEBUG_SANEI_USB=1 scanimage ...` (während scanbd läuft) identifiziert werden können, statt zuerst Konfigurationen zu verändern.
+- **Template-Divergenz und fehlende Deployed-File-Prüfung**: Bei unerwartetem Verhalten zuerst die deployte Datei auf dem Server lesen (`cat -n /path/to/script`), nicht nur das Template.
 
-- **Template-Divergenz und fehlende Deployed-File-Prüfung**: `scanbd-dll.conf.j2` wurde auf `net` geändert während der Server manuell auf `fujitsu` zurückgesetzt wurde — template und Live-Config liefen auseinander. Allgemeiner: Bei unerwartetem Verhalten zuerst die deployte Datei auf dem Server lesen (`cat -n /path/to/script`), nicht nur das Template.
+- **`{% raw %}...{% endraw %}` auf einer Zeile mit Jinja2 `trim_blocks`**: Ansible setzt `trim_blocks=True`. Das `\n` nach `{% endraw %}` wird gestrippt. Fix: `{% endraw %}` immer auf einer eigenen Zeile platzieren.
 
-- **`{% raw %}...{% endraw %}` auf einer Zeile mit Jinja2 `trim_blocks`**: Ansible setzt `trim_blocks=True`. Das `\n` nach `{% endraw %}` wird gestrippt. Fix: `{% endraw %}` immer auf einer eigenen Zeile platzieren, sodass das `\n` innerhalb des Raw-Blocks erhalten bleibt.
+- **Scanner-Verhalten ohne Testdaten annehmen**: Mehrfach falsche Annahmen über die Reihenfolge und Anzahl der zu rotierenden Seiten. Korrekte Vorgehensweise: echten Testlauf durchführen und Ergebnis inspizieren.
 
-- **Scanner-Verhalten ohne Testdaten annehmen**: Mehrfach falsche Annahmen über die Reihenfolge (front-first vs. back-first) und die Anzahl der zu rotierenden Seiten (nur Rückseiten vs. alle). Korrekte Vorgehensweise: Einen echten Testlauf durchführen und das Ergebnis inspizieren, bevor der Fix implementiert wird.
+- **pypdf /Rotate-Metadatum vs. pikepdf Content-Stream**: Zwei Iterationen verschwendet. Für PDFs die Paperless noch einmal verarbeitet: immer die Transformation in den Content-Stream einbacken.
 
-- **pypdf /Rotate-Metadatum vs. pikepdf Content-Stream**: Zwei Iterationen verschwendet weil pypdf's `page.rotate()` nur `/Rotate` setzt, OCRmyPDF das aber beim Re-Import ignoriert. Für PDFs die Paperless noch einmal verarbeitet: immer die Transformation in den Content-Stream einbacken.
+- **Subagent-Output ohne Diff-Verifikation glauben**: Subagenten überschätzen ihren Fortschritt im Summary. Nach jedem Subagent-Lauf: `git diff` prüfen.
 
-- **pypdf `extract_text()` zur Orientierungs-Erkennung**: OCRmyPDF bettet OCR-Text in einer separaten Form-XObject-Schicht ein — Text-Extraktion zeigt "lesbaren" Text auf einer visuell auf dem Kopf stehenden Seite. Kein verlässliches Signal für Bild-Orientierung.
+- **`'\n'` in YAML folded scalar `>-` als Newline annehmen**: Jinja2 sieht den Backslash literal. Lösung: `set_fact: nl: "\n"` (double-quoted YAML).
 
-- **Subagent-Output ohne Diff-Verifikation glauben**: Subagenten überschätzen ihren Fortschritt im Summary. Nach jedem Subagent-Lauf: `git diff` prüfen ob die behaupteten Änderungen wirklich drin sind, sonst manuell vervollständigen.
+- **Bootstrap-Re-Runs ohne Test dazwischen**: Nach jedem Run einen echten End-to-End-Test, bevor weiter "repariert" wird.
 
-- **`no_log: true` ohne `register` + Folge-Assertion**: Versteckt silent failures. Wenn `no_log: true` nötig ist: zusätzlich `register: result` + Folge-Task mit `assert/fail_when`-Logik die nur boolean-Signale prüft.
+- **`defaults/main.yml` editieren obwohl `all.yml` die Variable komplett überschreibt**: Vor dem Editieren von Role-defaults prüfen ob dieselbe Variable in `group_vars/`/`host_vars/` überschrieben wird.
 
-- **`'\n'` in YAML folded scalar `>-` als Newline annehmen**: Jinja2 sieht den Backslash literal weil YAML im folded scalar keine Escapes verarbeitet. Ergebnis ist ein 2-Char-String. Lösung: `set_fact: nl: "\n"` (double-quoted YAML) und im Folded-Body via Variable referenzieren.
+- **Gitignored Secret-Datei + Semaphore-Frischklon**: Secrets die ein CI-Run braucht, müssen vault-verschlüsselt committet sein.
 
-- **Self-Reboot in Playbooks die aus dem Pod heraus laufen**: Wenn der Ansible-Controller selbst auf dem Target läuft, bricht der Reboot die laufende Task ab. Vor jedem `reboot`-Task: prüfen ob der Controller außerhalb des Targets läuft.
+- **ArgoCD stuck auf alter Revision nicht früh erkannt**: Wenn `status.operationState.operation.sync.revision` ≠ `status.sync.revision`, synct ArgoCD noch die alte Revision. Lösung: `/operation` via `kubectl patch --type json -p '[{"op":"remove","path":"/operation"}]'` entfernen.
 
-- **Bootstrap-Re-Runs ohne Test dazwischen**: Mehrfach hintereinander `make semaphore-bootstrap` ausgeführt in der Hoffnung dass der nächste Run hilft — der Bootstrap selbst hat den Key dabei jedes Mal wieder kaputt gemacht. Vorgehen: nach jedem Run einen echten End-to-End-Test, bevor weiter "repariert" wird.
+- **Placeholder-SealedSecrets ohne Guard committen**: `PLACEHOLDER_SEAL_WITH_KUBESEAL`-Werte in SealedSecrets erzeugen sofortigen `CreateContainerConfigError` — Pod kann nicht starten weil Secret nicht existiert. Zwei Strategien: (a) `helm template` rendert das SealedSecret erst wenn ein `enabled: true`-Guard gesetzt ist, oder (b) Placeholder committen und explizit dokumentieren dass `kubectl rollout restart` nach echtem Seal nötig ist. Wichtig: nach Seal-Commit immer `kubectl rollout restart deployment/<name> -n <ns>` ausführen.
 
-- **`defaults/main.yml` editieren obwohl `all.yml` die Variable komplett überschreibt**: `schedules:` in den `semaphore_bootstrap`-defaults ergänzt — der Schedule-Loop blieb beim Bootstrap aber `skipping`, weil `semaphore_projects` in `group_vars/all.yml` definiert ist und die defaults **als Ganzes** ersetzt. Vor dem Editieren von Role-defaults prüfen ob dieselbe Variable in `group_vars/`/`host_vars/` überschrieben wird.
+- **Credential-Mindestlängen nicht in values.yaml dokumentieren**: MinIO verlangt rootUser ≥ 3 Zeichen und rootPassword ≥ 8 Zeichen. Generell: Mindestanforderungen direkt beim Seal-Kommentar dokumentieren.
 
-- **Gitignored Secret-Datei + Semaphore-Frischklon**: `host_vars/ugreen-nas/vault.yml` war via `.gitignore` ausgeschlossen. `make nas` lief damit, aber der Semaphore-Run klont das Repo frisch → `vault_paperless_*` fehlten. Secrets die ein CI-Run braucht, müssen vault-verschlüsselt committet sein.
+- **ArgoCD ApplicationSet trackt nur `main` — kein Live-Testing auf Feature-Branch**: Wenn der Root ApplicationSet `revision: main` nutzt, erscheinen neue Apps erst nach dem Merge. Pod-Health-Verifikation während der Entwicklung auf Feature-Branch ist nicht möglich — diesen Schritt in den Post-Merge-Workflow verschieben.
 
-- **Privates ghcr-Image ohne `docker login` + fine-grained PAT**: Für private Registry-Pulls in Ansible: explizite `community.docker.docker_login`-Task **und** klassischer PAT mit `read:packages` (kein fine-grained PAT).
-
-- **ArgoCD stuck auf alter Revision nicht früh erkannt**: Wenn `status.operationState.operation.sync.revision` ≠ `status.sync.revision`, synct ArgoCD noch die alte Revision — auch nach Hard-Refresh. Lösung: `/operation` via `kubectl patch --type json -p '[{"op":"remove","path":"/operation"}]'` entfernen, dann neuen Sync mit korrekter Revision patchen. Signal: `status.sync.status: OutOfSync` mit neuer Revision = ArgoCD kennt den neuen Commit, hat aber noch keine neue Operation gestartet.
-
-- **Placeholder-SealedSecrets ohne `enabled: false` committen**: `REPLACE_ME_SEALED_*`-Werte in values.yaml erzeugen sofort kaputte SealedSecrets im Cluster (`illegal base64 data at input byte 7`). Besser: Placeholder-Blöcke mit `enabled: false` guarden oder ein prominenter Kommentar mit `MUST BE REPLACED BEFORE DEPLOYING`.
-
-- **Credential-Mindestlängen nicht in values.yaml dokumentiert**: MinIO verlangt rootUser ≥ 3 Zeichen und rootPassword ≥ 8 Zeichen. Fehlte als Hinweis im Kommentar → zweiter Seal-Durchgang nötig. Generell: Mindestanforderungen an Credentials direkt beim Seal-Kommentar dokumentieren.
+- **Subagenten haben keinen SSH-/Netzwerk-Zugriff**: Subagenten können keine kubectl-, SSH- oder kubeseal-Befehle gegen den Home-Server ausführen. Server-Verifikation (Pod-Status, Secret-Check, ArgoCD-Sync) muss immer der Hauptagent übernehmen.
 
 ## Was funktioniert
 
-- **`SANE_DEBUG_SANEI_USB=1 scanimage -L` während scanbd läuft**: Zeigt sofort `LIBUSB_ERROR_BUSY` — kein Raten nötig.
-
-- **Manueller Stop-Test**: `systemctl stop scanbd && scan_to_pdf.sh` — wenn es danach klappt, ist USB-Exklusivität die Ursache.
+- **`SANE_DEBUG_SANEI_USB=1 scanimage -L` während scanbd läuft**: Zeigt sofort `LIBUSB_ERROR_BUSY`.
 
 - **systemd Path Units für Inter-Service-Kommunikation**: `PathExists=<flag>` + oneshot service ist eine saubere Lösung für "Process A signalisiert Process B".
 
@@ -80,36 +80,28 @@ _Letzte Aktualisierung: 2026-05-29_
 
 - **Ansible blockinfile für inkrementelle Konfigurationsänderungen**: Sicherer als das gesamte Distro-File zu ersetzen; überlebt Paket-Upgrades besser.
 
-- **`cat -n /deployed/script` bei Laufzeitfehlern**: Zeigt die deployte Datei mit Zeilennummern — direkt zur Fehlerzeile springen.
-
-- **`bash -n script` nach manuellem Server-Patch**: Schnelle Syntax-Verifikation vor dem nächsten Testlauf.
-
-- **pikepdf Content-Stream-Inspektion zur Ursachen-Diagnose**: `page.get("/Contents").read_bytes()` zeigt CTM-Matrix und OCR-Layer-Referenzen direkt.
+- **`cat -n /deployed/script` bei Laufzeitfehlern**: Zeigt die deployte Datei mit Zeilennummern.
 
 - **Nutzer-Screenshots als primäres Verifikationsmittel**: Bei visuellen PDF-Problemen zuverlässiger als programmatische Analyse.
 
-- **`od -c | tail` für Byte-genaue String-Inspektion**: Wenn `\n` vs `\\n` der Unterschied ist — zeigt die echten ASCII-Bytes.
+- **`od -c | tail` für Byte-genaue String-Inspektion**: Wenn `\n` vs `\\n` der Unterschied ist.
 
-- **Mini-Isolations-Playbook zum Bestätigen einer Jinja2/YAML-Hypothese**: Statt im großen Bootstrap-Lauf zu raten, in 10 Zeilen testen. Hypothese in 30 Sekunden bewiesen.
+- **Mini-Isolations-Playbook zum Bestätigen einer Jinja2/YAML-Hypothese**: Statt im großen Bootstrap-Lauf zu raten, in 10 Zeilen testen.
 
-- **Manuelle API-Calls (Python urllib) als Vergleichsbasis**: Wenn die Ansible `uri`-Task fehlschlägt und alles korrekt aussieht: identisches PUT mit Python testen. Funktioniert manuell aber nicht Ansible → Ansible-Body-Serialisierungs-Bug.
-
-- **`/proc/$PID/environ` für Live-Inspektion von Subprocess-Env**: `xargs -0 -n1 -a /proc/PID/environ` listet die Env-Vars eines laufenden Prozesses auf.
-
-- **Subagenten parallel für unabhängige Domains**: Spart ~60% Zeit — **vorausgesetzt** Diff-Verifikation nach Rückkehr passiert.
-
-- **`VAULT_OPTS="--vault-password-file=.vault"`**: Non-interaktive `make`-Targets essentiell für Self-Testing. `.vault` via `.gitignore` automatisch ausgeschlossen.
+- **Subagenten parallel für unabhängige Domains**: Spart ~60% Zeit — vorausgesetzt Diff-Verifikation nach Rückkehr passiert.
 
 - **Semaphore-API direkt für Verification**: Login → Task POST + Status-Polling. Schnelle Feedback-Loops ohne Browser.
 
-- **Iteratives Semaphore-Testen deckt gestapelte Hürden auf**: triggern → pollen → bei `error` Output tailen → Root Cause fixen → erneut. `PLAY RECAP` zeigt sofort wie weit der Run kam.
+- **CRD-Schema-Introspection für SSA-Fehler**: `kubectl get crd <name> -o jsonpath="{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}"` zeigt deklarierte Felder sofort.
 
-- **Externe Credentials vor dem Fix validieren**: Erst den Token gegen die Registry testen bevor eine Login-Task gebaut wird. 403 + leerer Bearer beweist sofort dass der Token das Problem ist.
+- **SealedSecret-Status über `.status.conditions[].message`**: `kubectl get sealedsecret -o json` zeigt "illegal base64 data at input byte 7" für Placeholder-Werte. Direkte Diagnose ohne Pod-Logs.
 
-- **Secret-Werte beschaffen + verschlüsseln ohne Klartext-Leak**: Wert aus Quelle lesen und direkt in `ansible-vault encrypt_string --stdin-name NAME` pipen — nur der `!vault`-Block landet im Output.
+- **`kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard`**: Sofortiger ArgoCD-Sync ohne 3 Minuten warten — besonders nützlich direkt nach einem Push.
 
-- **CRD-Schema-Introspection für SSA-Fehler**: `kubectl get crd <name> -o jsonpath="{.spec.versions[0].schema.openAPIV3Schema.properties.spec.properties}"` zeigt deklarierte Felder sofort — schneller als Doku-Suche. Besonders hilfreich wenn ServerSideApply "field not declared in schema" wirft.
+- **`kubectl rollout restart deployment/<name>` nach Secret-Erstellung**: Behebt `CreateContainerConfigError` sofort wenn das Secret nachträglich erstellt wurde — ArgoCD triggert kein automatisches Rollout bei Secret-Änderungen.
 
-- **SealedSecret-Status über `.status.conditions[].message`**: `kubectl get sealedsecret -o json` + `.status.conditions[].message` zeigt "illegal base64 data at input byte 7" für Placeholder-Werte. Direkte Diagnose ohne Pod-Logs.
+- **Sealed Secrets Public Key via SSH fetchen**: `kubectl -n sealed-secrets get secret -l sealedsecrets.bitnami.com/sealed-secrets-key=active -o jsonpath="{.items[0].data.tls\.crt}" | base64 -d` → `kubeseal --cert` lokal nutzen ohne kubeconfig gegen den Cluster.
 
-- **Pod-Logs als erste Anlaufstelle bei Credential-Fehlern**: MinIO's `FATAL Unable to validate credentials ... HINT: MINIO_ROOT_USER length should be at least 3` war sofort aus `kubectl logs` lesbar — kein Raten über die Fehlerursache nötig.
+- **Brainstorming → Research → Spec → Plan → Subagent-driven-development für GitOps-Deployments**: Der vollständige Workflow verhindert Annahmen-Fehler (dnsmasq-Wildcard, Chart-Struktur) die ohne Research falsch implementiert worden wären.
+
+- **`helm show values <chart>` vor values.yaml schreiben**: Zeigt die tatsächliche Chart-Struktur. Bei jameswynn/homepage: settings/services/widgets liegen unter `homepage.config.*`, nicht direkt unter `homepage:` — ohne diesen Check wäre die Konfiguration lautlos ignoriert worden.
