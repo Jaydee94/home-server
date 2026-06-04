@@ -1,5 +1,5 @@
 ---
-# Alle Keys unter `homepage:` weil der Dependency-Name "homepage" lautet.
+# All keys nested under `homepage:` because the dependency name is "homepage".
 homepage:
   # RBAC: ServiceAccount + ClusterRole + ClusterRoleBinding auto-erstellt
   enableRbac: true
@@ -59,7 +59,7 @@ homepage:
           style: row
           columns: 2
 
-    # Platzhalter — werden in Task 5 befüllt
+    # Placeholders — populated in Task 5
     services: []
     widgets: []
     bookmarks: []
