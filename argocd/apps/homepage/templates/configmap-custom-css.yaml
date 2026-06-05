@@ -6,72 +6,112 @@ metadata:
   namespace: homepage
 data:
   custom.css: |
-    /* ===== Home Server — Google/Material Dark + Teal ===== */
+    /* Home Server — Variante C "Hybrid" (JMT Design System)
+     * Near-black Teal-Ink · JetBrains Mono + Inter · Hairlines 8px · #00E5B4
+     * Stabile Hooks: body · #information-widgets · .service-card */
 
-    @import url("https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap");
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;650;700&family=JetBrains+Mono:wght@400;500;600&display=swap");
 
-    /* Roboto global setzen */
-    html,
-    body,
-    button,
-    input,
-    select,
-    textarea {
-      font-family: "Roboto", ui-sans-serif, system-ui, -apple-system,
-        "Segoe UI", sans-serif !important;
+    html, body, button, input, select, textarea {
+      font-family: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace !important;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* Dezenter dunkler Verlauf mit Teal-Schimmer (Content-Wrapper ist
-       transparent, der Hintergrund liegt auf body) */
     body {
-      background-color: #0b1120 !important;
+      background-color: #080F0D !important;
       background-image:
-        radial-gradient(circle at 12% -5%, rgba(20, 184, 166, 0.10), transparent 42%),
-        radial-gradient(circle at 105% 110%, rgba(13, 148, 136, 0.08), transparent 46%),
-        linear-gradient(160deg, #0b1120 0%, #0f172a 55%, #0b1322 100%) !important;
+        radial-gradient(circle at 12% -8%, rgba(0, 229, 180, 0.10), transparent 44%),
+        radial-gradient(circle at 104% 108%, rgba(0, 187, 255, 0.07), transparent 48%),
+        linear-gradient(160deg, #080F0D 0%, #0A1311 55%, #070D0B 100%) !important;
       background-attachment: fixed !important;
+      color: #E6EFEC !important;
     }
 
-    /* Service-Karten: Material-Look, weiche Elevation, dezenter Hover-Lift */
-    .service-card {
-      border-radius: 1rem !important;
-      border: 1px solid rgba(148, 163, 184, 0.10) !important;
-      box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.30),
-        0 4px 12px rgba(0, 0, 0, 0.16) !important;
-      transition:
-        transform 0.18s ease,
-        box-shadow 0.18s ease,
-        border-color 0.18s ease,
-        background-color 0.18s ease !important;
-    }
-
-    .service-card:hover {
-      transform: translateY(-3px) !important;
-      border-color: rgba(45, 212, 191, 0.45) !important;
-      box-shadow:
-        0 8px 22px rgba(0, 0, 0, 0.35),
-        0 0 0 1px rgba(45, 212, 191, 0.18) !important;
-    }
-
-    /* Header etwas luftiger */
     #information-widgets {
-      margin-bottom: 0.5rem;
+      margin: 0.25rem 0 1.5rem !important;
+      padding-bottom: 1rem !important;
+      border-bottom: 1px solid rgba(0, 229, 180, 0.14) !important;
+    }
+    #information-widgets .text-theme-800,
+    #information-widgets .text-theme-900,
+    #information-widgets span { color: #E6EFEC !important; }
+    #information-widgets .text-theme-500,
+    #information-widgets .text-theme-600 { color: #6E8B84 !important; }
+    #information-widgets .bg-theme-400,
+    #information-widgets .bg-theme-500,
+    #information-widgets [class*="bg-theme-5"] { background-color: #00E5B4 !important; }
+    #information-widgets svg { color: #00E5B4 !important; }
+
+    h2 {
+      font-family: "Inter", ui-sans-serif, system-ui, sans-serif !important;
+      font-weight: 650 !important;
+      font-size: 0.95rem !important;
+      letter-spacing: 0.2px !important;
+      color: #E6EFEC !important;
+      text-transform: none !important;
     }
 
-    /* Suchleiste betonen — Pill-Form, Teal-Fokus (Google-Gefühl) */
+    .service-card {
+      position: relative !important;
+      overflow: hidden !important;
+      background: #0E1513 !important;
+      border: 1px solid rgba(0, 229, 180, 0.14) !important;
+      border-radius: 8px !important;
+      box-shadow: none !important;
+      transition: transform 0.15s ease, border-color 0.15s ease, background-color 0.15s ease !important;
+    }
+    .service-card:hover {
+      transform: translateY(-2px) !important;
+      background: #111C19 !important;
+      border-color: rgba(0, 229, 180, 0.45) !important;
+    }
+    .service-card::before {
+      content: "" !important;
+      position: absolute; left: 0; top: 0; bottom: 0;
+      width: 2px; background: #00E5B4;
+      transform: scaleY(0); transform-origin: top;
+      transition: transform 0.15s ease;
+    }
+    .service-card:hover::before { transform: scaleY(1); }
+
+    .service-card a { font-family: "Inter", ui-sans-serif, sans-serif !important; font-weight: 650 !important; color: #E6EFEC !important; }
+    .service-card p { font-family: "JetBrains Mono", ui-monospace, monospace !important; font-weight: 400 !important; color: #6E8B84 !important; font-size: 0.72rem !important; }
+
+    .service-card a:has(> img) {
+      background: #0A100E !important;
+      border: 1px solid rgba(0, 229, 180, 0.10) !important;
+      border-radius: 8px !important;
+      padding: 6px !important;
+    }
+    .service-card img { object-fit: contain !important; }
+
+    .service-card .font-bold { color: #00E5B4 !important; font-weight: 600 !important; }
+    .service-card .font-bold + div { color: #6E8B84 !important; letter-spacing: 0.4px !important; }
+    .service-card [class*="bg-theme-9"],
+    .service-card [class*="bg-theme-2"] {
+      background: rgba(0, 229, 180, 0.04) !important;
+      border: 1px solid rgba(0, 229, 180, 0.08) !important;
+      border-radius: 6px !important;
+    }
+
     #quicklaunch input,
     input[type="search"],
     input[type="text"] {
-      border-radius: 9999px !important;
-      transition:
-        border-color 0.18s ease,
-        box-shadow 0.18s ease !important;
+      background: #0C1310 !important;
+      border: 1px solid rgba(0, 229, 180, 0.22) !important;
+      border-radius: 10px !important;
+      color: #E6EFEC !important;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease !important;
     }
-
+    #quicklaunch input::placeholder,
+    input[type="search"]::placeholder { color: #6E8B84 !important; }
     #quicklaunch input:focus,
-    input[type="search"]:focus {
-      border-color: rgba(45, 212, 191, 0.55) !important;
-      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.20) !important;
+    input[type="search"]:focus,
+    input[type="text"]:focus {
+      border-color: #00E5B4 !important;
+      box-shadow: 0 0 0 3px rgba(0, 229, 180, 0.12) !important;
       outline: none !important;
     }
+
+    .service-card .text-green-500,
+    .service-card [class*="bg-green"] { color: #00E5B4 !important; }
