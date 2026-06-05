@@ -45,3 +45,6 @@ kubeconfig
 # Claude Code local config (personal settings and memory)
 .claude/settings.local.json
 .claude/memory/
+
+# Playwright MCP browser session data
+.playwright-mcp/
