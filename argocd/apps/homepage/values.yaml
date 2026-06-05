@@ -55,7 +55,7 @@ homepage:
       theme: dark
       color: teal
       headerStyle: clean
-      iconStyle: theme
+      iconStyle: color
       useEqualHeights: true
       language: de
       target: _blank
