@@ -27,6 +27,12 @@ data:
       color: #E6EFEC !important;
     }
 
+    /* Override homepage Tailwind theme wrapper (bg-theme-50 / dark:bg-theme-800 = teal-800) */
+    .bg-theme-50,
+    .bg-theme-800 {
+      background-color: #080F0D !important;
+    }
+
     #information-widgets {
       margin: 0.25rem 0 1.5rem !important;
       padding-bottom: 1rem !important;
