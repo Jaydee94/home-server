@@ -7,7 +7,7 @@ description: |
   (192.168.178.2:53) so it does not collide with the host dnsmasq on .127.
   *.homeserver lookups are forwarded back to dnsmasq; everything else goes
   upstream. Web UI at http://pihole.homeserver. The FritzBox is then pointed
-  at 192.168.178.2 as the "Lokaler DNS-Server" (see docs/14-pihole.md).
+  at 192.168.178.2 as the "Lokaler DNS-Server" (see docs/15-pihole.md).
 type: application
 version: 0.1.0
 appVersion: "2026.04.1"

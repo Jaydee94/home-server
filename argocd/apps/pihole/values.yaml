@@ -18,7 +18,8 @@ pihole:
     loadBalancerClass: metallb.universe.tf/metallb
     externalTrafficPolicy: Local
     annotations:
-      metallb.universe.tf/address-pool: pihole-dns
+      # Current MetalLB annotation domain (metallb.universe.tf/* is legacy).
+      metallb.io/address-pool: pihole-dns
 
   # Web UI is reached only through the Traefik ingress, never directly exposed.
   serviceWeb:
@@ -55,12 +56,17 @@ pihole:
     customDnsEntries:
       - "server=/homeserver/192.168.178.127"
 
-  # Admin password is injected from the SealedSecret rendered by
-  # templates/sealedsecret.yaml (key: password). See adminSecret block below.
+  # Admin password.
+  # SAFE DEFAULT (so ArgoCD reaches Healthy on first sync without manual steps):
+  # no existingSecret + empty adminPassword → the web UI comes up with NO
+  # password. The ingress is LAN/Tailnet-only, but you should still set a real
+  # password ASAP. To do that, seal one (see adminSecret block + docs/15) and
+  # then set: admin.existingSecret=pihole-admin AND adminSecret.enabled=true.
   admin:
     enabled: true
-    existingSecret: pihole-admin
+    existingSecret: ""
     passwordKey: password
+  adminPassword: ""
 
   resources:
     requests:
@@ -73,18 +79,18 @@ pihole:
 # --- Consumed by this chart's own templates/ (NOT the pihole sub-chart) ------
 # SealedSecret holding the Pi-hole web-admin password.
 #
-# !!! PLACEHOLDER — replace encryptedPassword before this app can go Healthy !!!
-# The value below is NOT a real sealed value; the SealedSecret controller will
-# refuse to decrypt it and the Pi-hole pod will stay in CreateContainerConfig-
-# Error until you seal a real password. Generate it with:
-#
-#   echo -n "<your-admin-password>" | kubeseal --raw \
-#     --namespace pihole --name pihole-admin \
-#     --controller-name sealed-secrets-controller \
-#     --controller-namespace sealed-secrets --from-file=/dev/stdin
-#
-# then paste the output as encryptedPassword. See docs/14-pihole.md.
+# DISABLED BY DEFAULT so a fresh ArgoCD sync is Healthy without committing a
+# secret (the web UI then has no password — see the admin block above). To
+# protect the UI:
+#   1. Seal your password:
+#        echo -n "<your-admin-password>" | kubeseal --raw \
+#          --namespace pihole --name pihole-admin \
+#          --controller-name sealed-secrets-controller \
+#          --controller-namespace sealed-secrets --from-file=/dev/stdin
+#   2. Paste the output as encryptedPassword below and set enabled: true.
+#   3. Set admin.existingSecret: pihole-admin in the admin block above.
+# See docs/15-pihole.md.
 adminSecret:
-  enabled: true
+  enabled: false
   secretName: pihole-admin
-  encryptedPassword: "REPLACE_ME_WITH_KUBESEAL_RAW_OUTPUT"
+  encryptedPassword: ""

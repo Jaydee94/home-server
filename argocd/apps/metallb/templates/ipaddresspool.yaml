@@ -1,6 +1,6 @@
 ---
 # Single-address pool: only Pi-hole's DNS IP is handed out by MetalLB.
-# Must be a free LAN IP OUTSIDE the FritzBox DHCP range (see docs/14-pihole.md).
+# Must be a free LAN IP OUTSIDE the FritzBox DHCP range (see docs/15-pihole.md).
 # sync-wave 1 → applied after the MetalLB controller/CRDs (wave 0) are up, so
 # the validating webhook is ready when this CR lands.
 apiVersion: metallb.io/v1beta1

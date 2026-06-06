@@ -52,7 +52,20 @@ Andernfalls eine andere freie IP wählen und **an drei Stellen** anpassen:
 
 ## 1. Erstdeploy
 
-### 1.1 Admin-Passwort als SealedSecret erzeugen
+### 1.1 Deployen (committen & pushen)
+
+```bash
+git add -A   # pihole + metallb + docs + CLAUDE.md
+git commit -m "feat(apps): add pihole + metallb"
+git push
+```
+
+ArgoCD entdeckt beide Apps automatisch (~3 min); die Namespaces `metallb` und
+`pihole` werden angelegt. Die App wird **Healthy** — die Web-UI hat per Default
+**kein Passwort** (der Ingress ist nur im LAN/Tailnet erreichbar). Setze das
+Passwort daher zeitnah (Schritt 1.2).
+
+### 1.2 Admin-Passwort setzen (dringend empfohlen)
 
 Der SealedSecret-Controller (`argocd/apps/sealed-secrets/`) akzeptiert nur
 Ciphertext, der mit seinem Public Key erzeugt wurde. Einfachster Weg über die
@@ -77,34 +90,26 @@ echo -n 'DEIN_ADMIN_PW' \
       --from-file=/dev/stdin
 ```
 
-### 1.2 Cipher in `values.yaml` eintragen
-
-In `argocd/apps/pihole/values.yaml` den Platzhalter ersetzen:
+Dann in `argocd/apps/pihole/values.yaml` **drei** Werte setzen und
+committen/pushen:
 
 ```yaml
+pihole:
+  admin:
+    existingSecret: pihole-admin   # vorher: ""
+# ...
 adminSecret:
-  enabled: true
+  enabled: true                    # vorher: false
   secretName: pihole-admin
   encryptedPassword: "AgB...<dein-kubeseal-output>..."
 ```
 
-> Solange hier der `REPLACE_ME...`-Platzhalter steht, kann der Controller das
-> Secret nicht entschlüsseln und der Pi-hole-Pod bleibt in
-> `CreateContainerConfigError`. Das ist erwartet — erst nach echtem Cipher wird
-> die App `Healthy`.
+ArgoCD entschlüsselt das Secret; Pi-hole übernimmt das Passwort beim nächsten
+Pod-Start. (Wer `admin.existingSecret` setzt, aber `adminSecret.enabled` auf
+`false` vergisst, bekommt `CreateContainerConfigError`, weil das referenzierte
+Secret dann fehlt — beides zusammen setzen.)
 
-### 1.3 Committen & pushen
-
-```bash
-git add argocd/apps/metallb argocd/apps/pihole docs/15-pihole.md
-git commit -m "feat(apps): add pihole + metallb"
-git push
-```
-
-ArgoCD entdeckt beide Apps automatisch (~3 min). Namespaces `metallb` und
-`pihole` werden angelegt.
-
-### 1.4 FritzBox auf Pi-hole zeigen
+### 1.3 FritzBox auf Pi-hole zeigen
 
 **Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Adressen** →
 Feld **„Lokaler DNS-Server"** auf `192.168.178.2` setzen, speichern.
@@ -137,7 +142,8 @@ dig @192.168.178.2 github.com           # → echte Auflösung (Upstream)
 dig @192.168.178.127 grafana.homeserver # → weiter ok
 ```
 
-Web-UI: <http://pihole.homeserver> → Login mit dem Admin-Passwort aus 1.1.
+Web-UI: <http://pihole.homeserver> → Login mit dem Admin-Passwort aus 1.2
+(bzw. ohne Passwort, falls noch nicht gesetzt).
 
 Per-Client-Test: an einem Client nach dem Lease-Renew `nslookup doubleclick.net`
 → geblockt; die Anfrage taucht im Pi-hole-Query-Log mit der Client-IP auf.
@@ -149,8 +155,10 @@ Per-Client-Test: an einem Client nach dem Lease-Renew `nslookup doubleclick.net`
   DHCP-Bereichs? Bei frischem Deploy kann der Validating-Webhook von MetalLB
   beim ersten Sync zu spät sein — ArgoCD-Retry (`sync-wave 1`) konvergiert das,
   notfalls App in ArgoCD manuell *Sync*en.
-- **Pod `CreateContainerConfigError`** → SealedSecret-Platzhalter noch nicht
-  ersetzt (Schritt 1.1/1.2) oder Cipher für falschen Namespace/Namen gesealt.
+- **Pod `CreateContainerConfigError`** → `admin.existingSecret: pihole-admin`
+  gesetzt, aber `adminSecret.enabled` noch `false` (Secret wird nicht gerendert)
+  oder Cipher für falschen Namespace/Namen gesealt. Beides zusammen setzen
+  (Schritt 1.2).
 - **`*.homeserver` löst nicht auf** → `customDnsEntries` greift nur, wenn
   Host-dnsmasq auf `192.168.178.127:53` erreichbar ist; vom Pod testen:
   `kubectl -n pihole exec deploy/pihole -- dig @192.168.178.127 grafana.homeserver`.
@@ -208,6 +216,30 @@ Tailscale-Nameserver**.
    spezifischere Regel) oder entfernen — Pi-hole löst `.homeserver` ohnehin auf
    (Forward an dnsmasq).
 
+Tailscale tunnelt DNS-Anfragen an einen per Subnet-Router erreichbaren privaten
+Nameserver über WireGuard — `192.168.178.2` als Nameserver funktioniert also,
+solange die Subnet-Route approved und auf dem Client akzeptiert ist.
+
+**Stolpersteine (damit nichts schiefgeht):**
+
+- **Exit-Node überschreibt DNS:** Nutzt ein Gerät einen Exit-Node, verwendet es
+  per Default dessen DNS. Pro Nameserver in der Tailscale-Konsole die Option
+  „use this nameserver even when an exit node is in use" aktivieren, sonst greift
+  Pi-hole dort nicht.
+- **Per-Client-Stats gehen remote verloren (SNAT):** Der Subnet-Router maskiert
+  weitergeleiteten Traffic per Default — Pi-hole sieht alle Remote-Anfragen mit
+  der LAN-IP des Home-Servers als *einen* Client. Wer echte Per-Client-Stats
+  will, setzt am Server `tailscale up … --snat-subnet-routes=false` (Linux-only)
+  und muss dann Rückrouten einrichten — für den Heim-Use-Case meist nicht den
+  Aufwand wert.
+- **DNS-Rebinding-Schutz:** Manche Resolver/Setups blocken private IPs in
+  DNS-Antworten. Falls `*.homeserver` über Tailscale `NXDOMAIN`/`0.0.0.0`
+  liefert (statt `192.168.178.127`), in Pi-hole unter
+  *Settings → DNS → „Allow rebinding"* (bzw. FTL `dns.allowRebinding`) das
+  Blocken privater Antworten erlauben. Die explizite `server=/homeserver/…`-
+  Weiterleitung ist davon i.d.R. nicht betroffen, der Punkt ist nur zur
+  Sicherheit notiert.
+
 **Tradeoff / SPOF:** Mit globalem Nameserver hängt die *komplette* DNS-Auflösung
 dieser Geräte an Pi-hole. Ist der Home-Server unten, haben sie auch unterwegs
 **gar kein** DNS mehr — die enge `homeserver`-Regel allein hat dieses Risiko
@@ -225,5 +257,5 @@ nslookup grafana.homeserver  # → 192.168.178.127
 - **Schnell (Clients zurück auf FritzBox-DNS):** FritzBox-Feld „Lokaler
   DNS-Server" wieder leeren.
 - **Vollständig:** Verzeichnisse `argocd/apps/pihole/` und
-  `argocd/apps/metallb/` entfernen, committen, pushen — ArgoCD prunt beide
-  Apps automatisch. dnsmasq auf `.127` läuft unverändert weiter.
+  `argocd/apps/metallb/` entfernen, committen, pushen — ArgoCD entfernt beide
+  Apps automatisch (prune). dnsmasq auf `.127` läuft unverändert weiter.
