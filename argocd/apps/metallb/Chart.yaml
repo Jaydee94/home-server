@@ -1,0 +1,28 @@
+---
+apiVersion: v2
+name: metallb
+description: |
+  MetalLB bare-metal load-balancer (L2/ARP mode) for the home-server k3s
+  cluster. Hands out a single dedicated LAN IP (192.168.178.2) so Pi-hole can
+  own port 53 without colliding with the host dnsmasq on 192.168.178.127.
+  k3s' built-in Klipper ServiceLB is left enabled — services opt into MetalLB
+  via spec.loadBalancerClass (metallb.universe.tf/metallb), which makes Klipper
+  ignore them.
+type: application
+version: 0.1.0
+appVersion: "0.16.1"
+keywords:
+  - metallb
+  - loadbalancer
+  - bare-metal
+  - dns
+home: https://metallb.universe.tf
+sources:
+  - https://github.com/metallb/metallb
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # Official MetalLB chart. Pinned + reproducible; Renovate raises a PR to bump.
+  - name: metallb
+    repository: https://metallb.github.io/metallb
+    version: "0.16.1"

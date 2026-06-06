@@ -400,6 +400,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Argo Workflows | http://argo-workflows.homeserver | Private CI (docs/13-argo-workflows.md) |
 | MinIO     | http://minio.homeserver     | S3 artifact store for Argo Workflows |
 | Homepage  | http://home.homeserver      | Zentrales Dashboard                |
+| Pi-hole   | http://pihole.homeserver    | LAN-Adblock; DNS auf 192.168.178.2 (docs/15-pihole.md) |
 | Paperless-NGX | http://jays-ugreen:8000  | NAS (Docker Compose)               |
 | OpenCode      | http://jays-ugreen:4096  | NAS (Docker Compose)               |
 | TinyTeller    | http://jays-ugreen:3002  | NAS (Docker Compose)               |
@@ -503,6 +504,9 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Semaphore bootstrap — vault-password Key selbstheilend**: `key.yml` macht jetzt einen PUT-Update für `login_password`-Keys bei jedem Run (`override_secret: true`). Bei Vault-Password-Rotation daher nur `make semaphore-bootstrap` nötig — kein manuelles Löschen des Keys in der UI mehr erforderlich. Das ältere Gotcha zu `semaphore_vault_password`-Rotation (Schritt 2: Key in der UI löschen) ist damit obsolet.
 - **Semaphore bootstrap — SSH-Key selbstheilend**: `key.yml` macht jetzt einen PUT-Update für SSH-Keys bei jedem Run (`override_secret: true`). Wenn der Key in Semaphore leer/korrupt ist (z.B. nach einem fehlgeschlagenen ersten Bootstrap), reicht `make semaphore-bootstrap` — kein manuelles Löschen in der UI nötig.
 - **Semaphore bootstrap — Orphan-Projekte automatisch gelöscht**: `main.yml` löscht nach dem Provisionieren alle Projekte die nicht in `semaphore_projects` stehen. Wenn ein Projekt umbenannt wird (z.B. `ugreen-paperless` → `ugreen-nas`), verschwindet der alte Eintrag beim nächsten `make semaphore-bootstrap` automatisch.
+- **Pi-hole & dnsmasq teilen sich Port 53 nicht**: dnsmasq belegt auf dem Host `192.168.178.127:53` (`*.homeserver` für LAN + Tailnet). Pi-hole (`argocd/apps/pihole/`) bekommt deshalb über **MetalLB** (`argocd/apps/metallb/`) eine eigene LAN-IP `192.168.178.2:53` — keine Kollision. `*.homeserver` löst weiter auf, weil Pi-hole es via `customDnsEntries: ["server=/homeserver/192.168.178.127"]` an dnsmasq forwardet. Pi-hole wird erst zum LAN-DNS, wenn in der FritzBox „Lokaler DNS-Server = 192.168.178.2" gesetzt ist (docs/15-pihole.md).
+- **MetalLB vs. k3s-Klipper**: k3s' eingebauter ServiceLB (Klipper) würde jeden `LoadBalancer`-Service mit der Node-IP beanspruchen. Damit MetalLB den Pi-hole-DNS-Service exklusiv bekommt, setzt dieser `serviceDns.loadBalancerClass: metallb.universe.tf/metallb` — Klipper überspringt Services mit fremder `loadBalancerClass`. Ohne diese Zeile bekommt der Service zwei EXTERNAL-IPs / die falsche IP.
+- **Pi-hole IP muss außerhalb des FritzBox-DHCP-Bereichs liegen**: `192.168.178.2` darf nicht vom DHCP vergeben werden (sonst ARP-Konflikt). DHCP-Bereich prüfen unter FritzBox → Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Adressen. Andere IP nötig? An drei Stellen ändern: `metallb/templates/ipaddresspool.yaml`, `pihole/values.yaml` (`loadBalancerIP`), FritzBox.
 
 ## Automatic dependency updates
 

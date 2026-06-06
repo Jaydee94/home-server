@@ -1,0 +1,90 @@
+---
+# Values passed through to the pihole sub-chart.
+# Everything under `pihole:` is consumed by the dependency; the top-level
+# `adminSecret:` block is consumed by this chart's own templates/.
+pihole:
+  # Pin the Pi-hole v6 image for reproducibility (chart appVersion 2026.04.1).
+  image:
+    repository: pihole/pihole
+    tag: "2026.04.1"
+
+  # --- DNS service: dedicated LAN IP via MetalLB ---------------------------
+  # loadBalancerClass makes k3s' Klipper ServiceLB ignore this service so only
+  # MetalLB claims it; loadBalancerIP + the address-pool annotation pin it to
+  # 192.168.178.2 (defined in argocd/apps/metallb/templates/ipaddresspool.yaml).
+  serviceDns:
+    type: LoadBalancer
+    loadBalancerIP: 192.168.178.2
+    loadBalancerClass: metallb.universe.tf/metallb
+    externalTrafficPolicy: Local
+    annotations:
+      metallb.universe.tf/address-pool: pihole-dns
+
+  # Web UI is reached only through the Traefik ingress, never directly exposed.
+  serviceWeb:
+    type: ClusterIP
+
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    path: /
+    hosts:
+      - pihole.homeserver
+
+  # Persist the FTL query DB + gravity (blocklists) across restarts.
+  persistentVolumeClaim:
+    enabled: true
+    storageClass: local-path
+    size: 2Gi
+    accessModes:
+      - ReadWriteOnce
+
+  # Upstream resolvers: FritzBox first (consistent with the host dnsmasq,
+  # routes via the Vodafone uplink), Quad9 as a public backup.
+  # NOTE: this is Pi-hole's *upstream*; it does NOT loop with the FritzBox
+  # "Lokaler DNS-Server" setting, which only governs what the FritzBox hands
+  # to DHCP clients (not the FritzBox's own internet resolver).
+  DNS1: "192.168.178.1"
+  DNS2: "9.9.9.9"
+
+  dnsmasq:
+    # Forward *.homeserver back to the host dnsmasq on .127 so existing
+    # service hostnames (grafana.homeserver, argocd.homeserver, ...) keep
+    # resolving once Pi-hole becomes the LAN resolver. Rendered verbatim into
+    # /etc/dnsmasq.d — `server=/domain/ip` is a conditional-forward directive.
+    customDnsEntries:
+      - "server=/homeserver/192.168.178.127"
+
+  # Admin password is injected from the SealedSecret rendered by
+  # templates/sealedsecret.yaml (key: password). See adminSecret block below.
+  admin:
+    enabled: true
+    existingSecret: pihole-admin
+    passwordKey: password
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# --- Consumed by this chart's own templates/ (NOT the pihole sub-chart) ------
+# SealedSecret holding the Pi-hole web-admin password.
+#
+# !!! PLACEHOLDER — replace encryptedPassword before this app can go Healthy !!!
+# The value below is NOT a real sealed value; the SealedSecret controller will
+# refuse to decrypt it and the Pi-hole pod will stay in CreateContainerConfig-
+# Error until you seal a real password. Generate it with:
+#
+#   echo -n "<your-admin-password>" | kubeseal --raw \
+#     --namespace pihole --name pihole-admin \
+#     --controller-name sealed-secrets-controller \
+#     --controller-namespace sealed-secrets --from-file=/dev/stdin
+#
+# then paste the output as encryptedPassword. See docs/14-pihole.md.
+adminSecret:
+  enabled: true
+  secretName: pihole-admin
+  encryptedPassword: "REPLACE_ME_WITH_KUBESEAL_RAW_OUTPUT"
