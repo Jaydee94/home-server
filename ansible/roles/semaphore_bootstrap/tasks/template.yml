@@ -28,7 +28,7 @@
            | list | first | default({})).id | default(none) }}
   when: template_exists
 
-- name: Assert inventory '{{ template_spec.inventory }}' exists in project {{ project_spec.name }}
+- name: Assert inventory exists in project - {{ project_spec.name }}
   ansible.builtin.assert:
     that: "template_spec.inventory in project_inventory_map"
     fail_msg: >-

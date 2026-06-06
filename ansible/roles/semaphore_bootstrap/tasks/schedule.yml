@@ -19,7 +19,7 @@
     return_content: true
   register: sem_sched_existing
 
-- name: Decide if schedule '{{ schedule_spec.name }}' exists
+- name: Decide if schedule exists - {{ schedule_spec.name }}
   ansible.builtin.set_fact:
     schedule_exists: >-
       {{ (sem_sched_existing.json
@@ -34,7 +34,7 @@
            | list | first | default({})).id | default(none) }}
   when: schedule_exists
 
-- name: Assert template '{{ schedule_spec.template }}' exists for schedule '{{ schedule_spec.name }}'
+- name: Assert that schedule template exists - {{ schedule_spec.name }}
   ansible.builtin.assert:
     that: "schedule_spec.template in project_template_map"
     fail_msg: >-
