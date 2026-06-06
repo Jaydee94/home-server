@@ -217,3 +217,9 @@ network_gateway: "192.168.178.1"
 network_dns:
   - "1.1.1.1"
   - "8.8.8.8"
+
+# Dedicated MetalLB LAN IP that Pi-hole's DNS service owns (argocd/apps/pihole
+# + argocd/apps/metallb). The host_dns role points systemd-resolved here as the
+# primary LAN resolver. Keep in sync with serviceDns.loadBalancerIP and the
+# MetalLB IPAddressPool. Must stay OUTSIDE the FritzBox DHCP range.
+pihole_dns_ip: "192.168.178.2"

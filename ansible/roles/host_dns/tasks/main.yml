@@ -1,0 +1,102 @@
+---
+# ============================================================
+# host_dns role — host resolver after retiring dnsmasq
+# ============================================================
+# dnsmasq has been replaced by Pi-hole (argocd/apps/pihole), the single LAN
+# resolver. Pi-hole serves *.homeserver + ad-blocking on its dedicated MetalLB
+# IP {{ pihole_dns_ip }}:53. This role:
+#   1. decommissions the old host dnsmasq, and
+#   2. points the host's OWN resolver at Pi-hole (primary) with the Fritz!Box
+#      as a graceful fallback — so host-side tooling that uses *.homeserver
+#      (scanner → gotify.homeserver, semaphore-bootstrap-local →
+#      semaphore.homeserver) keeps resolving.
+# Pi-hole must NOT bind the node IP :53 (k3s' Klipper would seize 0.0.0.0:53 and
+# clobber systemd-resolved) — that is exactly why the dedicated MetalLB IP
+# exists. See docs/15-pihole.md.
+# ============================================================
+
+# ---- Decommission the old host dnsmasq ---------------------
+- name: Stop and disable dnsmasq
+  ansible.builtin.systemd:
+    name: dnsmasq
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Remove dnsmasq package
+  ansible.builtin.apt:
+    name: dnsmasq
+    state: absent
+    purge: true
+
+- name: Remove leftover dnsmasq config files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/dnsmasq.conf
+    - /etc/systemd/resolved.conf.d/dnsmasq.conf
+
+# ---- Firewall: allow DNS to Pi-hole ------------------------
+# Pi-hole answers on the MetalLB IP {{ pihole_dns_ip }}:53; keep the LAN +
+# Tailnet allowances that previously fronted the host dnsmasq.
+- name: Allow DNS from local subnet (UFW)
+  community.general.ufw:
+    rule: allow
+    port: "53"
+    proto: "{{ item }}"
+    src: "{{ local_subnet }}"
+  loop:
+    - tcp
+    - udp
+
+- name: Allow DNS from Tailnet (UFW)
+  community.general.ufw:
+    rule: allow
+    port: "53"
+    proto: "{{ item }}"
+    src: "100.64.0.0/10"
+  loop:
+    - tcp
+    - udp
+
+# ---- Host resolver via systemd-resolved --------------------
+# Don't clobber /etc/resolv.conf directly (systemd-resolved manages the symlink
+# and would revert a static file on the next network event). Point resolved at
+# Pi-hole (primary) so *.homeserver + ad-blocking apply to host-side tooling
+# too, with the Fritz!Box (gateway) as an in-list fallback: systemd-resolved
+# sticks to the first reachable server and only rotates on failure, so while
+# Pi-hole is up everything (incl. *.homeserver) goes through it; if Pi-hole/k3s
+# is down, the host degrades to the Fritz!Box for internet (only *.homeserver
+# stops resolving until Pi-hole is back). Public resolvers are the last resort.
+- name: Ensure systemd-resolved drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/resolved.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Point systemd-resolved at Pi-hole (primary) + gateway (fallback)
+  ansible.builtin.copy:
+    dest: /etc/systemd/resolved.conf.d/host-dns.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible (host_dns role).
+      # Pi-hole ({{ pihole_dns_ip }}) is the single LAN resolver; the Fritz!Box
+      # (gateway) is the in-list fallback, public resolvers the last resort.
+      [Resolve]
+      DNS={{ pihole_dns_ip }} {{ network_gateway }}
+      FallbackDNS={{ network_dns | join(' ') }}
+      Domains=~.
+  notify: Restart systemd-resolved
+
+- name: Ensure /etc/resolv.conf is the systemd-resolved stub symlink
+  ansible.builtin.file:
+    path: /etc/resolv.conf
+    src: ../run/systemd/resolve/stub-resolv.conf
+    state: link
+    force: true
+  notify: Restart systemd-resolved

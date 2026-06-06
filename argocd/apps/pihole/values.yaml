@@ -49,12 +49,13 @@ pihole:
   DNS2: "9.9.9.9"
 
   dnsmasq:
-    # Forward *.homeserver back to the host dnsmasq on .127 so existing
-    # service hostnames (grafana.homeserver, argocd.homeserver, ...) keep
-    # resolving once Pi-hole becomes the LAN resolver. Rendered verbatim into
-    # /etc/dnsmasq.d — `server=/domain/ip` is a conditional-forward directive.
+    # Pi-hole is the SINGLE authoritative resolver for *.homeserver — the host
+    # dnsmasq has been retired (see ansible/roles/host_dns). `address=/domain/ip`
+    # answers every *.homeserver name with the Traefik node IP (.127), rendered
+    # verbatim into /etc/dnsmasq.d. This is the same wildcard the old host
+    # dnsmasq served, now owned by Pi-hole.
     customDnsEntries:
-      - "server=/homeserver/192.168.178.127"
+      - "address=/homeserver/192.168.178.127"
 
   # Admin password.
   # SAFE DEFAULT (so ArgoCD reaches Healthy on first sync without manual steps):

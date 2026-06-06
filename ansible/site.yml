@@ -17,8 +17,8 @@
   roles:
     - role: common
       tags: [common, base]
-    - role: dnsmasq
-      tags: [dnsmasq, dns]
+    - role: host_dns
+      tags: [host_dns, dns]
     - role: tailscale
       tags: [tailscale, vpn]
     - role: k3s

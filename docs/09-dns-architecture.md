@@ -1,5 +1,14 @@
 # DNS-Architektur & Ausfallsicherheit
 
+> **Status-Update (aktuelle Architektur):** Das Heimnetz nutzt inzwischen
+> **Pi-hole als einzigen, netzwerkweiten DNS-Server** (auf der MetalLB-IP
+> `192.168.178.2`); das frühere Host-**dnsmasq wurde abgelöst**. Der unten
+> beschriebene „opt-in pro Gerät"-Ansatz ist damit die **historische**
+> Vorgänger-Lösung — die Abwägungen (SPOF, Fritz!Box verteilt nur eine DNS-IP)
+> gelten weiter und wurden für Pi-hole **bewusst akzeptiert**. Die maßgebliche,
+> aktuelle Anleitung steht in [`15-pihole.md`](15-pihole.md). Dieses Dokument
+> bleibt als Begründung der Trade-offs erhalten.
+
 Dieses Dokument beantwortet eine sehr berechtigte Frage:
 
 > *"Wenn ich den Home-Server als zentralen DNS-Server für mein LAN
@@ -151,16 +160,21 @@ Service ergänzen.
 
 ## Was passiert eigentlich am Home-Server selbst?
 
-Der Home-Server hat zwei DNS-Einträge in seiner `/etc/resolv.conf`:
+Die `host_dns`-Rolle konfiguriert `systemd-resolved` (Drop-in
+`/etc/systemd/resolved.conf.d/host-dns.conf`):
 
 ```
-nameserver 192.168.178.127   # dnsmasq (sich selbst)
-nameserver 192.168.178.1     # Fritz!Box (Fallback)
+[Resolve]
+DNS=192.168.178.2 192.168.178.1   # Pi-hole (primär), Fritz!Box (Fallback)
+FallbackDNS=1.1.1.1 8.8.8.8        # letzter Notnagel
+Domains=~.
 ```
 
-→ Eigene Auflösung läuft schnell über das lokale dnsmasq. Falls dnsmasq
-crasht, fällt der Server selbst nach ~5 s auf die Fritz!Box zurück und
-bleibt funktional.
+→ Eigene Auflösung läuft über Pi-hole (`*.homeserver` + Adblock). `systemd-resolved`
+bleibt am ersten erreichbaren Server kleben und wechselt nur bei Ausfall: ist
+Pi-hole/k3s down, fällt der Server auf die Fritz!Box zurück und behält Internet —
+nur `*.homeserver` schlägt fehl, bis Pi-hole wieder da ist. Früher übernahm das
+lokale dnsmasq diese Rolle.
 
 ---
 

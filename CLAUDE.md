@@ -334,7 +334,7 @@ make common         # Base OS, firewall, packages
 make tailscale      # VPN role
 make k3s            # Kubernetes + Helm role
 make argocd         # GitOps controller role
-make dnsmasq        # Split-DNS for *.homeserver on LAN + tailscale0
+make host-dns       # Retire dnsmasq; point host resolver at Pi-hole (.2) + FritzBox fallback
 make scanner        # Bare-metal Fujitsu scanner + scanbd + SMB mount
 make semaphore      # Bootstrap Semaphore Secret on the home-server
 make semaphore-targets  # Push Semaphore SSH key to all managed targets
@@ -353,7 +353,7 @@ make clean          # Remove cached Ansible collections and temp artifacts
 ```
 Ansible (provisioning)
   └── ansible/site.yml          ← entry point; roles run in this order:
-        common → dnsmasq → tailscale → k3s → argocd → scanner → semaphore_secrets
+        common → host_dns → tailscale → k3s → argocd → scanner → semaphore_secrets
   └── ansible/group_vars/all.yml ← ALL configuration knobs; vault-encrypted secrets live here
   └── ansible/inventory/hosts.yml ← server address
 
@@ -446,7 +446,7 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 | `argocd_repo_url` / `argocd_repo_revision` | Git repo + revision ArgoCD syncs from |
 | `tailscale_auth_key` | Vault-encrypted WireGuard auth key |
 | `tailscale_hostname` | Tailnet name (defaults to `hostname`) |
-| `dnsmasq_hosts` | Names served under `*.homeserver` by dnsmasq |
+| `pihole_dns_ip` | Dedicated MetalLB LAN IP Pi-hole's DNS service owns; `host_dns` points the host resolver here (default `192.168.178.2`) |
 | `semaphore_vault_password` | Vault-encrypted Ansible Vault password Semaphore uses to decrypt secrets in triggered playbooks |
 | `semaphore_projects` | Optional list of additional Semaphore projects/templates to bootstrap |
 | `scanner_smb_share` | NAS share path for the Paperless consume directory |
@@ -481,7 +481,7 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Host metrics** — `prometheus-node-exporter` DaemonSet
 - **Cluster metrics** — kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS; scheduler/controller-manager/etcd scrapes are disabled (k3s runs them in a single process)
 - **Alerts** — default kube-prometheus rule set; routed to a `blackhole` receiver until Discord/Slack/Gotify is wired in `values.yaml`
-- **Grafana** — available at `http://grafana.homeserver` (LAN + Tailnet via dnsmasq); ships Node Exporter Full, VictoriaMetrics, and Kubernetes Views dashboards
+- **Grafana** — available at `http://grafana.homeserver` (LAN + Tailnet, resolved by Pi-hole); ships Node Exporter Full, VictoriaMetrics, and Kubernetes Views dashboards
 
 ## Gotchas
 
@@ -504,9 +504,10 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Semaphore bootstrap — vault-password Key selbstheilend**: `key.yml` macht jetzt einen PUT-Update für `login_password`-Keys bei jedem Run (`override_secret: true`). Bei Vault-Password-Rotation daher nur `make semaphore-bootstrap` nötig — kein manuelles Löschen des Keys in der UI mehr erforderlich. Das ältere Gotcha zu `semaphore_vault_password`-Rotation (Schritt 2: Key in der UI löschen) ist damit obsolet.
 - **Semaphore bootstrap — SSH-Key selbstheilend**: `key.yml` macht jetzt einen PUT-Update für SSH-Keys bei jedem Run (`override_secret: true`). Wenn der Key in Semaphore leer/korrupt ist (z.B. nach einem fehlgeschlagenen ersten Bootstrap), reicht `make semaphore-bootstrap` — kein manuelles Löschen in der UI nötig.
 - **Semaphore bootstrap — Orphan-Projekte automatisch gelöscht**: `main.yml` löscht nach dem Provisionieren alle Projekte die nicht in `semaphore_projects` stehen. Wenn ein Projekt umbenannt wird (z.B. `ugreen-paperless` → `ugreen-nas`), verschwindet der alte Eintrag beim nächsten `make semaphore-bootstrap` automatisch.
-- **Pi-hole & dnsmasq teilen sich Port 53 nicht**: dnsmasq belegt auf dem Host `192.168.178.127:53` (`*.homeserver` für LAN + Tailnet). Pi-hole (`argocd/apps/pihole/`) bekommt deshalb über **MetalLB** (`argocd/apps/metallb/`) eine eigene LAN-IP `192.168.178.2:53` — keine Kollision. `*.homeserver` löst weiter auf, weil Pi-hole es via `customDnsEntries: ["server=/homeserver/192.168.178.127"]` an dnsmasq forwardet. Pi-hole wird erst zum LAN-DNS, wenn in der FritzBox „Lokaler DNS-Server = 192.168.178.2" gesetzt ist (docs/15-pihole.md).
-- **MetalLB vs. k3s-Klipper**: k3s' eingebauter ServiceLB (Klipper) würde jeden `LoadBalancer`-Service mit der Node-IP beanspruchen. Damit MetalLB den Pi-hole-DNS-Service exklusiv bekommt, setzt dieser `serviceDns.loadBalancerClass: metallb.universe.tf/metallb` — Klipper überspringt Services mit fremder `loadBalancerClass`. Ohne diese Zeile bekommt der Service zwei EXTERNAL-IPs / die falsche IP.
-- **Pi-hole IP muss außerhalb des FritzBox-DHCP-Bereichs liegen**: `192.168.178.2` darf nicht vom DHCP vergeben werden (sonst ARP-Konflikt). DHCP-Bereich prüfen unter FritzBox → Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Adressen. Andere IP nötig? An drei Stellen ändern: `metallb/templates/ipaddresspool.yaml`, `pihole/values.yaml` (`loadBalancerIP`), FritzBox.
+- **Pi-hole ist der einzige DNS-Server (dnsmasq abgelöst)**: Das frühere Host-dnsmasq ist weg; Pi-hole (`argocd/apps/pihole/`) löst `*.homeserver` **autoritativ** selbst auf (`customDnsEntries: ["address=/homeserver/192.168.178.127"]`) und blockt Werbung. Es läuft auf der dedizierten **MetalLB**-IP `192.168.178.2:53` (`argocd/apps/metallb/`). Der Host selbst fragt es via `host_dns`-Rolle (systemd-resolved → `.2`, FritzBox-Fallback), damit host-seitige `*.homeserver`-Tools (Scanner→`gotify.homeserver`, `semaphore-bootstrap-local`) weiter funktionieren. LAN-weit aktiv erst, wenn FritzBox „Lokaler DNS-Server = 192.168.178.2" gesetzt ist (docs/15-pihole.md).
+- **Pi-hole NICHT auf die Node-IP `:53` legen**: k3s' Klipper-ServiceLB bindet einen LB-Port als hostPort `0.0.0.0:53` und würde den Host-Resolver (`systemd-resolved` auf `127.0.0.53:53`) lahmlegen (Node löst nichts mehr auf). Genau deshalb die dedizierte MetalLB-IP `.2` statt der Node-IP. MetalLB liefert `.2:53` per ARP/kube-proxy aus, ohne `0.0.0.0:53` zu belegen.
+- **MetalLB vs. k3s-Klipper**: Damit MetalLB den Pi-hole-DNS-Service exklusiv bekommt (statt Klipper), setzen **beide** Seiten dieselbe `loadBalancerClass: metallb.universe.tf/metallb` — der Service (`serviceDns.loadBalancerClass`) und der Controller (`metallb.loadBalancerClass`). Klipper überspringt klassifizierte Services (k3s ≥ v1.26); MetalLB greift nur bei passendem `--lb-class`. Fehlt eine Seite → Service bleibt `<pending>` oder bekommt zwei EXTERNAL-IPs.
+- **Pi-hole IP muss außerhalb des FritzBox-DHCP-Bereichs liegen**: `192.168.178.2` darf nicht vom DHCP vergeben werden (sonst ARP-Konflikt). DHCP-Bereich prüfen unter FritzBox → Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Adressen. Andere IP nötig? An vier Stellen ändern: `metallb/templates/ipaddresspool.yaml`, `pihole/values.yaml` (`loadBalancerIP`), `group_vars/all.yml` (`pihole_dns_ip`), FritzBox.
 
 ## Automatic dependency updates
 

@@ -9,9 +9,10 @@
 # clicks.
 
 # Base URL Ansible uses to call the Semaphore REST API. The home-server
-# itself resolves `semaphore.homeserver` via dnsmasq → Traefik → Pod.
+# itself resolves `semaphore.homeserver` via Pi-hole → Traefik → Pod
+# (host_dns role points systemd-resolved at Pi-hole on 192.168.178.2).
 # Override to e.g. `http://semaphore.semaphore.svc.cluster.local:3000`
-# if the dnsmasq path is not yet up when the role runs.
+# if the Pi-hole DNS path is not yet up when the role runs.
 semaphore_api_base: "http://semaphore.homeserver"
 
 # Kubernetes namespace where Semaphore runs (must match semaphore_secrets role).
