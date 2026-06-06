@@ -6,12 +6,11 @@
   ],
   "packageRules": [
     {
-      "description": "Auto-merge patch and minor updates of the kubeseal-webgui OCI Helm chart; major updates open a PR for manual review.",
+      "description": "kubeseal-webgui v4.10+ has a broken kubernetes-client v36 in-cluster auth (api_key key mismatch). Disable auto-merge until upstream fixes it.",
       "matchManagers": ["helmv3"],
       "matchDatasources": ["docker"],
       "matchPackageNames": ["/kubeseal-webgui/"],
-      "matchUpdateTypes": ["patch", "minor"],
-      "automerge": true
+      "automerge": false
     }
   ],
   "platformAutomerge": true
