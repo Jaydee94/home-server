@@ -170,7 +170,57 @@ Per-Client-Test: an einem Client nach dem Lease-Renew `nslookup doubleclick.net`
   umgehen Pi-hole. Diese Integration ist bewusst IPv4-only; IPv6 (Pi-hole per
   RA/DHCPv6 oder IPv6-DNS in der FritzBox abschalten) ist ein Folgeschritt.
 
-## 4. Rollback
+## 4. Tailscale-Geräte (VPN)
+
+### `.homeserver`-Auflösung bleibt unberührt
+
+Die bestehende **Tailscale-Split-DNS**-Regel (Domain `homeserver` → Tailscale-IP
+des Servers, beantwortet von dnsmasq auf `tailscale0`) funktioniert **unverändert
+weiter** — Pi-hole läuft auf der LAN-IP `.2` und berührt `tailscale0` nicht.
+Dafür ist **nichts zu tun**. Test auf einem Tailscale-Gerät:
+`nslookup grafana.homeserver` → `192.168.178.127`.
+
+### Optional: Adblocking auch unterwegs
+
+Standardmäßig blockt Pi-hole nur Geräte, die **zu Hause am LAN** hängen
+(FritzBox → Pi-hole). Tailscale-Geräte bekommen **unterwegs kein** Pi-hole, weil
+ihr Split DNS nur die Domain `homeserver` zum Server routet, nicht den restlichen
+Traffic. Wer Adblocking auch remote will, macht Pi-hole zum **globalen
+Tailscale-Nameserver**.
+
+**Voraussetzungen (im Repo schon vorbereitet):**
+
+- Die Tailscale-Rolle advertised `--advertise-routes=192.168.178.0/24`
+  (`ansible/roles/tailscale/tasks/main.yml`). Die Route muss in der
+  [Tailscale-Konsole → Machines](https://login.tailscale.com/admin/machines)
+  **approved** sein.
+- Jedes Gerät, das Remote-Adblocking will, braucht „Use Tailscale subnets" /
+  `--accept-routes` aktiv — sonst ist `192.168.178.2` außerhalb des Heim-LANs
+  nicht erreichbar.
+
+**Einrichtung** ([Tailscale-Konsole → DNS](https://login.tailscale.com/admin/dns)):
+
+1. **Nameservers → Add nameserver → Custom** → IP `192.168.178.2`, **ohne**
+   „Restrict to search domain" (= globaler Nameserver).
+2. **Override local DNS** aktivieren, damit die Geräte Pi-hole auch wirklich
+   benutzen.
+3. Die bestehende `homeserver`-Split-DNS-Regel kannst du behalten (greift als
+   spezifischere Regel) oder entfernen — Pi-hole löst `.homeserver` ohnehin auf
+   (Forward an dnsmasq).
+
+**Tradeoff / SPOF:** Mit globalem Nameserver hängt die *komplette* DNS-Auflösung
+dieser Geräte an Pi-hole. Ist der Home-Server unten, haben sie auch unterwegs
+**gar kein** DNS mehr — die enge `homeserver`-Regel allein hat dieses Risiko
+nicht. Schnelles Rollback: globalen Nameserver in der Konsole wieder entfernen.
+
+Verifikation (Tailscale-Gerät, unterwegs / über Mobilfunk):
+
+```bash
+nslookup doubleclick.net     # → geblockt (Pi-hole)
+nslookup grafana.homeserver  # → 192.168.178.127
+```
+
+## 5. Rollback
 
 - **Schnell (Clients zurück auf FritzBox-DNS):** FritzBox-Feld „Lokaler
   DNS-Server" wieder leeren.
