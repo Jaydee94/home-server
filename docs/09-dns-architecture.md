@@ -192,9 +192,10 @@ wir per Default vermeiden wollen.
 
 **Ausnahme — bewusst gewählt: Pi-hole als netzwerkweiter Blocker.** Wer
 Werbung/Tracker für *alle* Geräte blocken will, trägt hier bewusst die
-**Pi-hole-IP `192.168.178.2`** ein (nicht die `.127` von dnsmasq). Damit wird
-Pi-hole zum primären LAN-DNS; `*.homeserver` löst weiter auf, weil Pi-hole
-diese Domain an das dnsmasq auf `.127` weiterleitet. Der SPOF-Tradeoff wird
+**Pi-hole-IP `192.168.178.2`** ein (nicht die frühere `.127` von dnsmasq).
+Damit wird Pi-hole zum primären LAN-DNS; `*.homeserver` löst weiter auf, weil
+Pi-hole diese Domain via `address=/homeserver/192.168.178.127` selbst
+autoritativ beantwortet. Der SPOF-Tradeoff wird
 dabei akzeptiert (die Fritz!Box kann ohnehin nur **eine** DNS-IP verteilen,
 es gibt keinen automatischen Client-Fallback) — fällt der Home-Server aus,
 ist LAN-DNS weg, also dieselbe SPOF-Klasse wie der restliche Stack auf diesem

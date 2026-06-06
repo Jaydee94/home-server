@@ -187,9 +187,10 @@ Per-Client-Test: an einem Client nach dem Lease-Renew `nslookup doubleclick.net`
   gesetzt, aber `adminSecret.enabled` noch `false` (Secret wird nicht gerendert)
   oder Cipher für falschen Namespace/Namen gesealt. Beides zusammen setzen
   (Schritt 1.2).
-- **`*.homeserver` löst nicht auf** → `customDnsEntries` greift nur, wenn
-  Host-dnsmasq auf `192.168.178.127:53` erreichbar ist; vom Pod testen:
-  `kubectl -n pihole exec deploy/pihole -- dig @192.168.178.127 grafana.homeserver`.
+- **`*.homeserver` löst nicht auf** → prüfen, ob in
+  `argocd/apps/pihole/values.yaml` der Eintrag
+  `address=/homeserver/192.168.178.127` unter `customDnsEntries` gesetzt ist
+  und auf die aktuelle Traefik-/Node-IP zeigt (bei IP-Wechsel anpassen).
 - **Service bleibt `<pending>` trotz laufendem MetalLB** → die `loadBalancer
   Class` muss auf **beiden** Seiten identisch sein: am Pi-hole-DNS-Service
   (`serviceDns.loadBalancerClass`) **und** am MetalLB-Controller
