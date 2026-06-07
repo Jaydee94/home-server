@@ -51,6 +51,15 @@ MagicDNS erreichst du den Home-Server unter `homeserver` oder
 2. **Enable MagicDNS** anschalten.
 3. Optional einen **Global nameserver** (z. B. `1.1.1.1`) für Nicht-Tailscale-Hostnamen setzen.
 
+**`*.homeserver` über Tailscale auflösen (Split DNS):**
+
+Pi-hole auf `192.168.178.2` löst alle `*.homeserver`-Namen autoritativ auf.
+Damit Tailscale-Clients (unterwegs) diese Namen ebenfalls auflösen, in der
+Admin-Konsole → **DNS → Nameservers** einen Split-DNS-Eintrag setzen:
+Nameserver `192.168.178.2`, „Restrict to search domain: `homeserver`".
+Voraussetzung: Subnet-Route `192.168.178.0/24` muss approved und auf dem
+Client aktiv sein (`--accept-routes`). Vollständige Anleitung: [docs/15-pihole.md §4](15-pihole.md).
+
 **Nach Aktivierung — Server-Zugriff:**
 
 ```
@@ -108,7 +117,7 @@ erreichen, auf denen kein Tailscale läuft — z. B. eine NAS, ein Smart-TV
 oder ein Drucker.
 
 Die Ansible-Rolle konfiguriert den Server so, dass er das eigene Subnetz
-(`local_subnet`, Default `192.168.1.0/24`) advertised.
+(`local_subnet`, Default `192.168.178.0/24`) advertised.
 
 **Subnet-Routes freischalten:**
 
@@ -117,18 +126,18 @@ Nach dem Playbook-Run die advertised Routes im Admin-Panel approven:
 1. [Admin-Panel](https://login.tailscale.com/admin/machines) öffnen.
 2. Home-Server auswählen.
 3. **... → Edit route settings**.
-4. Das advertised Subnet (`192.168.1.0/24`) aktivieren.
+4. Das advertised Subnet (`192.168.178.0/24`) aktivieren.
 5. **Save**.
 
 **Subnet-Zugriff testen:**
 
 ```bash
 # Von einem Tailscale-Client
-ping 192.168.1.1
-curl http://192.168.1.1/      # Router-Admin-Seite (falls erreichbar)
+ping 192.168.178.1
+curl http://192.168.178.1/      # Router-Admin-Seite (falls erreichbar)
 
 # Server direkt über die LAN-IP
-curl http://192.168.1.100:30080
+curl http://192.168.178.100:30080
 ```
 
 **Subnet-Routing am Client aktivieren:**
@@ -196,7 +205,7 @@ Nach dem Verbinden eines Clients:
 tailscale status                         # homeserver sollte in der Liste stehen
 ping homeserver                          # MagicDNS
 curl http://homeserver:30080             # ArgoCD
-ssh ubuntu@homeserver                    # SSH
+ssh jaydee@homeserver                    # SSH
 ```
 
 ---
@@ -258,7 +267,7 @@ in unsicheren Netzen (Public WiFi).
 # Als Exit-Node advertisen
 sudo tailscale up \
   --advertise-exit-node \
-  --advertise-routes=192.168.1.0/24 \
+  --advertise-routes=192.168.178.0/24 \
   --hostname=homeserver
 ```
 
