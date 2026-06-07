@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://ubuntu.com/server"><img alt="Ubuntu" src="https://img.shields.io/badge/Ubuntu-26.04_LTS-E95420?style=for-the-badge&logo=ubuntu&logoColor=white"></a>
-  <a href="https://k3s.io"><img alt="k3s" src="https://img.shields.io/badge/k3s-v1.29-FFC61C?style=for-the-badge&logo=k3s&logoColor=black"></a>
+  <a href="https://k3s.io"><img alt="k3s" src="https://img.shields.io/badge/k3s-stable-FFC61C?style=for-the-badge&logo=k3s&logoColor=black"></a>
   <a href="https://argo-cd.readthedocs.io"><img alt="ArgoCD" src="https://img.shields.io/badge/ArgoCD-GitOps-EF7B4D?style=for-the-badge&logo=argo&logoColor=white"></a>
   <a href="https://tailscale.com"><img alt="Tailscale" src="https://img.shields.io/badge/Tailscale-VPN-246FDB?style=for-the-badge&logo=tailscale&logoColor=white"></a>
   <a href="https://www.ansible.com"><img alt="Ansible" src="https://img.shields.io/badge/Ansible-IaC-EE0000?style=for-the-badge&logo=ansible&logoColor=white"></a>
@@ -167,8 +167,11 @@ home-server/
     ├── bootstrap/root-applicationset.yaml  # Erkennt jedes Verzeichnis darunter
     └── apps/                               # Ein Ordner pro ArgoCD-Application
         ├── example-whoami/                 # Referenz-Helm-Chart
+        ├── metallb/                        # L2-LoadBalancer für Pi-hole-IP
+        ├── pihole/                         # DNS + netzwerkweiter Adblock
         ├── gotify/                         # Push-Notifications
         ├── headlamp/                       # Kubernetes-Web-Dashboard
+        ├── homepage/                       # Zentrales Dashboard
         ├── kubeseal-webgui/                # Sealed-Secrets-Verschlüsselungs-UI
         ├── monitoring/                     # VictoriaMetrics + Grafana
         ├── argo-workflows/                 # Private CI/CD-Pipeline (Argo Workflows)
@@ -254,11 +257,13 @@ Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
 | [Tailscale-VPN](docs/06-tailscale.md)                           | Auth-Keys, MagicDNS, Subnet-Routes           |
 | [Troubleshooting](docs/07-troubleshooting.md)                   | Diagnose-Playbook für häufige Probleme       |
 | [Semaphore-UI](docs/08-semaphore.md)                            | Web-UI zum Ausführen von Playbooks           |
-| [DNS-Architektur](docs/09-dns-architecture.md)                  | Warum der Home-Server NICHT dein LAN-DNS ist |
+| [DNS-Architektur](docs/09-dns-architecture.md)                  | DNS-Trade-offs (SPOF) — historischer Kontext, jetzt via Pi-hole gelöst |
 | [Scanner & Paperless](docs/10-scanner.md)                       | Fujitsu-USB-Scanner → CIFS → Paperless-NGX   |
 | [Gotify-Push](docs/11-gotify.md)                                | Self-hosted Push-Notifications aus dem Stack |
 | [Paperless-AI](docs/12-paperless-ai.md)                         | KI-Dokumentenanalyse + RAG für Paperless-NGX |
 | [Argo Workflows](docs/13-argo-workflows.md)                     | Private CI/CD-Pipeline mit MinIO-Artifact-Store |
+| [Homepage Dashboard](docs/14-homepage.md)                       | Zentrales Startpage-Dashboard (home.homeserver) |
+| [Pi-hole](docs/15-pihole.md)                                    | LAN-Adblock + DNS-Migration (dnsmasq → Pi-hole) |
 
 ---
 
