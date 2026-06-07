@@ -113,6 +113,31 @@ sollte vor dem ersten erfolgreichen Jellyfin-Mount laufen.
 2. Medienbibliothek hinzufügen, Pfad **`/media`** (bzw. `/media/movies`,
    `/media/shows`).
 
+## Zugang (LAN / Smart-TV / Tailnet)
+
+Jellyfin ist auf zwei Wegen erreichbar:
+
+| Client | Adresse | Weg |
+|---|---|---|
+| Browser / Tailnet | <http://jellyfin.homeserver> | Traefik-Ingress (Host-basiert), via Pi-hole aufgelöst |
+| Smart-TV im LAN (ohne Tailscale) | `http://192.168.178.3:8096` | dedizierte MetalLB-LoadBalancer-IP, direkt am Traefik vorbei |
+
+**Warum die feste IP für den TV:** Eine rohe Server-IP (`192.168.178.127`) trifft
+keine Traefik-Regel (Traefik routet nach Hostname/Host-Header) → 404. Smart-TV-
+Jellyfin-Apps kommen mit `.homeserver`-Namen zudem oft nicht klar. Darum bekommt
+Jellyfin über MetalLB eine eigene LAN-IP (`192.168.178.3`), die der TV direkt als
+`http://192.168.178.3:8096` ansprechen kann.
+
+> **Voraussetzung:** `192.168.178.3` muss frei und **außerhalb des FritzBox-DHCP-
+> Bereichs** liegen (gleiche Regel wie die Pi-hole-IP `.2`). DHCP-Bereich prüfen:
+> FritzBox → Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Adressen.
+>
+> **Andere IP nötig?** An zwei Stellen ändern (plus DHCP-Ausschluss in der
+> FritzBox): `argocd/apps/metallb/templates/ipaddresspool-jellyfin.yaml` (Pool)
+> und `argocd/apps/jellyfin/values.yaml` (`jellyfin.service.loadBalancerIP`).
+
+Im Jellyfin-TV-App also als Server `http://192.168.178.3:8096` eintragen.
+
 ## Deutsches Live-TV (M3U + XMLTV)
 
 Jellyfin speichert Tuner/EPG in seiner DB – das wird **nicht** über GitOps,

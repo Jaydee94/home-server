@@ -1,0 +1,12 @@
+---
+# Advertise the jellyfin pool over L2 (gratuitous ARP) on the LAN segment.
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: jellyfin
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  ipAddressPools:
+    - jellyfin
