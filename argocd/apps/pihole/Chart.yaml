@@ -4,7 +4,7 @@ name: pihole
 description: |
   Network-wide ad/tracker blocker for the whole LAN behind the FritzBox.
   Runs Pi-hole v6 in k3s and serves DNS on a dedicated MetalLB LAN IP
-  (192.168.178.2:53) so it does not collide with the host dnsmasq on .127.
+  (192.168.178.2:53) without binding 0.0.0.0:53 on the Node IP (which would break the host resolver).
   *.homeserver lookups are answered authoritatively via customDnsEntries;
   everything else goes
   upstream. Web UI at http://pihole.homeserver. The FritzBox is then pointed

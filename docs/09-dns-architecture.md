@@ -122,12 +122,12 @@ Wenn ein bestimmtes Gerät kein Tailscale haben soll (z.B. ein
 Familien-Tablet), trägst du dort manuell zwei DNS-Server in den
 WLAN-Einstellungen ein:
 
-- **Primär**: `192.168.178.127` (Home-Server / dnsmasq)
+- **Primär**: `192.168.178.2` (Pi-hole)
 - **Sekundär**: `192.168.178.1` (Fritz!Box)
 
 Verhalten:
-- Home-Server up → `*.homeserver` und alles andere laufen schnell
-  über dnsmasq (Internet-Queries forwarded an die Fritz!Box).
+- Home-Server up → `*.homeserver` und alles andere laufen über
+  Pi-hole (Internet-Queries forwarded an die Fritz!Box).
 - Home-Server down → das Gerät timed out nach ~5 s und nutzt
   automatisch die Fritz!Box. `*.homeserver` schlägt fehl, alles
   andere geht normal.
@@ -137,7 +137,7 @@ Verhalten:
 - Windows: *Netzwerk- und Internet-Einstellungen → WLAN →
   Hardwareeigenschaften → DNS-Server-Zuweisung → Bearbeiten*
 - Linux (NetworkManager): `nmcli con modify <verbindung> ipv4.dns
-  "192.168.178.127 192.168.178.1"` + `ipv4.ignore-auto-dns yes`
+  "192.168.178.2 192.168.178.1"` + `ipv4.ignore-auto-dns yes`
 - iOS: *Einstellungen → WLAN → Netzwerk → DNS konfigurieren →
   Manuell*
 - Android: *WLAN-Einstellungen → Erweitert → IP-Einstellungen →
@@ -151,7 +151,7 @@ Für einzelne, langlebige Hostnamen — wenn du es ganz statisch willst:
 192.168.178.127  semaphore.homeserver argocd.homeserver headlamp.homeserver
 ```
 
-Vorteil: funktioniert auch wenn der dnsmasq down ist (das ist halt
+Vorteil: funktioniert auch wenn Pi-hole down ist (das ist halt
 eine lokale Datei, kein Netzwerk-Lookup).
 Nachteil: musst du auf jedem Gerät pflegen und bei jedem neuen
 Service ergänzen.
@@ -216,7 +216,7 @@ Brauche ich *.homeserver auf diesem Gerät?
       ├── Ja → Tailscale Split DNS aktivieren (1× im Tailscale-Admin)
       │
       └── Nein → DNS-Server am Gerät manuell auf
-                 192.168.178.127 + 192.168.178.1 setzen
+                 192.168.178.2 + 192.168.178.1 setzen
 ```
 
 [avm-dns]: https://en.fritz.com/service/knowledge-base/dok/FRITZ-Box-7590/165_Configuring-different-DNS-servers-in-the-FRITZ-Box/
