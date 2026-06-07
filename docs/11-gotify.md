@@ -176,4 +176,4 @@ Expected pushes:
 | `gotify-admin` secret missing | `kubectl -n gotify describe sealedsecret gotify-admin` — controller logs explain decryption errors; cipher must be generated against this cluster's public key |
 | No pushes despite a successful scan | `sudo cat /etc/scanner/gotify.env` and confirm `GOTIFY_ENABLED=1`; check `journalctl -t scanbd-scan -g "gotify notify failed"` |
 | Pushes work via curl but not from the scripts | `saned` likely isn't in the `scanner` group → re-run `make scanner` |
-| Wrong hostname (`gotify.homeserver` doesn't resolve) | Confirm `gotify` is in `dnsmasq_hosts` in `group_vars/all.yml`, then `make dnsmasq` |
+| Wrong hostname (`gotify.homeserver` doesn't resolve) | Pi-hole running? `dig @192.168.178.2 gotify.homeserver` — the wildcard `address=/homeserver/192.168.178.127` in `argocd/apps/pihole/values.yaml` covers all `*.homeserver` names automatically. |

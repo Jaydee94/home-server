@@ -5,7 +5,7 @@ des Home Servers.
 
 ## URL
 
-`http://home.homeserver` (LAN + Tailnet via dnsmasq-Wildcard `*.homeserver`)
+`http://home.homeserver` (LAN + Tailnet via Pi-hole-Wildcard `*.homeserver`)
 
 ## Konfiguration ändern
 
@@ -91,6 +91,7 @@ Nach Änderungen: `make argocd` ausführen.
 - **`.service-card` / `#information-widgets`:** stabile homepage-Selektoren für
   Custom-CSS (Karten bzw. Header). Hintergrundfarbe liegt auf `body` — der
   Inhalts-Wrapper ist transparent, daher greift ein Verlauf auf `body`.
-- **dnsmasq:** Kein manueller DNS-Eintrag nötig — Wildcard `address=/homeserver/<ip>`
-  deckt `home.homeserver` automatisch ab.
+- **Pi-hole:** Kein manueller DNS-Eintrag nötig — Wildcard `address=/homeserver/<ip>`
+  (in `argocd/apps/pihole/values.yaml` → `customDnsEntries`) deckt `home.homeserver`
+  automatisch ab.
 - **Feature-Branch:** ArgoCD synct nur `main`. Homepage erscheint erst nach dem Merge des PRs.

@@ -33,7 +33,7 @@ To bump the version, edit `image.tag` in
 
 ## First-run setup wizard
 
-1. Open <http://paperless-ai.homeserver> (resolves via dnsmasq on LAN + Tailnet).
+1. Open <http://paperless-ai.homeserver> (resolves via Pi-hole on LAN + Tailnet).
 2. **Paperless connection:**
    - **API URL:** `http://192.168.178.118:8000/api`
    - **API token:** generate one in Paperless-NGX → top-right user menu →

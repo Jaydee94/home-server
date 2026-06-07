@@ -8,11 +8,9 @@ nie wieder eine YAML-Datei an, um eine neue Aktion auszulösen.
 
 ## Was du am Ende hast
 
-- **`http://semaphore.homeserver`** im LAN und im Tailnet — dnsmasq
-  hört auf der LAN-IP **und** auf `tailscale0`, also kommt jeder
-  Tailscale-Client an die `*.homeserver`-Namen ran.
-  ([Wichtiger Hintergrund zur DNS-Topologie und warum der Home-Server
-  *nicht* der LAN-DNS-Server sein sollte → docs/09-dns-architecture.md](09-dns-architecture.md))
+- **`http://semaphore.homeserver`** im LAN und im Tailnet — Pi-hole
+  löst `*.homeserver` autoritativ auf (`address=/homeserver/192.168.178.127`).
+  ([DNS-Architektur und Tailscale Split DNS → docs/09-dns-architecture.md](09-dns-architecture.md))
 - Ein-Klick-Run von Playbooks aus beliebigen Git-Repos
   (z.B. `home-server`, `ugreen-nas`, später beliebig viele mehr).
 - Geteilter SSH-Key, der von Ansible verwaltet und automatisch auf alle
@@ -21,39 +19,27 @@ nie wieder eine YAML-Datei an, um eine neue Aktion auszulösen.
 
 ### Zugriff über Tailscale (einmaliger Admin-Schritt)
 
-dnsmasq lauscht serverseitig schon auf `tailscale0` — fehlt nur noch,
-dass deine Tailscale-Clients den Home-Server als Nameserver für die
-`homeserver`-Domain nutzen.
+Pi-hole auf `192.168.178.2` ist der einzige DNS-Server im Heimnetz und löst
+`*.homeserver` autoritativ auf. Tailscale-Clients erreichen ihn über den
+Subnet-Router (die Route `192.168.178.0/24` wird vom Home-Server advertised).
 
-1. **Tailscale-IP** des Home-Servers ablesen (nicht die LAN-IP — die
-   Tailscale-IP ist aus dem Tailnet überall direkt erreichbar, ohne
-   dass Subnet-Routes auf jedem Client aktiviert werden müssen):
-   ```bash
-   ssh jaydee@homeserver "tailscale ip -4"
-   # z.B. 100.78.12.34
-   ```
-2. [Tailscale Admin Console → DNS](https://login.tailscale.com/admin/dns)
+1. [Tailscale Admin Console → DNS](https://login.tailscale.com/admin/dns)
    öffnen → Abschnitt **Nameservers**:
    - **Add nameserver → Custom...**
-   - **Nameserver IP**: Wert aus Schritt 1
-   - **Restrict to search domains** anklicken (oder "Split DNS"
-     toggle, je nach UI-Version) → Domain: `homeserver`
+   - **Nameserver IP**: `192.168.178.2`
+   - **Restrict to search domains** anklicken → Domain: `homeserver`
    - **Save**
-3. Fertig. Du brauchst keinen Global Nameserver und auch nicht
-   "Override DNS servers" — Split DNS reicht aus. Alle Queries auf
-   `*.homeserver` gehen jetzt vom Tailscale-Client direkt an dnsmasq
-   auf dem Home-Server, alle anderen Queries bleiben beim normalen
-   System-Resolver des Clients.
+2. Sicherstellen dass die Subnet-Route in der
+   [Tailscale-Konsole → Machines](https://login.tailscale.com/admin/machines)
+   **approved** ist und `--accept-routes` auf dem Client aktiv ist.
 
 Test (vom Tailscale-Client):
 ```bash
 nslookup semaphore.homeserver
-# Expected: 192.168.178.127  (von dnsmasq aufgelöst)
+# Expected: 192.168.178.127  (von Pi-hole aufgelöst)
 ```
 
-Falls die Auflösung nicht klappt: prüfe auf dem Server
-`sudo ss -lntu | grep :53` — dnsmasq sollte sowohl auf
-`192.168.178.127:53` als auch auf `100.x.y.z:53` (tailscale0) lauschen.
+Vollständige Tailscale-DNS-Dokumentation inkl. SPOF-Abwägung: [docs/15-pihole.md §4](15-pihole.md).
 
 ## Architektur in zehn Sekunden
 
@@ -253,7 +239,7 @@ du es per UI anlegen:
 
 | Symptom                           | Check                                                                  |
 |-----------------------------------|------------------------------------------------------------------------|
-| `semaphore.homeserver` löst nicht | `semaphore` in `dnsmasq_hosts` (group_vars/all.yml) eintragen, dann `make dnsmasq` |
+| `semaphore.homeserver` löst nicht | Pi-hole läuft? `dig @192.168.178.2 semaphore.homeserver` — der Wildcard-Eintrag `address=/homeserver/192.168.178.127` in `argocd/apps/pihole/values.yaml` deckt alle `*.homeserver`-Namen ab. Tailscale: Split DNS auf `192.168.178.2` zeigen (siehe §Tailscale oben). |
 | Pod CrashLoopBackOff              | `kubectl -n semaphore logs deploy/semaphore` — meist fehlt das Bootstrap-Secret |
 | Playbook scheitert mit "Permission denied (publickey)" | `make semaphore-targets` lief nicht — Public Key fehlt in authorized_keys auf dem Ziel |
 | Vault-Passwort wird nicht erkannt | `semaphore_vault_password` ist leer oder mit falschem PW verschlüsselt; sicherstellen dass `ANSIBLE_VAULT_PASSWORD_FILE` im Semaphore Default-Environment gesetzt ist (wird ab Bootstrap automatisch injiziert) |

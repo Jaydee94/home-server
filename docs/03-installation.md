@@ -84,7 +84,7 @@ $EDITOR ansible/group_vars/all.yml
 | `helm_version`              | `""` (leer)   | Leer ⇒ neuestes Helm 3                                                 |
 | `argocd_version`            | `""` (leer)   | Leer ⇒ neuestes Argo-Helm-Chart                                        |
 | `hostname`                  | `homeserver`  | Hostname des Servers                                                   |
-| `dnsmasq_hosts`             | App-Liste     | Hostnamen, die von `dnsmasq` unter `*.homeserver` aufgelöst werden     |
+| `pihole_dns_ip`             | `192.168.178.2` | MetalLB-IP für Pi-hole DNS — muss außerhalb des FritzBox-DHCP-Bereichs liegen |
 | `semaphore_vault_password`  | Vault-Block   | Ansible-Vault-Passwort, das Semaphore zur Laufzeit zum Decrypten nutzt |
 | `scanner_usb_vendor_id` / `scanner_usb_product_id` | leer | USB-IDs aus `lsusb` — Pflicht, wenn die Scanner-Rolle aktiv ist     |
 | `scanner_smb_share` / `scanner_smb_username` / `scanner_smb_password` | — | NAS-Share + Creds für das Paperless-`consume`-Verzeichnis    |
@@ -183,7 +183,7 @@ Vault-Passwort eingeben, wenn abgefragt.
 **Was das Playbook tut (in Reihenfolge):**
 
 1. **common** (~3 min) — APT-Updates, UFW-Firewall, Kernel-Parameter, Swap-off, chrony NTP.
-2. **dnsmasq** (~30 s) — Installiert und konfiguriert `dnsmasq` für die Zone `*.homeserver` auf LAN-Interface und `tailscale0`.
+2. **host_dns** (~30 s) — Entfernt dnsmasq, konfiguriert `systemd-resolved` so dass der Host Pi-hole (`.2`) als primären Resolver nutzt (FritzBox als Fallback).
 3. **tailscale** (~1 min) — Installiert Tailscale, joint das Tailnet mit dem vault-verschlüsselten Auth-Key.
 4. **k3s** (~5 min) — Installiert k3s, schreibt die kubeconfig, installiert Helm.
 5. **argocd** (~10 min) — Deployt ArgoCD per Helm-Chart und appliziert das Root-`ApplicationSet`.
@@ -208,8 +208,8 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags common -
 # Nur k3s + argocd
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags k3s,argocd --ask-vault-pass
 
-# Nur die Split-DNS-Schicht (nach Änderung von dnsmasq_hosts)
-make dnsmasq
+# Host-Resolver auf Pi-hole umstellen (nach Pi-hole-Deploy)
+make host-dns
 
 # Tailscale komplett überspringen
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --skip-tags tailscale --ask-vault-pass
