@@ -1,0 +1,26 @@
+---
+- name: Stat the media share base directory
+  ansible.builtin.stat:
+    path: "{{ jellyfin_media_base_dir }}"
+  register: jellyfin_media_share
+
+- name: Fail if the media share does not exist
+  ansible.builtin.fail:
+    msg: >-
+      Der Share '{{ jellyfin_media_base_dir }}' existiert nicht. Lege den
+      SMB-Share 'media' einmalig in der UGOS-Oberfläche an
+      (Control Panel → Shared Folders) und gib dem SMB-Konto Lese-/
+      Schreibrechte, dann erneut ausführen. Siehe docs/16-jellyfin.md.
+  when: >-
+    not jellyfin_media_share.stat.exists
+    or not (jellyfin_media_share.stat.isdir | default(false))
+
+- name: Create the Jellyfin media subdirectories
+  ansible.builtin.file:
+    path: "{{ jellyfin_media_base_dir }}/{{ item }}"
+    state: directory
+    # Owner/Gruppe vom Share erben, damit das SMB-Konto schreiben darf.
+    owner: "{{ jellyfin_media_share.stat.pw_name }}"
+    group: "{{ jellyfin_media_share.stat.gr_name }}"
+    mode: '0775'
+  loop: "{{ jellyfin_media_subdirs }}"

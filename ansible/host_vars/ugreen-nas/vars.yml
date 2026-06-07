@@ -30,3 +30,7 @@ day_pilot_backend_port: 8001
 day_pilot_timezone: "Europe/Berlin"
 day_pilot_openai_api_key: "{{ vault_day_pilot_openai_api_key | default('') }}"
 day_pilot_github_token: "{{ vault_day_pilot_github_token | default('') }}"
+
+# ---- Jellyfin media (UGOS SMB-Share "media") ----------------
+# On-disk-Pfad des "media"-Shares; ggf. Volume-Nummer anpassen (/volume2/...).
+jellyfin_media_base_dir: /volume1/media

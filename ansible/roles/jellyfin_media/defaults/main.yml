@@ -1,0 +1,24 @@
+---
+# ============================================================
+# jellyfin_media role defaults
+# ============================================================
+# Legt die Medien-Verzeichnisstruktur unterhalb des UGOS-SMB-Shares "media"
+# an, damit die In-Cluster-Jellyfin-App (argocd/apps/jellyfin) sie per SMB
+# lesen/schreiben kann.
+#
+# Der Share SELBST wird einmalig in der UGOS-Oberfläche angelegt (Control
+# Panel → Shared Folders) — UGOS verwaltet Shares in einer eigenen DB, das
+# lässt sich nicht zuverlässig per Ansible automatisieren. Diese Rolle legt
+# nur die Unterordner an und bricht mit klarer Meldung ab, wenn der Share
+# fehlt. Details: docs/16-jellyfin.md.
+# ============================================================
+
+# On-disk-Pfad des UGOS-Shares "media". UGOS legt Shares unter
+# /volume<x>/<sharename> ab; der SMB-Pfad (//jays-ugreen/media) lässt die
+# Volume-Nummer weg. Bei mehreren Volumes ggf. auf /volume2/media o.ä. ändern.
+jellyfin_media_base_dir: /volume1/media
+
+# Unterverzeichnisse für die Jellyfin-Bibliotheken.
+jellyfin_media_subdirs:
+  - movies
+  - shows

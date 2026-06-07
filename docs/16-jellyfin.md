@@ -39,9 +39,12 @@ Warum diese Aufteilung:
 
 ### 1. SMB-Share am NAS anlegen
 
-Auf dem UGREEN-NAS einen dedizierten Medien-Share anlegen, z. B. `media` mit
-Unterordnern `movies/` und `shows/`. Lese-/Schreibrechte für ein SMB-Konto
-vergeben (dasselbe wie beim Scanner geht, siehe `scanner_smb_username`).
+Den dedizierten Share **`media`** einmalig in der UGOS-Oberfläche anlegen
+(Control Panel → Shared Folders) und einem SMB-Konto Lese-/Schreibrechte geben
+(dasselbe wie beim Scanner geht, siehe `scanner_smb_username`). UGOS verwaltet
+Shares in einer eigenen DB — deshalb lässt sich das **Anlegen des Shares** nicht
+per Ansible automatisieren, das **Anlegen der Unterordner** dagegen schon
+(Schritt 2).
 
 Share prüfen:
 
@@ -49,8 +52,26 @@ Share prüfen:
 smbclient -L //jays-ugreen -U <smb-user>
 ```
 
-Weicht der Sharename/Pfad ab, in `argocd/apps/jellyfin/values.yaml` unter
-`smb.source` anpassen (Format `//jays-ugreen/<share>`).
+Weicht der Sharename ab, in `argocd/apps/jellyfin/values.yaml` unter `smb.source`
+anpassen (Format `//jays-ugreen/<share>`).
+
+### 1b. Medien-Unterordner per Playbook anlegen
+
+Die Rolle `jellyfin_media` legt `movies/` und `shows/` unterhalb des Shares
+idempotent an (Owner/Gruppe werden vom Share geerbt, damit das SMB-Konto
+schreiben darf). UGOS legt Shares unter `/volume<x>/<share>` ab; bei mehreren
+Volumes `jellyfin_media_base_dir` in `ansible/host_vars/ugreen-nas/vars.yml`
+anpassen (Default `/volume1/media`).
+
+```bash
+make nas                                   # alle NAS-Dienste inkl. Medienordner
+# oder gezielt nur diese Rolle:
+ansible-playbook -i ansible/inventory/hosts.yml ansible/ugreen-nas.yml \
+  --tags jellyfin-media
+```
+
+> Existiert der Share noch nicht (Schritt 1 ausgelassen), bricht die Rolle mit
+> einer klaren Fehlermeldung ab statt im falschen Pfad Ordner anzulegen.
 
 ### 2. SMB-Credentials als SealedSecret hinterlegen
 
