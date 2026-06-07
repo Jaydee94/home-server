@@ -97,8 +97,9 @@ smb:
   # csi-driver-smb node plugin uses to mount the share (nodeStageSecretRef).
   secretName: jellyfin-smbcreds
 
-  # kubeseal-encrypted SMB credentials. EMPTY by default so the repo lints; the
-  # media mount will NOT work until you seal real values and paste them here.
+  # kubeseal-encrypted SMB credentials. EMPTY by default so the repo lints; while
+  # empty, templates/smb-sealedsecret.yaml is skipped (no SealedSecrets controller
+  # error loop). The media mount only works once you seal real values here.
   # Reuse the NAS SMB account. Generate with (run once per value):
   #   echo -n "<smb-username>" | kubeseal --raw \
   #     --namespace jellyfin --name jellyfin-smbcreds \
