@@ -13,3 +13,6 @@ spec:
   podMetricsEndpoints:
     - port: metrics
       path: /metrics
+      scheme: https
+      tlsConfig:
+        insecureSkipVerify: true
