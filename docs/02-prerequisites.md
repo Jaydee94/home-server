@@ -67,10 +67,10 @@ Die Control-Machine muss sich passwortlos per Key am Server anmelden können:
 ssh-keygen -t ed25519 -C "home-server-ansible" -f ~/.ssh/id_ed25519
 
 # Public Key auf den Server kopieren (einmaliger Passwort-Login)
-ssh-copy-id -i ~/.ssh/id_ed25519.pub ubuntu@192.168.1.100
+ssh-copy-id -i ~/.ssh/id_ed25519.pub jaydee@192.168.178.127
 
 # Login testen
-ssh -i ~/.ssh/id_ed25519 ubuntu@192.168.1.100 "echo 'SSH-Key-Login funktioniert'"
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "echo 'SSH-Key-Login funktioniert'"
 ```
 
 Liegt der Private Key woanders, in `ansible/inventory/hosts.yml` entsprechend
@@ -81,7 +81,7 @@ Liegt der Private Key woanders, in `ansible/inventory/hosts.yml` entsprechend
 Ubuntu 26.04 bringt Python 3.12 mit:
 
 ```bash
-ssh ubuntu@192.168.1.100 "python3 --version"
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "python3 --version"
 ```
 
 ---
@@ -139,17 +139,17 @@ Vor dem Playbook-Run alle Punkte abhaken — alle sollten grün sein.
 ### 1. SSH-Verbindung
 
 ```bash
-ssh ubuntu@192.168.1.100 "whoami"
-# Erwartet: ubuntu
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "whoami"
+# Erwartet: jaydee
 ```
 
 ### 2. Passwortloses sudo
 
 ```bash
-ssh ubuntu@192.168.1.100 "sudo whoami"
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "sudo whoami"
 # Erwartet: root
 # Falls Passwort abgefragt wird, NOPASSWD-sudo konfigurieren:
-# echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/ubuntu
+# echo 'jaydee ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/jaydee
 ```
 
 ### 3. Ansible-Ping
@@ -171,29 +171,29 @@ ansible -i ansible/inventory/hosts.yml homeserver -m ansible.builtin.command \
 ### 5. Internet-Zugriff auf dem Server
 
 ```bash
-ssh ubuntu@192.168.1.100 "curl -sf https://get.k3s.io | head -5"
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "curl -sf https://get.k3s.io | head -5"
 # Erwartet: Script-Header (keine Fehler)
 ```
 
 ### 6. Genug Disk-Speicher
 
 ```bash
-ssh ubuntu@192.168.1.100 "df -h /"
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "df -h /"
 # Erwartet: mindestens 20 GB frei
 ```
 
 ### 7. Genug RAM
 
 ```bash
-ssh ubuntu@192.168.1.100 "free -h"
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "free -h"
 # Erwartet: mindestens 4 GB total
 ```
 
 ### 8. Inventory aktualisiert
 
 ```bash
-grep "192.168.1.100" ansible/inventory/hosts.yml
-# Liefert das den Default-Wert, wurde die Datei noch nicht angepasst.
+grep "ansible_host:" ansible/inventory/hosts.yml
+# Sollte die eigene Server-IP zeigen (nicht den Platzhalter 192.168.1.100).
 ```
 
 ### 9. group_vars aktualisiert
@@ -228,10 +228,10 @@ network:
     ens3:           # tatsächlichen Interface-Namen aus `ip link show` einsetzen
       dhcp4: false
       addresses:
-        - 192.168.1.100/24
+        - 192.168.178.127/24
       routes:
         - to: default
-          via: 192.168.1.1
+          via: 192.168.178.1
       nameservers:
         addresses:
           - 1.1.1.1
