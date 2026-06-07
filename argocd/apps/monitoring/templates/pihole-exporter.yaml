@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: pihole-exporter
-          image: ghcr.io/eko/pihole-exporter:latest
+          image: ekofr/pihole-exporter:latest
           ports:
             - containerPort: 9617
               name: metrics
