@@ -15,7 +15,7 @@ FritzBox (DHCP)  ──"Lokaler DNS-Server = 192.168.178.2"──►  alle LAN-G
               *.homeserver  ──────────────┘                         └──── alles andere
               address=/homeserver/192.168.178.127 (Pi-hole, autoritativ)    DNS1 192.168.178.1 (FritzBox)
                                                                             DNS2 9.9.9.9 (Quad9)
-Web-UI:  http://pihole.homeserver   (Traefik-Ingress)
+Web-UI:  http://pihole.homeserver/admin/login   (Traefik-Ingress)
 ```
 
 Auch der **Home-Server selbst** fragt Pi-hole (`host_dns`-Rolle: systemd-resolved
@@ -170,7 +170,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'getent hosts gotify.homeserver'
 ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'systemctl is-enabled dnsmasq 2>&1'  # → not-found/disabled
 ```
 
-Web-UI: <http://pihole.homeserver> → Login mit dem Admin-Passwort aus 1.2
+Web-UI: <http://pihole.homeserver/admin/login> → Login mit dem Admin-Passwort aus 1.2
 (bzw. ohne Passwort, falls noch nicht gesetzt).
 
 Per-Client-Test: an einem Client nach dem Lease-Renew `nslookup doubleclick.net`

@@ -167,7 +167,7 @@ homepage:
               icon: homer.svg
       - Tools:
           - Pi-hole:
-              href: http://pihole.homeserver
+              href: http://pihole.homeserver/admin/login
               description: LAN-Adblock & DNS
               icon: pi-hole.svg
           - Gotify:

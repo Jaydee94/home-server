@@ -400,7 +400,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Argo Workflows | http://argo-workflows.homeserver | Private CI (docs/13-argo-workflows.md) |
 | MinIO     | http://minio.homeserver     | S3 artifact store for Argo Workflows |
 | Homepage  | http://home.homeserver      | Zentrales Dashboard                |
-| Pi-hole   | http://pihole.homeserver    | LAN-Adblock; DNS auf 192.168.178.2 (docs/15-pihole.md) |
+| Pi-hole   | http://pihole.homeserver/admin/login | LAN-Adblock; DNS auf 192.168.178.2 (docs/15-pihole.md) |
 | Paperless-NGX | http://jays-ugreen:8000  | NAS (Docker Compose)               |
 | OpenCode      | http://jays-ugreen:4096  | NAS (Docker Compose)               |
 | TinyTeller    | http://jays-ugreen:3002  | NAS (Docker Compose)               |
