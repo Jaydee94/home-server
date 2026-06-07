@@ -24,7 +24,7 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
                                 │ Tailscale MagicDNS / IP
                                 ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                    HOME SERVER (192.168.1.100)                      │
+│                    HOME SERVER (192.168.178.127)                    │
 │                                                                     │
 │  ┌──────────────────────────────────────────────────────────────┐   │
 │  │                    Ubuntu 26.04 LTS                          │   │
@@ -50,11 +50,11 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │  │  │         │                │                           │   │   │
 │  │  │  ┌──────┴────────────────┴──────────────────────┐   │   │   │
 │  │  │  │  argocd/apps/ — verwaltet vom ApplicationSet:│   │   │   │
+│  │  │  │    metallb (LB-IP), pihole (DNS+Adblock),    │   │   │   │
 │  │  │  │    monitoring (VictoriaMetrics + Grafana),   │   │   │   │
 │  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
-│  │  │  │    semaphore (Ansible UI),                   │   │   │   │
-│  │  │  │    headlamp (k8s-Dashboard), gotify (Push),  │   │   │   │
-│  │  │  │    homepage (Startpage-Dashboard),           │   │   │   │
+│  │  │  │    semaphore, argo-workflows + minio,        │   │   │   │
+│  │  │  │    headlamp, gotify, homepage, paperless-ai, │   │   │   │
 │  │  │  │    example-whoami                            │   │   │   │
 │  │  │  └─────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
@@ -77,13 +77,18 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │   home-server/                                                      │
 │   └── argocd/apps/          ← ArgoCD beobachtet dieses Verzeichnis │
 │       ├── example-whoami/   ← Jedes Unterverzeichnis = eine App    │
+│       ├── metallb/                                                 │
+│       ├── pihole/                                                  │
 │       ├── monitoring/                                              │
 │       ├── sealed-secrets/                                          │
 │       ├── kubeseal-webgui/                                         │
 │       ├── headlamp/                                                │
 │       ├── semaphore/                                               │
+│       ├── argo-workflows/                                          │
+│       ├── minio/                                                   │
 │       ├── gotify/                                                  │
-│       ├── homepage/                                               │
+│       ├── homepage/                                                │
+│       ├── paperless-ai/                                            │
 │       └── my-new-app/       ← Verzeichnis anlegen → auto-deployed  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
@@ -225,7 +230,7 @@ die UI ist nach dem ersten Playbook-Run sofort einsatzbereit.
 
 | Netz                | CIDR              | Zweck                            |
 |---------------------|-------------------|----------------------------------|
-| Home-LAN            | 192.168.1.0/24    | Physikalisches Heimnetz          |
+| Home-LAN            | 192.168.178.0/24  | Physikalisches Heimnetz          |
 | Tailscale-Overlay   | 100.64.0.0/10     | VPN-Mesh                         |
 | k3s-Pod-CIDR        | 10.42.0.0/16      | Pod-IPs                          |
 | k3s-Service-CIDR    | 10.43.0.0/16      | ClusterIP-Service-Adressen       |
