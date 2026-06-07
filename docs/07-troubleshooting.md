@@ -423,6 +423,28 @@ kubectl describe svc <name> -n <namespace>
 kubectl get endpoints <svc-name> -n <namespace>
 ```
 
+**LAN-DNS (`*.homeserver` löst nicht auf):**
+
+Pi-hole auf `192.168.178.2` ist der einzige LAN-Resolver.
+
+```bash
+# Pi-hole erreichbar?
+dig @192.168.178.2 grafana.homeserver +short  # → 192.168.178.127
+
+# Pi-hole-App in ArgoCD
+kubectl get application pihole -n argocd
+
+# DNS-Service hat EXTERNAL-IP?
+kubectl -n pihole get svc | grep dns
+# → sollte 192.168.178.2 zeigen
+
+# Host-Resolver korrekt?
+resolvectl status | grep "Current DNS"
+# → Current DNS Server: 192.168.178.2
+```
+
+Ausführliches Troubleshooting: [docs/15-pihole.md §3](15-pihole.md).
+
 ### Häufige Ursachen & Fixes
 
 **Flannel-VXLAN blockiert (Firewall):**
@@ -470,7 +492,7 @@ kubectl get pods -n <namespace> -l <selector-key>=<selector-value>
 
 ```bash
 # SSH testen
-ssh -i ~/.ssh/id_rsa ubuntu@192.168.1.100 "echo connected"
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "echo connected"
 
 # Inventory
 ansible -i ansible/inventory/hosts.yml homeserver -m ping
@@ -479,9 +501,9 @@ ansible -i ansible/inventory/hosts.yml homeserver -m ping
 **sudo verlangt Passwort:**
 
 ```bash
-# Auf dem Server NOPASSWD-sudo eintragen
-ssh ubuntu@192.168.1.100
-echo "ubuntu ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/ubuntu-nopasswd
+# Auf dem Server NOPASSWD-sudo eintragen (bereits durch common-Role gesetzt)
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127
+echo "jaydee ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/jaydee-nopasswd
 ```
 
 **Galaxy-Collection fehlt:**
