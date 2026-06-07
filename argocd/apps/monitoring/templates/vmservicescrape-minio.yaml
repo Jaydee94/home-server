@@ -1,0 +1,16 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: minio
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - minio
+  selector:
+    matchLabels:
+      app: minio
+      monitoring: "true"
+  endpoints:
+    - port: http
+      path: /minio/v2/metrics/cluster
