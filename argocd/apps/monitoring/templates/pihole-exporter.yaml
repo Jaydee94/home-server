@@ -1,0 +1,58 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pihole-exporter
+  namespace: pihole
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pihole-exporter
+  template:
+    metadata:
+      labels:
+        app: pihole-exporter
+    spec:
+      containers:
+        - name: pihole-exporter
+          image: ghcr.io/eko/pihole-exporter:latest
+          ports:
+            - containerPort: 9617
+              name: metrics
+          env:
+            - name: PIHOLE_HOSTNAME
+              value: "pihole-web.pihole.svc.cluster.local"
+            - name: PIHOLE_PORT
+              value: "80"
+            - name: PIHOLE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: pihole-admin
+                  key: password
+            - name: PORT
+              value: "9617"
+            - name: INTERVAL
+              value: "30s"
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pihole-exporter
+  namespace: pihole
+  labels:
+    app: pihole-exporter
+spec:
+  selector:
+    app: pihole-exporter
+  ports:
+    - name: metrics
+      port: 9617
+      targetPort: 9617
