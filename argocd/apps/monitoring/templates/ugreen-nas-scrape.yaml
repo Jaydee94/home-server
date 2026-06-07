@@ -8,7 +8,7 @@ spec:
   jobName: ugreen-nas-node-exporter
   targetEndpoints:
     - targets:
-        - "jays-ugreen:9100"
+        - "192.168.178.118:9100"
       labels:
         job: node-exporter
         instance: ugreen-nas
@@ -22,7 +22,7 @@ spec:
   jobName: ugreen-nas-cadvisor
   targetEndpoints:
     - targets:
-        - "jays-ugreen:18080"
+        - "192.168.178.118:18080"
       labels:
         job: cadvisor
         instance: ugreen-nas
