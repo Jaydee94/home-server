@@ -1,5 +1,14 @@
 # DNS-Architektur & Ausfallsicherheit
 
+> **Status-Update (aktuelle Architektur):** Das Heimnetz nutzt inzwischen
+> **Pi-hole als einzigen, netzwerkweiten DNS-Server** (auf der MetalLB-IP
+> `192.168.178.2`); das frühere Host-**dnsmasq wurde abgelöst**. Der unten
+> beschriebene „opt-in pro Gerät"-Ansatz ist damit die **historische**
+> Vorgänger-Lösung — die Abwägungen (SPOF, Fritz!Box verteilt nur eine DNS-IP)
+> gelten weiter und wurden für Pi-hole **bewusst akzeptiert**. Die maßgebliche,
+> aktuelle Anleitung steht in [`15-pihole.md`](15-pihole.md). Dieses Dokument
+> bleibt als Begründung der Trade-offs erhalten.
+
 Dieses Dokument beantwortet eine sehr berechtigte Frage:
 
 > *"Wenn ich den Home-Server als zentralen DNS-Server für mein LAN
@@ -113,12 +122,12 @@ Wenn ein bestimmtes Gerät kein Tailscale haben soll (z.B. ein
 Familien-Tablet), trägst du dort manuell zwei DNS-Server in den
 WLAN-Einstellungen ein:
 
-- **Primär**: `192.168.178.127` (Home-Server / dnsmasq)
+- **Primär**: `192.168.178.2` (Pi-hole)
 - **Sekundär**: `192.168.178.1` (Fritz!Box)
 
 Verhalten:
-- Home-Server up → `*.homeserver` und alles andere laufen schnell
-  über dnsmasq (Internet-Queries forwarded an die Fritz!Box).
+- Home-Server up → `*.homeserver` und alles andere laufen über
+  Pi-hole (Internet-Queries forwarded an die Fritz!Box).
 - Home-Server down → das Gerät timed out nach ~5 s und nutzt
   automatisch die Fritz!Box. `*.homeserver` schlägt fehl, alles
   andere geht normal.
@@ -128,7 +137,7 @@ Verhalten:
 - Windows: *Netzwerk- und Internet-Einstellungen → WLAN →
   Hardwareeigenschaften → DNS-Server-Zuweisung → Bearbeiten*
 - Linux (NetworkManager): `nmcli con modify <verbindung> ipv4.dns
-  "192.168.178.127 192.168.178.1"` + `ipv4.ignore-auto-dns yes`
+  "192.168.178.2 192.168.178.1"` + `ipv4.ignore-auto-dns yes`
 - iOS: *Einstellungen → WLAN → Netzwerk → DNS konfigurieren →
   Manuell*
 - Android: *WLAN-Einstellungen → Erweitert → IP-Einstellungen →
@@ -142,7 +151,7 @@ Für einzelne, langlebige Hostnamen — wenn du es ganz statisch willst:
 192.168.178.127  semaphore.homeserver argocd.homeserver headlamp.homeserver
 ```
 
-Vorteil: funktioniert auch wenn der dnsmasq down ist (das ist halt
+Vorteil: funktioniert auch wenn Pi-hole down ist (das ist halt
 eine lokale Datei, kein Netzwerk-Lookup).
 Nachteil: musst du auf jedem Gerät pflegen und bei jedem neuen
 Service ergänzen.
@@ -151,16 +160,21 @@ Service ergänzen.
 
 ## Was passiert eigentlich am Home-Server selbst?
 
-Der Home-Server hat zwei DNS-Einträge in seiner `/etc/resolv.conf`:
+Die `host_dns`-Rolle konfiguriert `systemd-resolved` (Drop-in
+`/etc/systemd/resolved.conf.d/host-dns.conf`):
 
 ```
-nameserver 192.168.178.127   # dnsmasq (sich selbst)
-nameserver 192.168.178.1     # Fritz!Box (Fallback)
+[Resolve]
+DNS=192.168.178.2 192.168.178.1   # Pi-hole (primär), Fritz!Box (Fallback)
+FallbackDNS=1.1.1.1 8.8.8.8        # letzter Notnagel
+Domains=~.
 ```
 
-→ Eigene Auflösung läuft schnell über das lokale dnsmasq. Falls dnsmasq
-crasht, fällt der Server selbst nach ~5 s auf die Fritz!Box zurück und
-bleibt funktional.
+→ Eigene Auflösung läuft über Pi-hole (`*.homeserver` + Adblock). `systemd-resolved`
+bleibt am ersten erreichbaren Server kleben und wechselt nur bei Ausfall: ist
+Pi-hole/k3s down, fällt der Server auf die Fritz!Box zurück und behält Internet —
+nur `*.homeserver` schlägt fehl, bis Pi-hole wieder da ist. Früher übernahm das
+lokale dnsmasq diese Rolle.
 
 ---
 
@@ -171,10 +185,22 @@ Fritz!Box → Heimnetz → Netzwerk → Netzwerkeinstellungen →
 "Lokaler DNS-Server"
 ```
 
-**Lass das Feld leer.** Wenn du dort `192.168.178.127` einträgst,
+**Standard: Lass das Feld leer.** Wenn du dort `192.168.178.127` einträgst,
 verteilt die Fritz!Box den Home-Server als einzigen DNS-Server an alle
 LAN-Geräte per DHCP — genau das Single-Point-of-Failure-Szenario, das
-wir vermeiden wollen.
+wir per Default vermeiden wollen.
+
+**Ausnahme — bewusst gewählt: Pi-hole als netzwerkweiter Blocker.** Wer
+Werbung/Tracker für *alle* Geräte blocken will, trägt hier bewusst die
+**Pi-hole-IP `192.168.178.2`** ein (nicht die frühere `.127` von dnsmasq).
+Damit wird Pi-hole zum primären LAN-DNS; `*.homeserver` löst weiter auf, weil
+Pi-hole diese Domain via `address=/homeserver/192.168.178.127` selbst
+autoritativ beantwortet. Der SPOF-Tradeoff wird
+dabei akzeptiert (die Fritz!Box kann ohnehin nur **eine** DNS-IP verteilen,
+es gibt keinen automatischen Client-Fallback) — fällt der Home-Server aus,
+ist LAN-DNS weg, also dieselbe SPOF-Klasse wie der restliche Stack auf diesem
+Node. Schnelles Rollback: Feld wieder leeren. Vollständige Anleitung inkl.
+MetalLB und Verifikation: [`15-pihole.md`](15-pihole.md).
 
 ---
 
@@ -190,7 +216,7 @@ Brauche ich *.homeserver auf diesem Gerät?
       ├── Ja → Tailscale Split DNS aktivieren (1× im Tailscale-Admin)
       │
       └── Nein → DNS-Server am Gerät manuell auf
-                 192.168.178.127 + 192.168.178.1 setzen
+                 192.168.178.2 + 192.168.178.1 setzen
 ```
 
 [avm-dns]: https://en.fritz.com/service/knowledge-base/dok/FRITZ-Box-7590/165_Configuring-different-DNS-servers-in-the-FRITZ-Box/

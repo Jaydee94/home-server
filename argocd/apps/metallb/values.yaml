@@ -1,0 +1,34 @@
+---
+# Values passed through to the metallb sub-chart.
+# The IPAddressPool + L2Advertisement that hand out 192.168.178.2 live in
+# templates/ (this chart's own resources), NOT in the sub-chart.
+metallb:
+  # Only manage Services that explicitly request this loadBalancerClass.
+  # This is the other half of the k3s-Klipper coexistence (see Chart.yaml):
+  # the Pi-hole DNS service sets the SAME class, so Klipper ignores it (k3s
+  # ServiceLB skips classed services, ≥ v1.26) while MetalLB claims it. Without
+  # this flag MetalLB would only handle *class-less* LoadBalancer services and
+  # would leave the Pi-hole service stuck in <pending>.
+  loadBalancerClass: "metallb.universe.tf/metallb"
+
+  # L2 (ARP) mode — no BGP, no FRR. Single-node home cluster.
+  speaker:
+    frr:
+      enabled: false
+    # Speaker is a DaemonSet on hostNetwork; keep its footprint small.
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+  controller:
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi

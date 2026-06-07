@@ -43,7 +43,7 @@ Am Ende druckt das Playbook die ArgoCD-URL und das Admin-Passwort. Fertig.
 | Betriebssystem   | **Ubuntu Server 26.04 LTS**            | Gehärtet, UFW-Firewall, NTP-synced, Swap off                           |
 | Kubernetes       | **k3s** (latest stable channel)        | Single-Node, bundelt Traefik, CoreDNS, local-path, metrics-server      |
 | GitOps           | **ArgoCD** + ApplicationSets           | Verzeichnis unter `argocd/apps/` anlegen, pushen, deployt              |
-| Split-DNS        | **dnsmasq** auf `tailscale0` + LAN     | `*.homeserver` aus LAN und Tailnet auflösbar — kein öffentliches DNS   |
+| DNS + Adblock    | **Pi-hole** (k3s, MetalLB `.2`)        | `*.homeserver` autoritativ + netzwerkweiter Adblock; dnsmasq abgelöst  |
 | Web-Ansible      | **Semaphore UI**                       | Ein-Klick-`git pull && ansible-playbook` gegen das eigene LAN          |
 | Monitoring       | **VictoriaMetrics + Grafana**          | Single-Node TSDB, vmagent, vmalert, Alertmanager, Dashboards           |
 | Kubernetes-UI    | **Headlamp**                           | Browser-Dashboard für den Cluster                                      |
@@ -155,7 +155,7 @@ home-server/
 │   ├── group_vars/all.yml            # Alle Knobs (vault-verschlüsselte Secrets)
 │   └── roles/
 │       ├── common/                   # Base-OS, Firewall, Pakete
-│       ├── dnsmasq/                  # Split-DNS für *.homeserver
+│       ├── host_dns/                 # Host-Resolver → Pi-hole (dnsmasq abgelöst)
 │       ├── tailscale/                # VPN (WireGuard-Mesh)
 │       ├── k3s/                      # Single-Node-Kubernetes + Helm
 │       ├── argocd/                   # GitOps-Controller via Helm
@@ -195,7 +195,7 @@ Ein schlanker VictoriaMetrics-+-Grafana-Stack lebt unter
   bis Discord/Slack/Gotify in `values.yaml` verdrahtet ist.
 - **Dashboards:** Node Exporter Full, VictoriaMetrics + Kubernetes „Views / Global, Namespaces, Nodes, Pods" von grafana.com.
 
-Grafana öffnen unter **http://grafana.homeserver** (LAN + Tailnet via dnsmasq).
+Grafana öffnen unter **http://grafana.homeserver** (LAN + Tailnet, via Pi-hole).
 User `admin`, Passwort aus dem auto-generierten Secret:
 
 ```bash
@@ -229,7 +229,7 @@ Details: **[docs/05-argocd.md](docs/05-argocd.md)**.
 | Port  | Protokoll | Scope             | Zweck                                  |
 |-------|-----------|-------------------|----------------------------------------|
 | 22    | TCP       | LAN + Tailnet     | SSH                                    |
-| 53    | UDP+TCP   | LAN + Tailnet     | dnsmasq Split-DNS für `*.homeserver`   |
+| 53    | UDP+TCP   | LAN + Tailnet     | Pi-hole (`.2`): `*.homeserver` + Adblock |
 | 80    | TCP       | LAN + Tailnet     | Traefik HTTP                           |
 | 443   | TCP       | LAN + Tailnet     | Traefik HTTPS                          |
 | 6443  | TCP       | LAN + Tailnet     | k3s-API                                |

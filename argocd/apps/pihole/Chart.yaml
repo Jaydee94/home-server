@@ -1,0 +1,30 @@
+---
+apiVersion: v2
+name: pihole
+description: |
+  Network-wide ad/tracker blocker for the whole LAN behind the FritzBox.
+  Runs Pi-hole v6 in k3s and serves DNS on a dedicated MetalLB LAN IP
+  (192.168.178.2:53) without binding 0.0.0.0:53 on the Node IP (which would break the host resolver).
+  *.homeserver lookups are answered authoritatively via customDnsEntries;
+  everything else goes
+  upstream. Web UI at http://pihole.homeserver. The FritzBox is then pointed
+  at 192.168.178.2 as the "Lokaler DNS-Server" (see docs/15-pihole.md).
+type: application
+version: 0.1.0
+appVersion: "2026.04.1"
+keywords:
+  - pihole
+  - dns
+  - adblock
+  - network
+home: https://pi-hole.net
+sources:
+  - https://github.com/MoJo2600/pihole-kubernetes
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # Community Pi-hole chart (supports v6, LoadBalancer DNS, custom dnsmasq).
+  # Pinned + reproducible; Renovate raises a PR to bump.
+  - name: pihole
+    repository: https://mojo2600.github.io/pihole-kubernetes/
+    version: "2.35.0"

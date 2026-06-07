@@ -33,10 +33,10 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │  │  │ (Tailscale)│  │ (NTP sync)   │  │  (22,80,443,6443..)  │ │   │
 │  │  └────────────┘  └──────────────┘  └──────────────────────┘ │   │
 │  │  ┌──────────────┐  ┌─────────────────────────────────────┐  │   │
-│  │  │   dnsmasq    │  │   scanbd + SANE + scan_*.sh         │  │   │
-│  │  │ split-DNS    │  │   (Fujitsu USB Scanner Pipeline)    │  │   │
-│  │  │ *.homeserver │  │   ──► CIFS Mount auf UGREEN NAS     │  │   │
-│  │  │ :53 LAN+TS   │  │       (Paperless-NGX consume-Dir)   │  │   │
+│  │  │   host_dns   │  │   scanbd + SANE + scan_*.sh         │  │   │
+│  │  │ resolver →   │  │   (Fujitsu USB Scanner Pipeline)    │  │   │
+│  │  │ Pi-hole (k3s)│  │   ──► CIFS Mount auf UGREEN NAS     │  │   │
+│  │  │ *.homeserver │  │       (Paperless-NGX consume-Dir)   │  │   │
 │  │  └──────────────┘  └─────────────────────────────────────┘  │   │
 │  │                                                              │   │
 │  │  ┌──────────────────────────────────────────────────────┐   │   │
@@ -156,16 +156,16 @@ Portfreigaben am Router.
 Wird mit k3s mitgeliefert und routet HTTP/HTTPS in den Cluster. Services
 werden über `Ingress`-Resourcen oder Traefiks `IngressRoute`-CRD exponiert.
 
-### dnsmasq (Split-DNS für `*.homeserver`)
+### DNS (`*.homeserver` + Adblock via Pi-hole)
 
-Auf dem Host läuft ein bare-metal `dnsmasq` und beantwortet die
-`*.homeserver`-Zone sowohl auf dem LAN-Interface als auch auf `tailscale0`.
-Jeder Eintrag in `dnsmasq_hosts` (`ansible/group_vars/all.yml`) löst auf
-die LAN-IP des Servers auf — so erreichst du Apps als `grafana.homeserver`,
-`argocd.homeserver` etc. aus LAN und Tailnet, ohne pro App den Router oder
-die Tailscale-Admin-Konsole anzufassen.
-Die Architektur — und warum der Home-Server bewusst **nicht** dein
-LAN-weiter DNS-Server sein sollte — steht in
+DNS macht **Pi-hole** als einziger Resolver (`argocd/apps/pihole/`, in k3s auf
+der MetalLB-IP `192.168.178.2`). Es löst die `*.homeserver`-Wildcard autoritativ
+auf (`address=/homeserver/192.168.178.127`) — so erreichst du Apps als
+`grafana.homeserver`, `argocd.homeserver` etc. — und blockt netzwerkweit
+Werbung/Tracker. Das frühere Host-`dnsmasq` wurde abgelöst; der Host selbst
+fragt Pi-hole über die `host_dns`-Rolle (systemd-resolved → `.2`, FritzBox als
+Fallback). Setup, FritzBox- und Tailscale-Schritte:
+[`15-pihole.md`](15-pihole.md); die DNS-Trade-offs (SPOF):
 [`09-dns-architecture.md`](09-dns-architecture.md).
 
 ### Scanner + Paperless-Pipeline
@@ -209,7 +209,7 @@ die UI ist nach dem ersten Playbook-Run sofort einsatzbereit.
 | Port  | Protokoll | Komponente      | Scope            | Zweck                                |
 |-------|-----------|-----------------|------------------|--------------------------------------|
 | 22    | TCP       | SSH             | LAN + Tailscale  | Server-SSH-Zugriff                   |
-| 53    | UDP+TCP   | dnsmasq         | LAN + Tailscale  | Split-DNS für `*.homeserver`         |
+| 53    | UDP+TCP   | Pi-hole (.2)    | LAN + Tailscale  | DNS: `*.homeserver` + netzwerkweiter Adblock |
 | 80    | TCP       | Traefik         | LAN + Tailscale  | HTTP-Ingress                         |
 | 443   | TCP       | Traefik         | LAN + Tailscale  | HTTPS-Ingress                        |
 | 6443  | TCP       | k3s API-Server  | LAN + Tailscale  | Kubernetes-API                       |

@@ -166,6 +166,10 @@ homepage:
               description: Tagesplanung
               icon: homer.svg
       - Tools:
+          - Pi-hole:
+              href: http://pihole.homeserver
+              description: LAN-Adblock & DNS
+              icon: pi-hole.svg
           - Gotify:
               href: http://gotify.homeserver
               description: Push-Notifications
