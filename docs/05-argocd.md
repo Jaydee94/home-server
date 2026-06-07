@@ -76,7 +76,7 @@ argocd repo add https://github.com/YOUR_USER/home-server.git \
 
 # SSH mit Key
 argocd repo add git@github.com:YOUR_USER/home-server.git \
-  --ssh-private-key-path ~/.ssh/id_rsa
+  --ssh-private-key-path ~/.ssh/id_ed25519
 
 # Repos prüfen
 argocd repo list
@@ -133,15 +133,20 @@ generators:
 
 ```
 argocd/apps/
+├── argo-workflows/      → Private CI-Plattform (Argo Workflows)
 ├── example-whoami/      → Referenz-Helm-Chart als Wiring-Test
 ├── gotify/              → Push-Notification-Server (Android/iOS-Client)
 ├── headlamp/            → Web-basiertes Kubernetes-Dashboard
-├── kubeseal-webgui/     → Browser-UI, die Werte mit dem
-│                          SealedSecrets-Public-Key des Clusters verschlüsselt
+├── homepage/            → Zentrales Dashboard (home.homeserver)
+├── kubeseal-webgui/     → Browser-UI zum Erzeugen von SealedSecrets
+├── metallb/             → L2-LoadBalancer — vergibt Pi-hole die dedizierte
+│                          LAN-IP 192.168.178.2
+├── minio/               → S3-kompatibler Artifact-Store für Argo Workflows
 ├── monitoring/          → VictoriaMetrics + Grafana + node-exporter +
 │                          kube-state-metrics + Alertmanager
+├── paperless-ai/        → KI-gestützte Dokumenten-Kategorisierung
+├── pihole/              → Netzwerkweiter DNS-Adblock (pihole.homeserver/admin/login)
 ├── sealed-secrets/      → bitnami-labs SealedSecrets-Controller
-│                          (entschlüsselt SealedSecret-CRDs zu Secrets)
 └── semaphore/           → Web-UI zum Ausführen von Ansible-Playbooks
 ```
 
@@ -269,7 +274,7 @@ brew install argocd
 
 ```bash
 # Login
-argocd login 192.168.1.100:30080 --username admin --password <password> --insecure
+argocd login 192.168.178.127:30080 --username admin --password <password> --insecure
 
 # Via Tailscale
 argocd login homeserver:30080 --username admin --password <password> --insecure
