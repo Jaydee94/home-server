@@ -1,6 +1,6 @@
 # GETBETTER
 
-_Letzte Aktualisierung: 2026-06-04_
+_Letzte Aktualisierung: 2026-06-07_
 
 ## Entscheidungen
 
@@ -39,6 +39,12 @@ _Letzte Aktualisierung: 2026-06-04_
 - **Grafana-Passwort via `existingSecret` stabilisieren**: Wenn `adminPassword` und `existingSecret` leer sind, generiert Helm bei jedem ArgoCD-Sync ein neues Zufalls-Passwort (`randAlphaNum`). Fix: `grafana-admin` SealedSecret im Monitoring-Namespace anlegen, `admin.existingSecret: grafana-admin` in values.yaml setzen. Danach `grafana-cli reset-admin-password` einmalig ausführen um DB und Secret zu synchronisieren.
 
 - **selfh.st/icons GitHub API Tree für exakte Icon-Namen**: `curl -s "https://api.github.com/repos/selfhst/icons/git/trees/main?recursive=1"` listet alle SVG-Dateinamen auf. `argocd.svg` existiert nicht — korrekt ist `argo-cd.svg`. Kein Raten, keine 404-Überraschungen.
+
+- **MetalLB TCP+UDP shared-IP via `metallb.io/allow-shared-ip`**: Wenn Pi-hole zwei getrennte LoadBalancer-Services (TCP + UDP) mit derselben IP deployt, verweigert MetalLB dem zweiten Service die IP ("can't change sharing key, address already in use"). Fix: beide Services (serviceDns + serviceDnsTCP) brauchen `metallb.io/allow-shared-ip: <gleicher-key>`. Ohne diese Annotation bleibt einer der Services `<pending>` und DNS funktioniert nur halb.
+
+- **Tailscale Split DNS muss bei dnsmasq→Pi-hole-Migration aktualisiert werden**: Tailscale registriert `~homeserver` als Domain auf dem tailscale0-Interface. Diese Route ist spezifischer als das globale `~.` (Pi-hole). Wenn Tailscale noch den alten dnsmasq-Server referenziert, schlagen alle `*.homeserver`-Auflösungen fehl — auch lokal auf dem Home-Server. Tailscale-Konsole → DNS: `homeserver`-Nameserver auf `192.168.178.2` (Pi-hole) ändern.
+
+- **Pi-hole adminSecret safe default: `enabled: false` mit leerem Cipher**: ArgoCD-Erstdeploy ohne committed SealedSecret — `adminSecret.enabled: false` lässt Pi-hole ohne Passwort starten (LAN-only Ingress akzeptabel). Passwort erst nach Deploy über kubeseal setzen, dann `enabled: true` + Cipher committen.
 
 ## Anti-Patterns
 
@@ -83,6 +89,12 @@ _Letzte Aktualisierung: 2026-06-04_
 - **Grafana Brute-Force-Lock durch wiederholte falsche Passwörter**: Nach zu vielen fehlgeschlagenen Auth-Versuchen blockiert Grafana die IP des Requesters temporär (In-Memory-Block). Ein Pod-Restart oder `grafana-cli reset-admin-password` löscht den Counter. Symptom im Log: `"too many consecutive incorrect login attempts for user - login for user temporarily blocked"`.
 
 - **Manuelles Editieren langer base64-Sealed-Werte → Typo-Risiko**: Beim manuellen Ersetzen von Sealed-Werten via Edit-Tool können einzelne Zeichen verloren gehen oder korrumpiert werden. SealedSecret-Status prüfen: `kubectl get sealedsecret -n <ns> -o jsonpath="{.status.conditions[0].message}"`. Besser: Write-Tool statt Edit für die gesamte Datei verwenden wenn mehrere Werte geändert werden.
+
+- **ArgoCD ApplicationSet-Name nicht annehmen**: Der Name des Root ApplicationSet ist nicht zwingend `root-applicationset` — immer erst `kubectl get applicationset -n argocd` prüfen. Der falsche Name führt zu einem `NotFound`-Fehler beim Refresh-Trigger.
+
+- **`pihole -c` (Chronometer) in Pi-hole v6 entfernt**: Der Chronometer-Befehl existiert in Pi-hole v6 nicht mehr. Stats nur über die REST API: POST `/api/auth` → SID → GET `/api/stats/summary` mit `sid`-Header.
+
+- **Tailscale `~homeserver`-Domain nicht vor Host-DNS-Migration updaten**: Wenn Tailscale noch den alten dnsmasq als `homeserver`-Nameserver hat und `make host-dns` läuft, schlägt `resolvectl query *.homeserver` auf dem Host mit Timeout fehl — obwohl `dig @192.168.178.2` funktioniert. Ursache: Tailscale's `~homeserver` ist spezifischer als das globale `~.` von systemd-resolved. Reihenfolge: Tailscale Split DNS updaten, DANN `make host-dns`.
 
 ## Was funktioniert
 
@@ -129,3 +141,11 @@ _Letzte Aktualisierung: 2026-06-04_
 - **`/usr/share/grafana/bin/grafana cli admin reset-admin-password`**: Aktualisiert das DB-Passwort UND setzt den Brute-Force-Counter zurück — essenziell wenn sich Grafana-Credentials ändern und viele fehlgeschlagene Versuche stattgefunden haben.
 
 - **`kubectl -n monitoring exec deploy/monitoring-grafana -- env | grep GF_SECURITY_ADMIN_PASSWORD`**: Zeigt das tatsächlich verwendete Admin-Passwort — zuverlässiger als das Kubernetes-Secret zu lesen, da das Secret (monitoring-grafana) und der Pod-Env-Var bei Helm-generierten Passwörtern auseinanderlaufen können.
+
+- **`kubectl annotate applicationset <name> -n argocd argocd.argoproj.io/refresh=normal --overwrite`**: Erzwingt sofortigen ApplicationSet-Reconcile wenn ArgoCD neue App-Verzeichnisse aus einem frischen Merge noch nicht entdeckt hat — ohne 3 Minuten auf den nächsten Zyklus warten.
+
+- **ApplicationSet-Controller-Logs für Git-Cache-Diagnose**: `kubectl logs -n argocd deploy/argocd-applicationset-controller --tail=30` zeigt `allPaths` — wenn neue App-Verzeichnisse fehlen, hat der Git-Cache noch den alten Stand. Refresh erzwingen statt warten.
+
+- **Pi-hole v6 REST API für Stats**: `POST /api/auth {"password":"..."}` → SID → `GET /api/stats/summary` mit `sid`-Header. Liefert `queries.total`, `queries.blocked`, `queries.percent_blocked`, `clients.active`.
+
+- **`dig @<ip> <name> +short` als Direkttest vor systemd-resolved-Diagnose**: Bevor in resolved-Konfiguration gesucht wird, `dig` direkt gegen den Ziel-DNS testen. Wenn dig funktioniert aber resolvectl nicht → Problem liegt in resolved's Routing-Logik (z.B. Tailscale `~domain`-Override), nicht in der DNS-Erreichbarkeit.
