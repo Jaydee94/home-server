@@ -70,6 +70,9 @@ homepage:
         Monitoring:
           style: row
           columns: 4
+        Media:
+          style: row
+          columns: 4
         "GitOps & CI/CD":
           style: row
           columns: 4
@@ -130,6 +133,11 @@ homepage:
                 url: http://monitoring-grafana.monitoring.svc.cluster.local
                 username: admin
                 password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
+      - Media:
+          - Jellyfin:
+              href: http://jellyfin.homeserver
+              description: Media-Server & Live-TV
+              icon: jellyfin.svg
       - "GitOps & CI/CD":
           - ArgoCD:
               href: http://192.168.178.127:30080
