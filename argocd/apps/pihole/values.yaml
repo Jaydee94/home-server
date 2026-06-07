@@ -8,18 +8,27 @@ pihole:
     repository: pihole/pihole
     tag: "2026.04.1"
 
-  # --- DNS service: dedicated LAN IP via MetalLB ---------------------------
-  # loadBalancerClass makes k3s' Klipper ServiceLB ignore this service so only
-  # MetalLB claims it; loadBalancerIP + the address-pool annotation pin it to
-  # 192.168.178.2 (defined in argocd/apps/metallb/templates/ipaddresspool.yaml).
+  # --- DNS services: dedicated LAN IP via MetalLB -------------------------
+  # Both TCP and UDP services share 192.168.178.2 via metallb.io/allow-shared-ip.
+  # loadBalancerClass keeps k3s' Klipper ServiceLB from claiming the services;
+  # MetalLB assigns the IP from the pool defined in metallb/templates/ipaddresspool.yaml.
   serviceDns:
     type: LoadBalancer
     loadBalancerIP: 192.168.178.2
     loadBalancerClass: metallb.universe.tf/metallb
     externalTrafficPolicy: Local
     annotations:
-      # Current MetalLB annotation domain (metallb.universe.tf/* is legacy).
       metallb.io/address-pool: pihole-dns
+      metallb.io/allow-shared-ip: pihole-dns
+
+  serviceDnsTCP:
+    type: LoadBalancer
+    loadBalancerIP: 192.168.178.2
+    loadBalancerClass: metallb.universe.tf/metallb
+    externalTrafficPolicy: Local
+    annotations:
+      metallb.io/address-pool: pihole-dns
+      metallb.io/allow-shared-ip: pihole-dns
 
   # Web UI is reached only through the Traefik ingress, never directly exposed.
   serviceWeb:
