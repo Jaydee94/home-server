@@ -228,7 +228,7 @@ Per SSH auf den Server und folgende Kommandos laufen lassen:
 ### k3s-Node-Status
 
 ```bash
-ssh ubuntu@192.168.1.100
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127
 kubectl get nodes
 ```
 
@@ -333,7 +333,7 @@ Kubeconfig vom Server holen:
 
 ```bash
 # Lokal
-scp ubuntu@192.168.1.100:~/.kube/config ~/.kube/home-server-config
+scp -i ~/.ssh/id_ed25519 jaydee@192.168.178.127:~/.kube/config ~/.kube/home-server-config
 
 # Nutzen
 KUBECONFIG=~/.kube/home-server-config kubectl get nodes
@@ -348,7 +348,7 @@ kubectl config use-context default   # oder den angezeigten Context-Namen
 Hinweis: Die kubeconfig auf dem Server zeigt auf `127.0.0.1:6443`. Für
 Remote-Zugriff entweder:
 
-- SSH-Tunnel: `ssh -L 6443:localhost:6443 ubuntu@192.168.1.100`
+- SSH-Tunnel: `ssh -i ~/.ssh/id_ed25519 -L 6443:localhost:6443 jaydee@192.168.178.127`
 - Oder die Server-Adresse in der kubeconfig auf die Tailscale-IP umschreiben, bevor sie kopiert wird.
 
 ---
