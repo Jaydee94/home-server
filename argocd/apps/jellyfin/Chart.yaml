@@ -1,0 +1,28 @@
+---
+apiVersion: v2
+name: jellyfin
+description: |
+  Jellyfin media server for the home-server k3s cluster. Streams the media
+  library hosted on the UGREEN NAS (mounted over SMB3 via the csi-driver-smb
+  app) and serves free German public-broadcast Live TV (M3U + XMLTV, configured
+  in the UI — see docs/16-jellyfin.md). CPU-only transcoding. Deployed via ArgoCD.
+type: application
+version: 0.1.0
+appVersion: "10.11.10"
+keywords:
+  - jellyfin
+  - media
+  - streaming
+  - livetv
+home: https://jellyfin.org
+sources:
+  - https://github.com/jellyfin/jellyfin-helm
+  - https://github.com/jellyfin/jellyfin
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # Official Jellyfin Helm chart. Pinned + reproducible; Renovate raises a PR
+  # to bump. chart 3.2.0 → appVersion (jellyfin) 10.11.10.
+  - name: jellyfin
+    repository: https://jellyfin.github.io/jellyfin-helm
+    version: "3.2.0"

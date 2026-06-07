@@ -1,0 +1,54 @@
+---
+# Values passed through to the csi-driver-smb sub-chart.
+# All keys live under `csi-driver-smb:` because that is the dependency name.
+csi-driver-smb:
+  # The driver mounts cifs on the host network namespace of each node; the
+  # node DaemonSet needs privileged access to do so. These are the chart
+  # defaults, set explicitly for clarity.
+  feature:
+    enableInlineVolume: false
+
+  # Single-node home cluster: one controller replica is enough.
+  controller:
+    replicas: 1
+    runOnControlPlane: true
+    resources:
+      csiProvisioner:
+        limits:
+          memory: 200Mi
+        requests:
+          cpu: 10m
+          memory: 20Mi
+      livenessProbe:
+        limits:
+          memory: 100Mi
+        requests:
+          cpu: 10m
+          memory: 20Mi
+      smb:
+        limits:
+          memory: 200Mi
+        requests:
+          cpu: 10m
+          memory: 20Mi
+
+  node:
+    resources:
+      livenessProbe:
+        limits:
+          memory: 100Mi
+        requests:
+          cpu: 10m
+          memory: 20Mi
+      nodeDriverRegistrar:
+        limits:
+          memory: 100Mi
+        requests:
+          cpu: 10m
+          memory: 20Mi
+      smb:
+        limits:
+          memory: 200Mi
+        requests:
+          cpu: 10m
+          memory: 20Mi
