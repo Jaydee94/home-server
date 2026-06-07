@@ -1,0 +1,114 @@
+---
+# Values for the jellyfin app.
+#  * everything under `jellyfin:` is consumed by the official jellyfin sub-chart
+#  * the top-level `smb:` block is consumed by THIS chart's own templates/
+#    (media-pv.yaml, media-pvc.yaml, smb-sealedsecret.yaml)
+jellyfin:
+  image:
+    pullPolicy: IfNotPresent
+    # Empty tag → chart appVersion (10.11.10). Pin here to track upstream:
+    # https://hub.docker.com/r/jellyfin/jellyfin/tags
+    tag: ""
+
+  # Dedicated MetalLB LAN IP so LAN clients WITHOUT Tailscale (e.g. a smart TV)
+  # reach Jellyfin directly at http://192.168.178.3:8096 — bypassing Traefik's
+  # host-based routing (a raw IP hits no IngressRoute → 404). The hostname
+  # http://jellyfin.homeserver keeps working in parallel via the ingress below.
+  # The IP must match the metallb IPAddressPool "jellyfin"
+  # (argocd/apps/metallb/templates/ipaddresspool-jellyfin.yaml) and be a free
+  # LAN IP outside the FritzBox DHCP range. loadBalancerClass keeps k3s Klipper
+  # from claiming the service (see the MetalLB/Klipper gotcha in CLAUDE.md).
+  service:
+    type: LoadBalancer
+    port: 8096
+    loadBalancerIP: 192.168.178.3
+    loadBalancerClass: metallb.universe.tf/metallb
+    annotations:
+      metallb.io/address-pool: jellyfin
+
+  # Web UI at http://jellyfin.homeserver (LAN + Tailnet, resolved by Pi-hole).
+  # TLS disabled — no public exposure, Traefik terminates plain HTTP in-LAN.
+  ingress:
+    enabled: true
+    className: traefik
+    annotations: {}
+    hosts:
+      - host: jellyfin.homeserver
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+  persistence:
+    # Config + SQLite DB on the node SSD (local-path) for performance.
+    # NEVER put the Jellyfin DB on the NAS/SMB — SQLite over CIFS corrupts/locks.
+    config:
+      enabled: true
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 15Gi
+
+    # Media library comes from the NAS via the static SMB PVC defined in
+    # templates/media-pvc.yaml. Mounted by the chart at /media.
+    media:
+      enabled: true
+      type: pvc
+      existingClaim: jellyfin-media
+
+    # Transcode/cache scratch on an emptyDir (node SSD) so transient
+    # transcoding never fills the persistent config volume. Mounted at /cache.
+    cache:
+      enabled: true
+      type: emptyDir
+
+  # CPU-only transcoding (no GPU passthrough). Direct Play is strongly
+  # preferred (see docs/16-jellyfin.md); the high CPU limit only absorbs the
+  # occasional transcode without letting a transcode storm starve the node.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "4"
+      memory: 4Gi
+
+# --- Consumed by THIS chart's own templates/ (NOT the jellyfin sub-chart) -----
+smb:
+  # SMB share on the UGREEN NAS that holds the media library. Create it on the
+  # NAS first (e.g. //jays-ugreen/media with movies/ and shows/ subfolders).
+  source: "//jays-ugreen/media"
+
+  # Nominal capacity for the static SMB PV/PVC — the real capacity is whatever
+  # the NAS share provides; this number is only used for PV/PVC binding.
+  capacity: "1000Gi"
+
+  # cifs mount options, mirroring the scanner role. uid/gid 0 because the
+  # official jellyfin image runs as root; file/dir modes give it full access.
+  mountOptions:
+    - vers=3.0
+    - uid=0
+    - gid=0
+    - file_mode=0664
+    - dir_mode=0775
+    - _netdev
+    - nofail
+
+  # SealedSecret holding the SMB credentials (keys: username, password) that the
+  # csi-driver-smb node plugin uses to mount the share (nodeStageSecretRef).
+  secretName: jellyfin-smbcreds
+
+  # kubeseal-encrypted SMB credentials. EMPTY by default so the repo lints; while
+  # empty, templates/smb-sealedsecret.yaml is skipped (no SealedSecrets controller
+  # error loop). The media mount only works once you seal real values here.
+  # Reuse the NAS SMB account. Generate with (run once per value):
+  #   echo -n "<smb-username>" | kubeseal --raw \
+  #     --namespace jellyfin --name jellyfin-smbcreds \
+  #     --controller-name sealed-secrets-controller \
+  #     --controller-namespace sealed-secrets --from-file=/dev/stdin
+  #   echo -n "<smb-password>" | kubeseal --raw \
+  #     --namespace jellyfin --name jellyfin-smbcreds \
+  #     --controller-name sealed-secrets-controller \
+  #     --controller-namespace sealed-secrets --from-file=/dev/stdin
+  # See docs/16-jellyfin.md for the full workflow.
+  encryptedUsername: ""
+  encryptedPassword: ""

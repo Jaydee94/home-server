@@ -1,0 +1,28 @@
+---
+apiVersion: v2
+name: csi-driver-smb
+description: |
+  Kubernetes CSI driver for SMB/CIFS so cluster pods can mount shares from the
+  UGREEN NAS directly (no host-level mount needed). Required by the jellyfin app,
+  which mounts its media library from the NAS over SMB3. Deployed via ArgoCD.
+type: application
+version: 0.1.0
+appVersion: "1.20.1"
+keywords:
+  - csi
+  - smb
+  - cifs
+  - storage
+  - nas
+home: https://github.com/kubernetes-csi/csi-driver-smb
+sources:
+  - https://github.com/kubernetes-csi/csi-driver-smb
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # Upstream Kubernetes CSI SMB driver. Pinned + reproducible; Renovate raises
+  # a PR to bump. Installs the controller + a per-node DaemonSet that performs
+  # the actual cifs mounts.
+  - name: csi-driver-smb
+    repository: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
+    version: "1.20.1"

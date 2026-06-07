@@ -401,6 +401,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | MinIO     | http://minio.homeserver     | S3 artifact store for Argo Workflows |
 | Homepage  | http://home.homeserver      | Zentrales Dashboard                |
 | Pi-hole   | http://pihole.homeserver/admin/login | LAN-Adblock; DNS auf 192.168.178.2 (docs/15-pihole.md) |
+| Jellyfin  | http://jellyfin.homeserver  | Media-Server; NAS via SMB; LAN/Smart-TV: http://192.168.178.3:8096 (MetalLB) (docs/16-jellyfin.md) |
 | Paperless-NGX | http://jays-ugreen:8000  | NAS (Docker Compose)               |
 | OpenCode      | http://jays-ugreen:4096  | NAS (Docker Compose)               |
 | TinyTeller    | http://jays-ugreen:3002  | NAS (Docker Compose)               |

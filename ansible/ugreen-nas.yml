@@ -21,3 +21,5 @@
       tags: [tinyteller]
     - role: day_pilot
       tags: [day-pilot]
+    - role: jellyfin_media
+      tags: [jellyfin-media]

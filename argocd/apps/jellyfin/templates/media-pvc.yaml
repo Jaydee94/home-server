@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jellyfin-media
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: jellyfin
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  # Bind explicitly to the static SMB PV above (no dynamic provisioning).
+  volumeName: jellyfin-media-{{ .Release.Namespace }}
+  resources:
+    requests:
+      storage: {{ .Values.smb.capacity }}

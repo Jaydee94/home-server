@@ -52,6 +52,7 @@ Am Ende druckt das Playbook die ArgoCD-URL und das Admin-Passwort. Fertig.
 | Notifications    | **Gotify**                             | Self-hosted Push-Notifications (Android/iOS-Client)                    |
 | Remote-Access    | **Tailscale**                          | WireGuard-Mesh-VPN — keine Portfreigaben, keine öffentliche IP         |
 | CI/CD intern     | **Argo Workflows + MinIO**             | Private CI/CD-Pipeline + S3-Artifact-Store im Cluster                 |
+| Media-Server     | **Jellyfin** (+ csi-driver-smb)        | Streamt Medien vom NAS via SMB; deutsches Live-TV (M3U+EPG)            |
 | Ingress          | **Traefik v2** (mit k3s gebundled)     | HTTP/HTTPS-Routing in den Cluster                                      |
 | Provisioning     | **Ansible** (≥ 2.14)                   | Vollständig idempotent, Role-per-Concern, Vault für Secrets            |
 
@@ -264,6 +265,7 @@ Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
 | [Argo Workflows](docs/13-argo-workflows.md)                     | Private CI/CD-Pipeline mit MinIO-Artifact-Store |
 | [Homepage Dashboard](docs/14-homepage.md)                       | Zentrales Startpage-Dashboard (home.homeserver) |
 | [Pi-hole](docs/15-pihole.md)                                    | LAN-Adblock + DNS-Migration (dnsmasq → Pi-hole) |
+| [Jellyfin](docs/16-jellyfin.md)                                 | Media-Server (NAS via SMB) + deutsches Live-TV |
 
 ---
 

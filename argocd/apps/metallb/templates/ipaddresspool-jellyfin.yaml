@@ -1,0 +1,19 @@
+---
+# Dedicated LAN IP for the Jellyfin LoadBalancer Service, so LAN clients that
+# are NOT on the Tailnet (e.g. a smart TV) can reach Jellyfin directly at
+# http://192.168.178.3:8096 — bypassing Traefik's host-based routing.
+# Must be a free LAN IP OUTSIDE the FritzBox DHCP range (same rule as the
+# Pi-hole IP, see docs/15-pihole.md / docs/16-jellyfin.md).
+# autoAssign:false → only handed out when a Service explicitly requests it
+# (jellyfin sets loadBalancerIP + the metallb.io/address-pool annotation).
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: jellyfin
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  addresses:
+    - 192.168.178.3/32
+  autoAssign: false
