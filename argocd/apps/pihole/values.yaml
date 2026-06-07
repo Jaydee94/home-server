@@ -65,6 +65,7 @@ pihole:
     # dnsmasq served, now owned by Pi-hole.
     customDnsEntries:
       - "address=/homeserver/192.168.178.127"
+      - "address=/jays-ugreen/192.168.178.118"
 
   # Admin password.
   # SAFE DEFAULT (so ArgoCD reaches Healthy on first sync without manual steps):
