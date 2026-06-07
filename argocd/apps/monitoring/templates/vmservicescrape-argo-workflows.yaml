@@ -11,5 +11,5 @@ spec:
     matchLabels:
       app.kubernetes.io/name: argo-workflows-server
   endpoints:
-    - targetPort: 2746
+    - port: "2746"
       path: /metrics
