@@ -74,7 +74,7 @@ pihole:
   # then set: admin.existingSecret=pihole-admin AND adminSecret.enabled=true.
   admin:
     enabled: true
-    existingSecret: ""
+    existingSecret: pihole-admin
     passwordKey: password
   adminPassword: ""
 
@@ -101,6 +101,6 @@ pihole:
 #   3. Set admin.existingSecret: pihole-admin in the admin block above.
 # See docs/15-pihole.md.
 adminSecret:
-  enabled: false
+  enabled: true
   secretName: pihole-admin
-  encryptedPassword: ""
+  encryptedPassword: "AgCogra2KhnCTHjBJ+bEkEUSTbPY09aUK0weWC2WZu7wtWx5xVaFPuNq52gUidJhT2um1cYuSL9w5a5NsSRRAWurIP2ZOXUHOqOyZk0nXpr3Vhu71TrWtB0oYBhAnKldJkUl7qGCblAWyTV4M1GULkIe+IVC1oHdYhy7w46K4cX9hmDklyP2U1t9CZxUM/KGhbDToQa8CIRzxZvoLPDJwf3+29jp+DF0/F4xdlko2LauA8Q6zUQ0/R6Jl4X3w5OhTG8JnsCvYakExNUvUkUj/afunLrqdD9m5uBoRzhTW0wfrihiwftOIZZvyMXf0uQhABGIGfcr2B1JkPz3CCWOBQC8QXK2XTUE7a4P/3MyGnesbpt57YamYBZbYu7SuWwcNKoVq1ypn4PZiFwQ2+tU+qBXJmvYmJ+VkrTALn1cfY+S5IMNaPhQaX0gzWrnI/U7G5EIimtlSX7tpgwLFPDL3ypu4EHKdCdSfbXOVR67KIzex/2Jf3LDpU/Wn7mHbiAKIRrTLVj1W3n8n1ryrD0eyhYlY0xne88E6vt6ACrMzXT6XG2Jiv0s72GipnoKrWYeKuuzYozhupKEYmHB4X4H2bSTmx4iwJxvLRVqqtevX81TJc1SRQI0m2axCVW2Y+Hmz2VR/0SbprUuQzzCN24S23lWRUwnTesm5mYWtD54UkXQlNsSS2dIw9PUF9Z/1B0bJSMtUc0gOxvvkZ7g6Q=="
