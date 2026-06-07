@@ -46,6 +46,16 @@ _Letzte Aktualisierung: 2026-06-07_
 
 - **Pi-hole adminSecret safe default: `enabled: false` mit leerem Cipher**: ArgoCD-Erstdeploy ohne committed SealedSecret — `adminSecret.enabled: false` lässt Pi-hole ohne Passwort starten (LAN-only Ingress akzeptabel). Passwort erst nach Deploy über kubeseal setzen, dann `enabled: true` + Cipher committen.
 
+- **Homepage Hybrid-Theme: `::before`-Pseudo-Element statt box-shadow für Hover-Akzent**: CSS `::before` mit `scaleY(0) → scaleY(1)` Transition erzeugt den Teal-Balken links an der Karte. Eleganter als box-shadow-Overlay, funktioniert mit `overflow: hidden` auf `.service-card`. Hairline-Karten (`border-radius: 8px`, kein box-shadow im Ruhezustand) statt Material-Elevation.
+
+- **Branch + PR + squash auch für triviale Ein-Datei-Änderungen**: CLAUDE.md verbietet Direktpush auf main ohne Ausnahme. Auto-mode-Classifier erzwingt das — .gitignore-Änderungen gehören ebenfalls auf einen Feature-Branch.
+
+- **Homepage `color: teal` → `.bg-theme-800` muss im CSS explizit überschrieben werden**: Der homepage Tailwind-Wrapper hat die Klasse `bg-theme-50 dark:bg-theme-800`. Mit `color: teal` wird `bg-theme-800` zu `teal-800` = `rgb(17, 94, 89)` und liegt über dem `body`-Hintergrund. Fix: `.bg-theme-50, .bg-theme-800 { background-color: #080F0D !important; }` im custom.css. Ohne diesen Override ist jede Body-Hintergrundfarbe wirkungslos. Diagnose via `getComputedStyle()` im Browser.
+
+- **`iconStyle: color` statt `theme` für farbige Original-Logos**: `iconStyle: theme` tönt alle Icons in die Theme-Farbe (teal). Design zeigt farbige Original-Logos (ArgoCD rot, Grafana orange, etc.) → `iconStyle: color` in settings.yaml.
+
+- **Claude Design Bundle via `curl | gunzip | tar`**: Design-Handoff-Bundles von `api.anthropic.com/v1/design/h/<hash>` sind gzip-tar-Archive. Dekomprimieren: `curl -sL <url> | gunzip | tar -t` (auflisten), `tar -xO "<pfad>"` (einzelne Datei ausgeben). WebFetch/WebFetch scheitern am Binary-Content — direkt curl nutzen.
+
 ## Anti-Patterns
 
 - **SANE net-Backend ausprobieren ohne Quellcode zu prüfen**: Stunden in Manager-Modus + saned investiert, obwohl scanbd im Quellcode `local_only=1` hartcodiert hat.
@@ -95,6 +105,14 @@ _Letzte Aktualisierung: 2026-06-07_
 - **`pihole -c` (Chronometer) in Pi-hole v6 entfernt**: Der Chronometer-Befehl existiert in Pi-hole v6 nicht mehr. Stats nur über die REST API: POST `/api/auth` → SID → GET `/api/stats/summary` mit `sid`-Header.
 
 - **Tailscale `~homeserver`-Domain nicht vor Host-DNS-Migration updaten**: Wenn Tailscale noch den alten dnsmasq als `homeserver`-Nameserver hat und `make host-dns` läuft, schlägt `resolvectl query *.homeserver` auf dem Host mit Timeout fehl — obwohl `dig @192.168.178.2` funktioniert. Ursache: Tailscale's `~homeserver` ist spezifischer als das globale `~.` von systemd-resolved. Reihenfolge: Tailscale Split DNS updaten, DANN `make host-dns`.
+
+- **Screenshot-PNGs im Repo-Root akkumulieren lassen**: Temporäre Screenshots aus Playwright/Browser-Sessions landen ungetrackt im Root. `.gitignore`-Einträge für `*.png` (oder toolspezifische Verzeichnisse wie `.playwright-mcp/`) von Anfang an anlegen, nicht erst nach Akkumulation.
+
+- **Direktpush auf main auch für triviale Änderungen versuchen**: CLAUDE.md verbietet Direktpush auf main ohne Ausnahme. Auch `.gitignore`-Einzeiler-Änderungen brauchen einen Feature-Branch + PR. Auto-mode-Classifier erzwingt das.
+
+- **`body`-Hintergrund setzen reicht nicht wenn ein Tailwind-Wrapper darüber liegt**: Wenn ein Framework einen `fixed`/`absolute` Vollbild-Wrapper mit Theme-Farbe rendert, ist die `body`-CSS-Regel visuell wirkungslos. Diagnose: `document.querySelectorAll('div[class*="bg-"]')` + `getComputedStyle(el).backgroundColor` zeigt den tatsächlichen Übeltäter. Erst dann den richtigen Selektor überschreiben.
+
+- **Design-Bundle-CSS als "fertig implementiert" deklarieren ohne Live-Screenshot-Vergleich**: Das Design-Bundle-CSS war funktional identisch zum bereits gemergten Stand — aber der homepage Tailwind-Wrapper wurde nicht berücksichtigt. Ein Live-Screenshot vor der Fertigmeldung hätte den Fehler sofort sichtbar gemacht.
 
 ## Was funktioniert
 
@@ -149,3 +167,13 @@ _Letzte Aktualisierung: 2026-06-07_
 - **Pi-hole v6 REST API für Stats**: `POST /api/auth {"password":"..."}` → SID → `GET /api/stats/summary` mit `sid`-Header. Liefert `queries.total`, `queries.blocked`, `queries.percent_blocked`, `clients.active`.
 
 - **`dig @<ip> <name> +short` als Direkttest vor systemd-resolved-Diagnose**: Bevor in resolved-Konfiguration gesucht wird, `dig` direkt gegen den Ziel-DNS testen. Wenn dig funktioniert aber resolvectl nicht → Problem liegt in resolved's Routing-Logik (z.B. Tailscale `~domain`-Override), nicht in der DNS-Erreichbarkeit.
+
+- **`yamllint -c .yamllint <einzelne-datei>` statt `make lint` für schnelle Verifikation**: Zeigt sofort ob die geänderte Datei sauber ist, ohne auf pre-existing Warnungen in anderen Dateien zu warten. Klar von `make lint` abzugrenzen (Gesamt-Check) vs. schnellem Einzel-Check.
+
+- **Quick-WebSearch zur Recherche-Pflicht-Erfüllung bei vollständig spezifizierten Tasks**: Wenn der User eine vollständige Implementierungs-Spec liefert (exakter Dateiinhalt, Branch-Name, PR-Titel), reicht eine kurze Recherche zur Bestätigung stabiler API-Hooks — z.B. `gethomepage custom.css` um `#information-widgets`/`.service-card` als stabile Selektoren zu verifizieren.
+
+- **Playwright `browser_evaluate` + `getComputedStyle` für DOM-Diagnose**: `document.querySelectorAll('div[class*="bg-"]')` + `getComputedStyle(el).backgroundColor` zeigt die tatsächlich gerenderten Farben aller bg-Elemente — nicht nur die CSS-Klassen. Ideal um Framework-Wrapper zu identifizieren die über dem body liegen. Schneller als SSH + wget in den Pod.
+
+- **Playwright Screenshot-Vergleich als Verifikationsworkflow für visuelle Änderungen**: Vor dem Merge einen Screenshot nehmen, nach dem Merge + ArgoCD-Refresh + `rollout status` einen zweiten — direkter visueller Vergleich. `browser_navigate` → `browser_take_screenshot` → `Read` (PNG-Preview). Für CSS-Änderungen zuverlässiger als nur YAML-Lint.
+
+- **`kubectl rollout status` nach `argocd annotate refresh=hard`**: Nach einem ArgoCD-Hard-Refresh muss der Deployment-Rollout abgewartet werden bevor ein Screenshot sinnvoll ist. Sequenz: annotate → sleep 15 → `rollout status --timeout=60s` → navigate → screenshot.
