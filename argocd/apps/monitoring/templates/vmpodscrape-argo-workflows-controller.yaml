@@ -1,0 +1,15 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: argo-workflows-controller
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - argo-workflows
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: workflow-controller
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
