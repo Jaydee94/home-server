@@ -73,7 +73,7 @@ sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 | Proxy                | leer lassen                                                            |
 | Mirror               | Default                                                                |
 | Storage              | **Use an entire disk** + **Set up this disk as an LVM group**          |
-| Profile              | Username **`ubuntu`** (muss zum Inventory passen)                      |
+| Profile              | Username **`jaydee`** (muss zum Inventory passen)                      |
 | Servername           | **`homeserver`** (muss zu `hostname` in `group_vars/all.yml` passen)   |
 | SSH                  | **Install OpenSSH server** (optional GitHub/Launchpad-Keys importieren)|
 | Featured Snaps       | alles überspringen — Ansible installiert alles Weitere                 |
@@ -124,9 +124,9 @@ In `ansible/group_vars/all.yml`:
 ```yaml
 network_configure_static_ip: true
 network_interface: eno1          # ANPASSEN — Name aus: ip link show
-network_static_ip: 192.168.1.100 # ANPASSEN
+network_static_ip: 192.168.178.127 # ANPASSEN
 network_prefix_length: 24
-network_gateway: 192.168.1.1     # ANPASSEN — IP des Routers
+network_gateway: 192.168.178.1    # ANPASSEN — IP des Routers
 network_dns:
   - 1.1.1.1
   - 8.8.8.8
@@ -151,10 +151,10 @@ network:
     eno1:                       # eigenes Interface
       dhcp4: false
       addresses:
-        - 192.168.1.100/24
+        - 192.168.178.127/24
       routes:
         - to: default
-          via: 192.168.1.1
+          via: 192.168.178.1
       nameservers:
         addresses:
           - 1.1.1.1
@@ -170,8 +170,8 @@ sudo netplan apply
 Vom Laptop aus testen:
 
 ```bash
-ping 192.168.1.100
-ssh ubuntu@192.168.1.100
+ping 192.168.178.127
+ssh jaydee@192.168.178.127
 ```
 
 ---
@@ -184,8 +184,8 @@ aktiv — prüfen und bei Bedarf fixen:
 ```bash
 sudo -n whoami           # sollte "root" liefern, ohne Passwortabfrage
 # Falls Passwort abgefragt wird:
-echo 'ubuntu ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/ubuntu
-sudo chmod 0440 /etc/sudoers.d/ubuntu
+echo 'jaydee ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/jaydee
+sudo chmod 0440 /etc/sudoers.d/jaydee
 ```
 
 ---
@@ -202,9 +202,9 @@ sudo reboot
 ## Bereit für Ansible — Checkliste
 
 - [ ] Ubuntu Server 26.04 LTS installiert (nicht Desktop)
-- [ ] Username ist `ubuntu`
+- [ ] Username ist `jaydee`
 - [ ] Hostname stimmt mit `hostname` in `ansible/group_vars/all.yml` überein (Default: `homeserver`)
-- [ ] SSH-Key-Login funktioniert (`ssh -i ~/.ssh/id_ed25519 ubuntu@<ip>`)
+- [ ] SSH-Key-Login funktioniert (`ssh -i ~/.ssh/id_ed25519 jaydee@<ip>`)
 - [ ] Passwortloses sudo funktioniert (`sudo -n whoami` → `root`)
 - [ ] Server hat statische IP
 - [ ] Internet vom Server erreichbar (`ping 1.1.1.1`)
