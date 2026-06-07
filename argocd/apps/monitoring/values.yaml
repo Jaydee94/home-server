@@ -41,7 +41,7 @@ victoria-metrics-k8s-stack:
   vmsingle:
     enabled: true
     spec:
-      retentionPeriod: "15d"       # h/d/w/y; unit-less = months
+      retentionPeriod: "30d"       # h/d/w/y; unit-less = months
       replicaCount: 1
       extraArgs:
         # Drop scrapes from misbehaving targets instead of blowing memory.

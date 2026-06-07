@@ -1,0 +1,27 @@
+#!/bin/bash
+# Managed by Ansible (common role — homeserver-cleanup timer).
+# Runs weekly to keep container images, journal and APT cache from growing unbounded.
+set -euo pipefail
+
+LOG_TAG="homeserver-cleanup"
+
+log() { logger -t "$LOG_TAG" "$*"; }
+
+log "Starting weekly cleanup"
+
+# 1. Prune unused container images (k3s/containerd)
+if command -v k3s &>/dev/null; then
+  log "Pruning unused container images..."
+  k3s crictl rmi --prune 2>&1 | logger -t "$LOG_TAG" || true
+  log "Image prune done"
+fi
+
+# 2. Compact systemd journal to 200 MB
+log "Vacuuming journal to 200M..."
+journalctl --vacuum-size=200M 2>&1 | logger -t "$LOG_TAG"
+
+# 3. Clean APT cache
+log "Cleaning APT cache..."
+apt-get clean -q
+
+log "Weekly cleanup finished"

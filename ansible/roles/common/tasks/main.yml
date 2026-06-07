@@ -369,3 +369,53 @@
   when:
     - common_reboot_required.stat.exists
     - lookup('env', 'SEMAPHORE_TASK_ID') | length > 0
+
+# ── Weekly cleanup timer ────────────────────────────────────────────────────
+- name: Deploy homeserver-cleanup script
+  ansible.builtin.template:
+    src: homeserver-cleanup.sh.j2
+    dest: /usr/local/bin/homeserver-cleanup.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Create homeserver-cleanup systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homeserver-cleanup.service
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Weekly home-server maintenance (image prune, journal vacuum, apt clean)
+      After=network.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/homeserver-cleanup.sh
+      StandardOutput=journal
+      StandardError=journal
+
+- name: Create homeserver-cleanup systemd timer (weekly, Sunday 03:00)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/homeserver-cleanup.timer
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Weekly home-server maintenance timer
+
+      [Timer]
+      OnCalendar=Sun *-*-* 03:00:00
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: Enable and start homeserver-cleanup timer
+  ansible.builtin.systemd:
+    name: homeserver-cleanup.timer
+    enabled: true
+    state: started
+    daemon_reload: true
