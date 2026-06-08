@@ -55,7 +55,7 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
 │  │  │  │    semaphore, argo-workflows + minio,        │   │   │   │
 │  │  │  │    headlamp, gotify, homepage, paperless-ai, │   │   │   │
-│  │  │  │    example-whoami                            │   │   │   │
+│  │  │  │    home-assistant, example-whoami            │   │   │   │
 │  │  │  └─────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
 │  │  │  ┌──────────────────────────────────────────────┐   │   │   │
