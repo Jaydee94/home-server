@@ -1,0 +1,23 @@
+apiVersion: v2
+name: home-assistant
+description: |
+  Home Assistant home automation platform. Integrates with Philips Hue Bridge
+  via LAN mDNS discovery. Config persisted on local-path PVC. Accessible at
+  http://homeassistant.homeserver (LAN + Tailnet via Pi-hole wildcard DNS).
+type: application
+version: 0.1.0
+appVersion: "2025.6"
+keywords:
+  - home-assistant
+  - automation
+  - hue
+home: https://www.home-assistant.io
+sources:
+  - https://github.com/pajikos/home-assistant-helm-chart
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # Community Helm chart for Home Assistant. Renovate bumps patch/minor automatically.
+  - name: home-assistant
+    repository: https://pajikos.github.io/home-assistant-helm-chart/
+    version: "0.3.63"
