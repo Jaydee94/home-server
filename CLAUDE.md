@@ -402,7 +402,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Homepage  | http://home.homeserver      | Zentrales Dashboard                |
 | Pi-hole   | http://pihole.homeserver/admin/login | LAN-Adblock; DNS auf 192.168.178.2 (docs/15-pihole.md) |
 | Jellyfin  | http://jellyfin.homeserver  | Media-Server; NAS via SMB; LAN/Smart-TV: http://192.168.178.3:8096 (MetalLB) (docs/16-jellyfin.md) |
-| Home Assistant | http://homeassistant.homeserver | Home Automation; Philips Hue Bridge via mDNS |
+| Home Assistant | http://homeassistant.homeserver | Home Automation; Philips Hue Bridge via mDNS; Solakon-ONE Solar via Modbus TCP (docs/17-homeassistant.md) |
 | Paperless-NGX | http://jays-ugreen:8000  | NAS (Docker Compose)               |
 | OpenCode      | http://jays-ugreen:4096  | NAS (Docker Compose)               |
 | TinyTeller    | http://jays-ugreen:3002  | NAS (Docker Compose)               |
@@ -510,6 +510,7 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Pi-hole NICHT auf die Node-IP `:53` legen**: k3s' Klipper-ServiceLB bindet einen LB-Port als hostPort `0.0.0.0:53` und würde den Host-Resolver (`systemd-resolved` auf `127.0.0.53:53`) lahmlegen (Node löst nichts mehr auf). Genau deshalb die dedizierte MetalLB-IP `.2` statt der Node-IP. MetalLB liefert `.2:53` per ARP/kube-proxy aus, ohne `0.0.0.0:53` zu belegen.
 - **MetalLB vs. k3s-Klipper**: Damit MetalLB den Pi-hole-DNS-Service exklusiv bekommt (statt Klipper), setzen **beide** Seiten dieselbe `loadBalancerClass: metallb.universe.tf/metallb` — der Service (`serviceDns.loadBalancerClass`) und der Controller (`metallb.loadBalancerClass`). Klipper überspringt klassifizierte Services (k3s ≥ v1.26); MetalLB greift nur bei passendem `--lb-class`. Fehlt eine Seite → Service bleibt `<pending>` oder bekommt zwei EXTERNAL-IPs.
 - **Pi-hole IP muss außerhalb des FritzBox-DHCP-Bereichs liegen**: `192.168.178.2` darf nicht vom DHCP vergeben werden (sonst ARP-Konflikt). DHCP-Bereich prüfen unter FritzBox → Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Adressen. Andere IP nötig? An vier Stellen ändern: `metallb/templates/ipaddresspool.yaml`, `pihole/values.yaml` (`loadBalancerIP`), `group_vars/all.yml` (`pihole_dns_ip`), FritzBox.
+- **Home Assistant Solakon-ONE — Modbus TCP muss am Dongle aktiv sein**: Die Solakon-/FoxESS-Integration spricht den Wechselrichter rein lokal via Modbus TCP (Port 502) an. Ist Modbus am WLAN-Dongle nicht freigeschaltet, schlägt der Config-Flow mit `Connection refused` fehl. Die Integration selbst wird GitOps-reproduzierbar per Init-Container in `argocd/apps/home-assistant/values.yaml` installiert (gepinntes Release nach `/config/custom_components/solakon_one`), NICHT über HACS. Details: `docs/17-homeassistant.md`.
 
 ## Automatic dependency updates
 
