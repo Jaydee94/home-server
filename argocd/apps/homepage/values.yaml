@@ -138,6 +138,10 @@ homepage:
               href: http://jellyfin.homeserver
               description: Media-Server & Live-TV
               icon: jellyfin.svg
+          - Home Assistant:
+              href: http://homeassistant.homeserver
+              description: Home Automation
+              icon: home-assistant.png
       - "GitOps & CI/CD":
           - ArgoCD:
               href: http://192.168.178.127:30080

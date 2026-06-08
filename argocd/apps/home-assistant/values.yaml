@@ -1,0 +1,36 @@
+home-assistant:
+  image:
+    # Empty tag → chart default (stable). Pin to a digest here if reproducibility
+    # is needed. Renovate watches the `appVersion` in Chart.yaml instead.
+    tag: ""
+
+  persistence:
+    config:
+      enabled: true
+      storageClass: local-path
+      accessMode: ReadWriteOnce
+      size: 10Gi
+
+  # Web UI at http://homeassistant.homeserver — Pi-hole wildcard *.homeserver
+  # already resolves this to 192.168.178.127 (Traefik). No separate DNS entry needed.
+  ingress:
+    enabled: true
+    className: traefik
+    annotations: {}
+    hosts:
+      - host: homeassistant.homeserver
+        paths:
+          - path: /
+            pathType: Prefix
+    tls: []
+
+  env:
+    TZ: Europe/Berlin
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
