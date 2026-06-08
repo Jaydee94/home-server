@@ -47,3 +47,10 @@ spec:
           - CreateNamespace=true
           - ServerSideApply=true
           - SkipDryRunOnMissingResource=true
+      # Kubernetes adds volumeMode: Filesystem as a default to StatefulSet
+      # volumeClaimTemplates — ignore this immutable field to prevent drift loops.
+      ignoreDifferences:
+        - group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[]?.spec.volumeMode
