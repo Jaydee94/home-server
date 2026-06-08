@@ -15,7 +15,7 @@ home-assistant:
   # already resolves this to 192.168.178.127 (Traefik). No separate DNS entry needed.
   ingress:
     enabled: true
-    ingressClassName: traefik
+    className: traefik
     annotations: {}
     hosts:
       - host: homeassistant.homeserver
