@@ -5,11 +5,10 @@ home-assistant:
     tag: ""
 
   persistence:
-    config:
-      enabled: true
-      storageClass: local-path
-      accessMode: ReadWriteOnce
-      size: 10Gi
+    enabled: true
+    storageClass: local-path
+    accessMode: ReadWriteOnce
+    size: 10Gi
 
   # Web UI at http://homeassistant.homeserver — Pi-hole wildcard *.homeserver
   # already resolves this to 192.168.178.127 (Traefik). No separate DNS entry needed.
