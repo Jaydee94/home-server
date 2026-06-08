@@ -25,7 +25,8 @@ home-assistant:
     tls: []
 
   env:
-    TZ: Europe/Berlin
+    - name: TZ
+      value: Europe/Berlin
 
   resources:
     requests:
