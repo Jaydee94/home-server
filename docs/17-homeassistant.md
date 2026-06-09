@@ -55,7 +55,7 @@ Statt HACS (manuell, nicht versioniert) wird die Integration reproduzierbar per
           tar -xzf /tmp/s.tgz -C /tmp
           cp -r "/tmp/solakon-one-homeassistant-${VERSION}/custom_components/solakon_one" /config/custom_components/solakon_one
       volumeMounts:
-        - name: home-assistant-pvc   # = {{ home-assistant.fullname }}-pvc
+        - name: home-assistant
           mountPath: /config
 ```
 
