@@ -44,7 +44,7 @@ home-assistant:
           tar -xzf /tmp/s.tgz -C /tmp
           cp -r "/tmp/solakon-one-homeassistant-${VERSION}/custom_components/solakon_one" /config/custom_components/solakon_one
       volumeMounts:
-        - name: home-assistant-pvc
+        - name: home-assistant
           mountPath: /config
 
   configuration:
