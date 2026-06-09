@@ -23,6 +23,30 @@ home-assistant:
             pathType: Prefix
     tls: []
 
+  # GitOps-Installation der Solakon-ONE Custom-Integration (Balkonkraftwerk /
+  # FoxESS-Hybrid-Wechselrichter, Modbus TCP, lokal). Der Init-Container kopiert
+  # das gepinnte Release beim Pod-Start in den geteilten /config-PVC. Idempotent:
+  # Ziel-Ordner wird vorher gelöscht, sodass die Version stets dem Git-Stand
+  # entspricht. Setup-Details: docs/17-homeassistant.md.
+  initContainers:
+    # renovate: datasource=github-releases depName=solakon-de/solakon-one-homeassistant
+    - name: install-solakon-one
+      image: alpine:3.20
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          VERSION=1.5.4
+          apk add --no-cache curl tar
+          rm -rf /config/custom_components/solakon_one
+          mkdir -p /config/custom_components
+          curl -fsSL "https://github.com/solakon-de/solakon-one-homeassistant/archive/refs/tags/${VERSION}.tar.gz" -o /tmp/s.tgz
+          tar -xzf /tmp/s.tgz -C /tmp
+          cp -r "/tmp/solakon-one-homeassistant-${VERSION}/custom_components/solakon_one" /config/custom_components/solakon_one
+      volumeMounts:
+        - name: home-assistant-pvc
+          mountPath: /config
+
   configuration:
     enabled: true
     forceInit: true

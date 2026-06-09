@@ -4,6 +4,16 @@
     "config:recommended",
     ":dependencyDashboard"
   ],
+  "customManagers": [
+    {
+      "description": "Pin of the Solakon-ONE HA custom integration release in the home-assistant init container.",
+      "customType": "regex",
+      "managerFilePatterns": ["/argocd/apps/home-assistant/values\\.yaml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+[\\s\\S]*?VERSION=(?<currentValue>\\S+)"
+      ]
+    }
+  ],
   "packageRules": [
     {
       "description": "kubeseal-webgui v4.10+ has a broken kubernetes-client v36 in-cluster auth (api_key key mismatch). Disable auto-merge until upstream fixes it.",
