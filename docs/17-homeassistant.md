@@ -106,6 +106,41 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
 5. **Live-Daten** (sobald der Config-Flow durch ist): Entities wie
    `sensor.solakon_one_battery_power`, PV-String- und Netz-Sensoren liefern Werte.
 
+## Zigbee via ZHA
+
+Zigbee-Koordinator: **Sonoff Zigbee Dongle Plus MG24** (EFR32MG24-Chip, CP210x UART-Bridge).
+
+| | |
+|---|---|
+| Host-Device | `/dev/serial/by-id/usb-SONOFF_SONOFF_Dongle_Plus_MG24_46718ac707a3ef11a29a8c6661ce3355-if00-port0` → `/dev/ttyUSB0` |
+| Pod-Pfad | `/dev/ttyUSB0` (via `additionalVolumes`/`additionalMounts` im pajikos-Chart) |
+| Protokoll | **EZSP** (EmberZNet Serial Protocol) |
+| SecurityContext | `privileged: true` (nötig für USB-Device-Zugriff in k3s) |
+
+**ZHA-Onboarding** (einmalig nach erstem Deploy):
+
+1. <http://homeassistant.homeserver> → Settings → Devices & Services → **Add Integration** → ZHA
+2. Serial Device Path: `/dev/ttyUSB0`
+3. Radio type: **EZSP** (EmberZNet — nicht ZNP auswählen!)
+4. Koordinator erscheint unter Devices & Services; Zigbee-Geräte können jetzt gepaired werden.
+
+ZHA-Konfiguration persistiert in `/config/.storage/core.config_entries` auf dem PVC — überlebt Pod-Restarts.
+
+**Verifikation:**
+
+```bash
+# Device im Pod prüfen
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+  'sudo kubectl -n home-assistant exec home-assistant-0 -- ls -la /dev/ttyUSB0'
+# Erwartet: crw-rw---- 1 root dialout 188, 0 ...
+```
+
+**Gotchas:**
+
+- `privileged: true` ist zwingend — k3s hat keinen USB-Device-Plugin; ohne Privilegien ist das CharDevice im Pod nicht zugänglich.
+- Kein direkter `/dev/ttyUSB0`-Mount vom Host-Pfad verwenden — die Nummer ist nach Reboot instabil wenn weitere USB-Geräte vorhanden sind. Stattdessen den `by-id`-Symlink als `CharDevice` nutzen.
+- Chip ist EFR32MG24 → **EZSP**-Protokoll. ZNP ist für Texas-Instruments-Chips (CC2652) — falsche Auswahl führt zu Verbindungsfehler.
+
 ## Troubleshooting
 
 | Symptom | Ursache / Fix |
