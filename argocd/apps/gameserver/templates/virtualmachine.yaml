@@ -54,6 +54,6 @@ spec:
         {{- if .Values.sealedSecret.encryptedUserdata }}
         - name: cloudinit
           cloudInitNoCloud:
-            userDataSecretRef:
+            secretRef:
               name: {{ .Values.sealedSecret.secretName }}
         {{- end }}
