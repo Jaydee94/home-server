@@ -142,6 +142,11 @@ homepage:
               href: http://homeassistant.homeserver
               description: Home Automation
               icon: home-assistant.png
+      - Gaming:
+          - Gameserver-UI:
+              href: http://gameserver.homeserver
+              description: 7DTD KubeVirt VM-Verwaltung
+              icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/7-days-to-die.svg
       - "GitOps & CI/CD":
           - ArgoCD:
               href: http://192.168.178.127:30080
