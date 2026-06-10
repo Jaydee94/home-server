@@ -22,6 +22,11 @@ vm:
   runStrategy: Halted
   cpu:
     cores: 4
+  # macAddress: fixed MAC for the VM network interface.
+  # cloud-init writes /etc/netplan/50-cloud-init.yaml with a MAC match on first boot.
+  # Without a static MAC, each new VMI gets a different random MAC → netplan match fails
+  # → enp1s0 stays down → no DHCP → no network → Tailscale offline.
+  macAddress: "ea:8d:94:de:4f:c4"
   memory:
     # guest: RAM visible to the VM OS; requests: pod scheduling budget (guest + QEMU overhead)
     guest: 8Gi

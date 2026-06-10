@@ -45,6 +45,9 @@ spec:
           interfaces:
             - name: default
               masquerade: {}
+              {{- if .Values.vm.macAddress }}
+              macAddress: {{ .Values.vm.macAddress }}
+              {{- end }}
       networks:
         - name: default
           pod: {}
