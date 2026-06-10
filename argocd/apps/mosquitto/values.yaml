@@ -1,93 +1,47 @@
 ---
-replicaCount: 1
-
-image:
-  repository: eclipse-mosquitto
-  pullPolicy: IfNotPresent
-  # Pinned for reproducibility. Bump to track upstream releases:
-  # https://hub.docker.com/_/eclipse-mosquitto/tags
-  tag: "2.0.22"
-
-nameOverride: ""
-fullnameOverride: ""
-
-serviceAccount:
-  create: true
-  annotations: {}
-  name: ""
-
-podAnnotations: {}
-
-# eclipse-mosquitto 2.x runs as user/group "mosquitto" (UID/GID 1883). fsGroup
-# makes the data PVC and the mounted password file group-readable for that UID.
-podSecurityContext:
-  fsGroup: 1883
-
-securityContext:
-  runAsNonRoot: true
-  runAsUser: 1883
-  runAsGroup: 1883
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop:
-      - ALL
-
-# Dedicated MetalLB LAN IP so the physical Nuki Smart Lock (and any other LAN
-# MQTT client) reaches the broker directly at 192.168.178.4:1883. A ClusterIP
-# would be unreachable from outside the cluster. The IP must match the metallb
-# IPAddressPool "mosquitto" (argocd/apps/metallb/templates/ipaddresspool-mosquitto.yaml)
-# and be a free LAN IP outside the FritzBox DHCP range. loadBalancerClass keeps
-# k3s Klipper from claiming the service (see the MetalLB/Klipper gotcha in CLAUDE.md).
-service:
-  type: LoadBalancer
-  port: 1883
-  targetPort: 1883
-  loadBalancerIP: 192.168.178.4
-  loadBalancerClass: metallb.universe.tf/metallb
-  annotations:
-    metallb.io/address-pool: mosquitto
-
-# Retained MQTT messages (incl. Home Assistant discovery configs published by the
-# Nuki lock) survive pod restarts on this local-path PVC.
-persistence:
-  enabled: true
-  storageClassName: local-path
-  size: 1Gi
-  accessMode: ReadWriteOnce
-  mountPath: /mosquitto/data
-
-# Broker authentication. allow_anonymous is false — clients must authenticate.
-# The password file is injected from the SealedSecret rendered by
-# templates/sealedsecret.yaml. Two users are expected: "homeassistant" (HA MQTT
-# integration) and "nuki" (the Smart Lock). See docs/18-nuki-mqtt.md for the
-# kubeseal workflow. The file content is the output of `mosquitto_passwd`.
-#
-# Generate the sealed value (run where kubeseal can reach the cluster controller):
-#   docker run --rm eclipse-mosquitto:2.0.22 sh -c \
-#     'touch /tmp/p; mosquitto_passwd -b /tmp/p homeassistant <PW1>; \
-#      mosquitto_passwd -b /tmp/p nuki <PW2>; cat /tmp/p' > passwd
-#   kubeseal --raw --namespace mosquitto --name mosquitto-auth \
-#     --controller-name sealed-secrets-controller \
-#     --controller-namespace sealed-secrets \
-#     --from-file=passwd
-# Paste the resulting string into encryptedPasswordFile below. While it is empty
-# no SealedSecret is rendered and the broker pod stays pending on the missing
-# secret — fill it in before expecting the broker to come up.
-auth:
+# Top-level: für die eigenen Templates (sealedsecret.yaml, service-lan.yaml).
+# Solange leer, wird kein SealedSecret gerendert — erst nach Eintragen der
+# versiegelten Werte (kubeseal-webgui, siehe docs/18-nuki-mqtt.md).
+sealedSecret:
+  # Name des SealedSecret und des daraus erzeugten Kubernetes-Secrets.
+  # Muss mit mosquitto.auth.existingSecret übereinstimmen.
   secretName: mosquitto-auth
-  encryptedPasswordFile: ""
+  encryptedUsername: "AgAiWALtVu+5lia347JRpzXDAyGKhGbimGm34ATVpFQkA4Wfn7lK++H5wyNn2BE222yxFPhqXt+J6M6LOK9EA3x2U8eoNzX2XLxPCxzG2BsHkvUdS+ONAIsKWMSUyRuJbFZjM/tTr7XgU6YxDkBDw7OSpfEOILrlm0sMUITXRgOF746FQZOryemEn2L0zLr+31YcIbcZFNtQzhNRTxQo9OVGm8rxPwB8q1f0JgryVSUuoFMDqYlHBwm+0d3tw6r7g2tZc/eaTyHzwQ3Eb7QAQPh/hb8QNaRasPHthyFVJpVZyig8Iucwsdl9/iN08l+OazGzSZHITajpJSHhxzuCkaYLQVWn542GUv2ER/Fw1Kg5iMyy4mXpXTP2WWTtnxZXOCYBT+GNDSQW1Tl+QrzPdpaJbVE1c/iI19Et9HlgAUEQxEhu4aFFocsQYB80kXLHecfpVkiM89EhY/dZop75trZtWySxECr9Bksm1tz0c4qrryJSof5BFpoQ9sdwU8fF8PLK0ZhXHBFRcmRBAe/g7TNleynQxjaRMDhZNyHckHT5qUSkfxn7yC19OuzxB5GYM5cPVHIm1nyjyRvEiOliRU3hU5r5gk3SIEyGtp55QR/+5wO19FuIlxG7t99BLhqWvfSG0744rkDQn10WmXhD52sysFN5edIVlmREMAFmS7aXcWW+HwZmWICJdQac71CV7b+qzZ3X"
+  encryptedPassword: "AgBONm8kOzwbeiiFzZeKvjPDQBN3gJBj0MyeXHMaQdkQbA6IlxXvvgITH+O1e0C9Ll+u6pN5Ul+ziTkeg0Ky6dEjl0uYBvyR0K38WviupgqCvvl8pC+5zBNqnfsC7bhw1muN5/QH+RM54+v5ZKgvtPpbTYrzph7xtBPgchJ/J7pEjyINiWthHf0zBy1B/g/4XCoTzyfSm2/d4k1hWie6xq4LdfpkqwJPbCBBZFkJp/PEAdpbWcmFAjkK6PYEPXBxJW31bdx4NwF1KkTI/f0rr1h5eL81hzcHKvbHN2toLlGPqirxAkw+lxzWc+uai+b1ImIhKLw/4k72S9kFM3/4vGCafikpcDdZlzfk09LLTGhgLmRvg6anJoUyjSvlw6mo5ZIbW3PxVNWhA3gRv+VR3ysSwwv7trbsy0xcgMoa7IWV83II+F6Ndou3JuDA1KiKqWHKrzT/4E+kwngkv9JSMnlsHhq/hJ6br09YZoDdPfg/DUaXVFC88EhnK/CxE0I52ymj8WtIohxj+HLl0KDOi5ynXYFhNgbIPm//xT15Ho5vZrVos7ntGL2lekUeYOI7GT0V6+ma8WF2NwOZCzuAuD0dpqDl6XufO1BBhc6hwrNFzfc3lAb/lqUnQ8B9Acnvvc289CYwM+Q5TFmWffCIjQLRwXbQE9PfoOYXYmn4KS2mP/uzPnVZ7EJZ2HLz3dzVXimGoj4eDmkPUZg3jQ=="
 
-resources:
-  requests:
-    cpu: 20m
-    memory: 32Mi
-  limits:
-    cpu: 200m
-    memory: 128Mi
+# Alles unter 'mosquitto:' wird an den helmforgedev/mosquitto Chart weitergegeben.
+mosquitto:
+  image:
+    tag: "2.0.22"
 
-nodeSelector: {}
+  broker:
+    replicaCount: 1
+    listeners:
+      websocketEnabled: false
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 1Gi
+      accessMode: ReadWriteOnce
 
-tolerations: []
+  auth:
+    enabled: true
+    # existingSecret verweist auf den SealedSecret "mosquitto-auth".
+    # Der Init-Container liest username + password daraus und ruft
+    # mosquitto_passwd intern auf — kein lokales Docker nötig.
+    existingSecret: mosquitto-auth
+    existingSecretUsernameKey: username
+    existingSecretPasswordKey: password
 
-affinity: {}
+  # ClusterIP für HA-internen Zugriff (mosquitto.mosquitto.svc.cluster.local:1883).
+  # Der LAN-LoadBalancer (Nuki) wird durch service-lan.yaml bereitgestellt.
+  service:
+    type: ClusterIP
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

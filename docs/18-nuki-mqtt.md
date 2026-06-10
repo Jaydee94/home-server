@@ -13,11 +13,11 @@ eigene ArgoCD-App **`mosquitto`** deployt und ist im LAN über eine dedizierte
 
 | | |
 |---|---|
-| Broker | Eclipse Mosquitto, `argocd/apps/mosquitto/` (eclipse-mosquitto 2.0.22) |
+| Broker | Eclipse Mosquitto, `argocd/apps/mosquitto/` (helmforgedev/mosquitto) |
 | Namespace | `mosquitto` |
 | Broker-Endpoint (LAN) | `192.168.178.4:1883` (MetalLB, für das Nuki-Schloss) |
 | Broker-Endpoint (Cluster) | `mosquitto.mosquitto.svc.cluster.local:1883` (für HA) |
-| Auth | `allow_anonymous false`; User `homeassistant` + `nuki` (SealedSecret) |
+| Auth | `allow_anonymous false`; User `mqtt` (SealedSecret) |
 | HA-Integration | native **MQTT**-Integration (UI-Config-Entry, kein YAML) |
 | Verbindung | Nuki (WLAN) → Mosquitto ← Home Assistant; MQTT Auto-Discovery |
 
@@ -29,9 +29,9 @@ Nuki Smart Lock Pro (WLAN, 192.168.178.x)
         ▼
 192.168.178.4  ← MetalLB L2 (IPAddressPool "mosquitto")
         │
-k3s ─ mosquitto Pod (eclipse-mosquitto)
+k3s ─ mosquitto Pod (helmforgedev/mosquitto)
    ├─ ConfigMap  → /mosquitto/config/mosquitto.conf  (allow_anonymous false)
-   ├─ SealedSecret "mosquitto-auth" → /mosquitto/auth/passwd  (mosquitto_passwd)
+   ├─ SealedSecret "mosquitto-auth" → Credentials (username/password)
    └─ PVC (local-path, 1Gi) → /mosquitto/data  (retained Discovery-Messages)
         ▲
         │ MQTT (Cluster-intern, Port 1883)
@@ -51,34 +51,35 @@ beschränkt nur Ingress auf 8123).
 
 ## Broker-Credentials erzeugen & versiegeln
 
-Der Broker verlangt Authentifizierung. Die Passwort-Datei (`mosquitto_passwd`)
-wird als `SealedSecret` (`mosquitto-auth`, Feld `passwd`) eingebracht. Zwei User:
-`homeassistant` (HA-Integration) und `nuki` (das Schloss).
+Der helmforgedev-Chart generiert die `mosquitto_passwd`-Datei intern per Init-Container —
+kein lokales Docker oder `mosquitto_passwd` nötig.
 
-```bash
-# 1. passwd-Datei mit dem mosquitto-Image erzeugen (PW1/PW2 frei wählen)
-docker run --rm eclipse-mosquitto:2.0.22 sh -c \
-  'touch /tmp/p; \
-   mosquitto_passwd -b /tmp/p homeassistant <PW1>; \
-   mosquitto_passwd -b /tmp/p nuki <PW2>; \
-   cat /tmp/p' > passwd
+Zwei Keys per **kubeseal-webgui** (<http://kubeseal-webgui.homeserver>) versiegeln:
 
-# 2. passwd-Inhalt für den Namespace "mosquitto" versiegeln
-kubeseal --raw --namespace mosquitto --name mosquitto-auth \
-  --controller-name sealed-secrets-controller \
-  --controller-namespace sealed-secrets \
-  --from-file=passwd
+| Feld | Wert |
+|---|---|
+| Namespace | `mosquitto` |
+| Secret Name | `mosquitto-auth` |
+| Secret Type | `Opaque` |
+
+**Key 1:** `username` = `mqtt`
+**Key 2:** `password` = `<dein Passwort>`
+
+Jeden Key einzeln versiegeln → zwei verschlüsselte Strings erhalten.
+
+Die Strings in `argocd/apps/mosquitto/values.yaml` eintragen:
+
+```yaml
+sealedSecret:
+  secretName: mosquitto-auth
+  encryptedUsername: "AgB..."   # ← String aus kubeseal-webgui (Key: username)
+  encryptedPassword: "AgB..."   # ← String aus kubeseal-webgui (Key: password)
 ```
 
-Den ausgegebenen String in `argocd/apps/mosquitto/values.yaml` unter
-`auth.encryptedPasswordFile` eintragen, committen, pushen. **Solange das Feld
-leer ist, wird kein SealedSecret gerendert und der Broker-Pod bleibt auf das
-fehlende Secret wartend (`ContainerCreating`)** – das ist Absicht: erst die
-Credentials versiegeln, dann läuft der Broker.
+Nach Commit + Push synct ArgoCD das SealedSecret und der Broker-Pod startet.
 
-**Rotation:** Neue `passwd` erzeugen, neu versiegeln, `encryptedPasswordFile`
-ersetzen, push. ArgoCD aktualisiert das Secret; der Pod rollt über den
-`checksum/config`-Trigger bzw. via `kubectl rollout restart`.
+**Rotation:** Neue Werte in kubeseal-webgui erzeugen, `encryptedUsername`/`encryptedPassword`
+ersetzen, push. ArgoCD aktualisiert das Secret automatisch.
 
 ## Home Assistant: MQTT-Integration aktivieren
 
@@ -90,7 +91,7 @@ Code-Change an der home-assistant-App nötig.**
    *Integration hinzufügen* → **MQTT**.
 2. Broker: `mosquitto.mosquitto.svc.cluster.local` (oder `192.168.178.4`),
    Port `1883`.
-3. Benutzername `homeassistant`, Passwort `<PW1>`.
+3. Benutzername `mqtt`, Passwort `<dein Passwort>`.
 4. MQTT-Discovery aktiviert lassen (Default-Präfix `homeassistant`).
 
 ## Nuki-App konfigurieren
@@ -100,7 +101,7 @@ Code-Change an der home-assistant-App nötig.**
 1. Nuki-App → Schloss auswählen → *Features & Konfiguration → Smart Home →
    **MQTT***.
 2. WLAN einrichten und MQTT aktivieren.
-3. Broker-Host `192.168.178.4`, Port `1883`, Benutzer `nuki`, Passwort `<PW2>`.
+3. Broker-Host `192.168.178.4`, Port `1883`, Benutzer `mqtt`, Passwort `<dein Passwort>`.
 4. **Auto-Discovery** aktiviert lassen (Discovery-Topic `homeassistant`).
 
 Nach wenigen Sekunden erscheint in HA automatisch ein `lock.nuki_*`-Entity samt
@@ -120,11 +121,11 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
 
 # 3. Auth erzwungen (anonym muss scheitern, mit User klappen)
 mosquitto_sub -h 192.168.178.4 -p 1883 -t '#' -v            # → Connection Refused
-mosquitto_sub -h 192.168.178.4 -p 1883 -u homeassistant -P <PW1> -t '#' -v
+mosquitto_sub -h 192.168.178.4 -p 1883 -u mqtt -P <dein Passwort> -t '#' -v
 
 # 4. Nuki-Discovery & Status sichtbar
-mosquitto_sub -h 192.168.178.4 -p 1883 -u homeassistant -P <PW1> -t 'homeassistant/#' -v
-mosquitto_sub -h 192.168.178.4 -p 1883 -u homeassistant -P <PW1> -t 'nuki/#' -v
+mosquitto_sub -h 192.168.178.4 -p 1883 -u mqtt -P <dein Passwort> -t 'homeassistant/#' -v
+mosquitto_sub -h 192.168.178.4 -p 1883 -u mqtt -P <dein Passwort> -t 'nuki/#' -v
 ```
 
 5. **HA-UI:** Die MQTT-Integration zeigt „verbunden"; unter Geräte & Dienste
@@ -134,7 +135,7 @@ mosquitto_sub -h 192.168.178.4 -p 1883 -u homeassistant -P <PW1> -t 'nuki/#' -v
 
 | Symptom | Ursache / Fix |
 |---|---|
-| Broker-Pod `ContainerCreating`, Secret `mosquitto-auth` fehlt | `auth.encryptedPasswordFile` ist leer → Credentials versiegeln (siehe oben) und Wert eintragen. |
+| Broker-Pod `ContainerCreating`, Secret `mosquitto-auth` fehlt | `encryptedUsername`/`encryptedPassword` in `values.yaml` sind leer → Credentials via kubeseal-webgui versiegeln und Werte eintragen. |
 | Service bleibt `<pending>` / bekommt zwei EXTERNAL-IPs | `loadBalancerClass` fehlt auf Service oder MetalLB-Controller → Klipper greift. IP `.4` muss im IPAddressPool `mosquitto` stehen (`argocd/apps/metallb/templates/ipaddresspool-mosquitto.yaml`). |
 | ARP-Konflikt / IP nicht erreichbar | `192.168.178.4` liegt im FritzBox-DHCP-Bereich → andere freie IP außerhalb DHCP wählen (an 3 Stellen ändern: `ipaddresspool-mosquitto.yaml`, `mosquitto/values.yaml` `service.loadBalancerIP`, ggf. Nuki-App). |
 | Nuki verbindet nicht | Firmware < 4.0.28, falsche Broker-IP/Port, oder User/Passwort falsch. WLAN-Empfang am Schloss prüfen. |
