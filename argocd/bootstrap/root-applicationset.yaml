@@ -47,9 +47,12 @@ spec:
           - CreateNamespace=true
           - ServerSideApply=true
           - SkipDryRunOnMissingResource=true
+          - RespectIgnoreDifferences=true
       # Kubernetes adds volumeMode: Filesystem as a default to StatefulSet
       # volumeClaimTemplates — ignore this immutable field to prevent drift loops.
       # KubeVirt VM runStrategy is managed by scheduled CronJobs, not ArgoCD.
+      # KubeVirt adds runtime annotations (pci-topology-version) and architecture
+      # to VirtualMachine objects — ignore to prevent selfHeal from resetting runStrategy.
       ignoreDifferences:
         - group: apps
           kind: StatefulSet
@@ -59,3 +62,5 @@ spec:
           kind: VirtualMachine
           jsonPointers:
             - /spec/runStrategy
+          jqPathExpressions:
+            - .spec.template.metadata.annotations
