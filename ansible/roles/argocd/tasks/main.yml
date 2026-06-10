@@ -144,7 +144,32 @@
       - "=================================================="
   when: argocd_show_initial_password | default(false) | bool
 
-# ---- Bootstrap ApplicationSet ------------------------------
+# ---- Bootstrap Application (ArgoCD self-manages argocd/bootstrap/) --------
+# Ansible applies this Application once; ArgoCD then owns root-applicationset.yaml
+# going forward. Changes to argocd/bootstrap/*.yaml in Git are auto-applied.
+- name: Template bootstrap Application
+  ansible.builtin.template:
+    src: bootstrap-app.yaml.j2
+    dest: /tmp/argocd-bootstrap-app.yaml
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Apply bootstrap Application
+  ansible.builtin.command: >
+    kubectl apply -f /tmp/argocd-bootstrap-app.yaml
+  register: argocd_bootstrap_app_apply
+  changed_when: "'created' in argocd_bootstrap_app_apply.stdout or 'configured' in argocd_bootstrap_app_apply.stdout"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+- name: Remove temporary bootstrap app file
+  ansible.builtin.file:
+    path: /tmp/argocd-bootstrap-app.yaml
+    state: absent
+
+# ---- Bootstrap ApplicationSet (kept for idempotency on fresh installs) ----
+# ArgoCD will take over management of this resource via the bootstrap Application.
 - name: Template bootstrap ApplicationSet
   ansible.builtin.template:
     src: bootstrap-applicationset.yaml.j2

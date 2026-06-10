@@ -1,0 +1,35 @@
+# Bootstrap Application — manages argocd/bootstrap/ from Git.
+# Ansible applies this once; ArgoCD then self-manages all bootstrap resources
+# (including this committed copy of root-applicationset.yaml).
+# bootstrap-app.yaml is excluded from the sync scope to avoid a circular
+# dependency (ArgoCD would otherwise try to create a second Application).
+#
+# The committed copy at argocd/bootstrap/bootstrap-app.yaml is GENERATED
+# from this template — run `make render-bootstrap` after editing this file
+# or the argocd_repo_* / argocd_namespace vars in group_vars.
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: bootstrap
+  namespace: {{ argocd_namespace }}
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: "{{ argocd_repo_url }}"
+    targetRevision: "{{ argocd_repo_revision }}"
+    path: argocd/bootstrap
+    directory:
+      # Exclude this file to avoid ArgoCD re-creating itself (circular dep).
+      exclude: "bootstrap-app.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: {{ argocd_namespace }}
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
