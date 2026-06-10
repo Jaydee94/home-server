@@ -17,7 +17,7 @@ spec:
   # und der Service bliebe <pending> oder bekäme zwei EXTERNAL-IPs.
   loadBalancerClass: metallb.universe.tf/metallb
   loadBalancerIP: 192.168.178.4
-  externalTrafficPolicy: Cluster
+  externalTrafficPolicy: Local
   ports:
     - name: mqtt
       port: 1883

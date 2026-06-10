@@ -3,6 +3,9 @@
 # Solange leer, wird kein SealedSecret gerendert — erst nach Eintragen der
 # versiegelten Werte (kubeseal-webgui, siehe docs/18-nuki-mqtt.md).
 sealedSecret:
+  # Name des SealedSecret und des daraus erzeugten Kubernetes-Secrets.
+  # Muss mit mosquitto.auth.existingSecret übereinstimmen.
+  secretName: mosquitto-auth
   encryptedUsername: ""
   encryptedPassword: ""
 
