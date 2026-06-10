@@ -23,6 +23,7 @@ spec:
       labels:
         kubevirt.io/vm: {{ .Values.vm.name }}
     spec:
+      architecture: amd64
       domain:
         cpu:
           cores: {{ .Values.vm.cpu.cores }}
