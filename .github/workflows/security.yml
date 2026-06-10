@@ -1,0 +1,51 @@
+---
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Weekly Monday 06:00 UTC — picks up new CVE/policy definitions even when
+    # no code changed.
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  trivy:
+    name: trivy (iac + secrets)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      # trivy-action and the trivy binary were both compromised via moved tags
+      # in 2026. Pin BOTH to documented-safe, immutable references:
+      #   - the action repo to v0.35.0 (only tag unaffected by the March 2026
+      #     force-push, protected by GitHub immutable releases)
+      #   - the trivy binary (`version`) to v0.69.3 (v0.69.4 was the malicious
+      #     release).
+      - name: Trivy filesystem scan (misconfig + secrets)
+        uses: aquasecurity/trivy-action@57a97c7e7821a5776cebc9bb87c984fa69cba8f1 # v0.35.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: misconfig,secret
+          format: sarif
+          output: trivy-results.sarif
+          version: v0.69.3
+          # Soft-launch: report findings to the Security tab, do not block PRs.
+          # Harden later with exit-code "1" + severity: HIGH,CRITICAL.
+          exit-code: "0"
+      - name: Upload Trivy SARIF to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@8272c299f21ca24af15dfe9ac0971ba969e5e0d5 # v3.36.2
+        with:
+          sarif_file: trivy-results.sarif
