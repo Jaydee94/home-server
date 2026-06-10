@@ -6,6 +6,9 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 concurrency:
   group: lint-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -26,18 +29,24 @@ jobs:
           python-version: "3.x"
       - name: Install yamllint
         run: pip install yamllint
-      - name: Collect changed YAML files
-        id: changes
-        run: .github/scripts/changed-files.sh yaml >> "$GITHUB_OUTPUT"
+      - name: Detect changed YAML files
+        id: changed
+        uses: step-security/changed-files@2e07db73e5ccdb319b9a6c7766bd46d39d304bad # v47.0.5
+        with:
+          files: |
+            **/*.yml
+            **/*.yaml
+          files_ignore: |
+            argocd/apps/*/templates/**
       - name: Run yamllint on changed files
+        if: steps.changed.outputs.any_changed == 'true'
         run: |
           set -euo pipefail
-          if [ -z "${{ steps.changes.outputs.files }}" ]; then
-            echo "No changed YAML files — nothing to lint."
-          else
-            printf '  %s\n' ${{ steps.changes.outputs.files }}
-            yamllint -c .yamllint ${{ steps.changes.outputs.files }}
-          fi
+          printf '  %s\n' ${{ steps.changed.outputs.all_changed_files }}
+          yamllint -c .yamllint ${{ steps.changed.outputs.all_changed_files }}
+      - name: No YAML changes
+        if: steps.changed.outputs.any_changed != 'true'
+        run: echo "No changed YAML files — nothing to lint."
 
   ansible-lint:
     name: ansible-lint
@@ -62,23 +71,23 @@ jobs:
         with:
           fetch-depth: 0
       - uses: azure/setup-helm@v5
-      - name: Collect changed Helm charts
-        id: charts
-        run: .github/scripts/changed-files.sh charts >> "$GITHUB_OUTPUT"
-      - name: Lint changed charts
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@6ec842c01de15ebb84c8627d2744a0c2f2755c9f # v2.8.0
+      - name: Detect changed charts
+        id: list-changed
         run: |
           set -euo pipefail
-          if [ -z "${{ steps.charts.outputs.charts }}" ]; then
-            echo "No changed Helm charts — nothing to lint."
+          changed="$(ct list-changed --config .github/ct.yaml)"
+          if [ -n "${changed}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Changed charts:"
+            printf '  %s\n' ${changed}
           else
-            rc=0
-            for chart in ${{ steps.charts.outputs.charts }}; do
-              if grep -q '^dependencies:' "${chart}Chart.yaml"; then
-                echo "==> helm dependency build ${chart}"
-                helm dependency build "${chart}" || helm dependency update "${chart}"
-              fi
-              echo "==> helm lint ${chart}"
-              helm lint "${chart}" || rc=1
-            done
-            exit "${rc}"
+            echo "No changed Helm charts — nothing to lint."
           fi
+      - name: helm lint changed charts
+        if: steps.list-changed.outputs.changed == 'true'
+        run: ct lint --config .github/ct.yaml
