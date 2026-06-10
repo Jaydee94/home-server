@@ -1,0 +1,6 @@
+# Trivy ignore file — used by the Security workflow (.github/workflows/security.yml).
+# List deliberate, reviewed false positives here, one finding ID per line, e.g.:
+#   AVD-KSV-0012   # runAsNonRoot not set on upstream chart we don't control
+#   generic-api-key:argocd/apps/.../values.yaml  # placeholder, not a real secret
+#
+# Keep each entry commented with WHY it is ignored. Empty by default.

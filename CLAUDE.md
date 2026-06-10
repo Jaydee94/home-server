@@ -433,7 +433,16 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - `yamllint` config: `.yamllint` — applied to `ansible/` and `argocd/`
 - `ansible-lint` config: `.ansible-lint`
 - Helm charts are linted with `helm lint`
+- `actionlint` lints the GitHub Actions workflows themselves (job in `.github/workflows/lint.yml`)
 - `charts/`, `Chart.lock`, and `*.tgz` are git-ignored (vendored chart tarballs are the exception when checked in deliberately, e.g. `headlamp`)
+
+## CI workflows
+
+**Contribution policy**: changes land on `main` **only via pull request** — never by pushing directly to `main`. A PR may be merged **only when all CI pipelines are green** (Lint *and* Security). No merging on red or pending CI; fix the failing check or rebase first.
+
+- **`.github/workflows/lint.yml`** — `yamllint`, `ansible-lint`, `helm lint (all charts)`, `actionlint`. The first and third names are *required* status checks on `main` (branch protection); keep them verbatim.
+- **`.github/workflows/security.yml`** — Trivy filesystem scan (`misconfig,secret`) on push/PR + weekly cron; uploads SARIF to the GitHub Security tab. **Soft-launch / non-blocking** (`exit-code: "0"`) — it reports but does not fail PRs. To harden, set `exit-code: "1"` + `severity: HIGH,CRITICAL` and mark it required in branch protection. Reviewed false positives go in `.trivyignore`.
+- **Action pinning**: all third-party actions are pinned to a full commit SHA (`@<sha> # vX.Y.Z`), never a bare tag. `trivy-action` and the trivy binary (`version:`) are pinned to documented-safe references because both were tag-compromised in 2026.
 
 ## Key configuration variables (ansible/group_vars/all.yml)
 
