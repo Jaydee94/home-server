@@ -11,6 +11,28 @@ server:
 configs:
   cm:
     accounts.readonly: apiKey
+    # Global ignoreDifferences — works with ServerSideApply (application-level
+    # ignoreDifferences does not suppress OutOfSync with ArgoCD 3.x SSA default diff).
+    # StatefulSet: Kubernetes 1.27+ adds persistentVolumeClaimRetentionPolicy
+    # and volumeMode to VCT as defaults; suppress both globally.
+    resource.customizations.ignoreDifferences.apps_StatefulSet: |
+      jsonPointers:
+      - /spec/persistentVolumeClaimRetentionPolicy
+      jqPathExpressions:
+      - .spec.volumeClaimTemplates[]?.spec.volumeMode
+    # VirtualMachine: KubeVirt injects domain.machine/firmware at admission;
+    # runStrategy is managed by CronJobs, not ArgoCD.
+    resource.customizations.ignoreDifferences.kubevirt.io_VirtualMachine: |
+      jsonPointers:
+      - /spec/runStrategy
+      - /spec/template/metadata/annotations
+      - /spec/template/spec/domain/machine
+      - /spec/template/spec/domain/firmware
+    # CRD: Kubernetes adds spec.conversion {strategy: None} and populates .status.
+    resource.customizations.ignoreDifferences.apiextensions.k8s.io_CustomResourceDefinition: |
+      jsonPointers:
+      - /spec/conversion
+      - /status
   rbac:
     policy.csv: |
       g, readonly, role:readonly
