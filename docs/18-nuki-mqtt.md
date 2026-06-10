@@ -139,5 +139,8 @@ mosquitto_sub -h 192.168.178.4 -p 1883 -u mqtt -P <dein Passwort> -t 'nuki/#' -v
 | Service bleibt `<pending>` / bekommt zwei EXTERNAL-IPs | `loadBalancerClass` fehlt auf Service oder MetalLB-Controller → Klipper greift. IP `.4` muss im IPAddressPool `mosquitto` stehen (`argocd/apps/metallb/templates/ipaddresspool-mosquitto.yaml`). |
 | ARP-Konflikt / IP nicht erreichbar | `192.168.178.4` liegt im FritzBox-DHCP-Bereich → andere freie IP außerhalb DHCP wählen (an 3 Stellen ändern: `ipaddresspool-mosquitto.yaml`, `mosquitto/values.yaml` `service.loadBalancerIP`, ggf. Nuki-App). |
 | Nuki verbindet nicht | Firmware < 4.0.28, falsche Broker-IP/Port, oder User/Passwort falsch. WLAN-Empfang am Schloss prüfen. |
+| Nuki-App zeigt „Hostname nicht auflösbar" | Port zusammen mit der IP eingegeben (`192.168.178.4:1883`). Nur die reine IP ins Broker-Feld — Nuki hat Port 1883 hardcodiert, kein separates Port-Feld. |
+| Nuki-App zeigt Fehlercode `8E` nach Aktivierung | UI-Glitch der App. Verbindung im Broker-Log prüfen (`kubectl -n mosquitto logs pod/mosquitto-0`) — erscheint `New client connected … as Nuki_…`, ist der Broker verbunden. Home Assistant zeigt das Schloss trotzdem korrekt an. |
+| MetalLB `mosquitto-lan` bleibt `<pending>` nach Annotation-Removal | In-Memory-State des Controllers stale → `kubectl -n metallb rollout restart deployment metallb-controller` (siehe CLAUDE.md-Gotcha). |
 | Schloss erscheint nicht in HA | Auto-Discovery im Nuki-App deaktiviert oder MQTT-Integration in HA nicht verbunden. `mosquitto_sub -t 'homeassistant/#'` prüfen, ob Discovery-Configs ankommen. |
 | `Connection Refused` trotz korrekter Credentials | Passwort-Datei im Secret stimmt nicht mit den App-Credentials überein → neu erzeugen/versiegeln. |
