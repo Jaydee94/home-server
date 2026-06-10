@@ -31,7 +31,7 @@ home-assistant:
   initContainers:
     # renovate: datasource=github-releases depName=solakon-de/solakon-one-homeassistant
     - name: install-solakon-one
-      image: alpine:3.23
+      image: alpine:3.24
       command: ["/bin/sh", "-c"]
       args:
         - |
