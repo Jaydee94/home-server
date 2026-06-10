@@ -13,6 +13,10 @@ spec:
       labels: { app: gameserver-ui }
     spec:
       serviceAccountName: gameserver-ui
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: gameserver-ui
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -40,7 +44,23 @@ spec:
               cpu: 50m
               memory: 128Mi
             limits:
+              cpu: 500m
               memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
           readinessProbe:
             httpGet: { path: /login, port: 3000 }
             initialDelaySeconds: 5
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir: {}
