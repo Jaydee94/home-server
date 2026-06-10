@@ -89,5 +89,5 @@ jobs:
             echo "No changed Helm charts — nothing to lint."
           fi
       - name: helm lint changed charts
-        if: steps.list-changed.outputs.changed == 'true'
-        run: ct lint --config .github/ct.yaml
+        if: always()  # TEMP VERIFY: lint all charts once to prove ct config
+        run: ct lint --all --config .github/ct.yaml
