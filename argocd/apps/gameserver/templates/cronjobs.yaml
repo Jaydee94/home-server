@@ -1,0 +1,60 @@
+---
+{{- if .Values.schedule.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gameserver-start
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.schedule.start | quote }}
+  timeZone: {{ .Values.schedule.timezone | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: gameserver-scheduler
+          restartPolicy: OnFailure
+          containers:
+            - name: kubectl
+              image: {{ .Values.schedule.kubectlImage | quote }}
+              command:
+                - kubectl
+                - patch
+                - vm
+                - {{ .Values.vm.name }}
+                - -n
+                - {{ .Release.Namespace }}
+                - --type
+                - merge
+                - -p
+                - '{"spec":{"runStrategy":"Always"}}'
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gameserver-stop
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.schedule.stop | quote }}
+  timeZone: {{ .Values.schedule.timezone | quote }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: gameserver-scheduler
+          restartPolicy: OnFailure
+          containers:
+            - name: kubectl
+              image: {{ .Values.schedule.kubectlImage | quote }}
+              command:
+                - kubectl
+                - patch
+                - vm
+                - {{ .Values.vm.name }}
+                - -n
+                - {{ .Release.Namespace }}
+                - --type
+                - merge
+                - -p
+                - '{"spec":{"runStrategy":"Halted"}}'
+{{- end }}

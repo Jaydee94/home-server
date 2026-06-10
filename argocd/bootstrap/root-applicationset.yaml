@@ -49,8 +49,13 @@ spec:
           - SkipDryRunOnMissingResource=true
       # Kubernetes adds volumeMode: Filesystem as a default to StatefulSet
       # volumeClaimTemplates — ignore this immutable field to prevent drift loops.
+      # KubeVirt VM runStrategy is managed by scheduled CronJobs, not ArgoCD.
       ignoreDifferences:
         - group: apps
           kind: StatefulSet
           jqPathExpressions:
             - .spec.volumeClaimTemplates[]?.spec.volumeMode
+        - group: kubevirt.io
+          kind: VirtualMachine
+          jsonPointers:
+            - /spec/runStrategy
