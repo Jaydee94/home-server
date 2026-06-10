@@ -15,6 +15,10 @@ spec:
       serviceAccountName: gameserver-ui
       securityContext:
         runAsNonRoot: true
+        # Numerisch, weil das Image "USER app" (nicht-numerisch) setzt und der
+        # Kubelet runAsNonRoot sonst nicht verifizieren kann (CreateContainerConfigError).
+        runAsUser: 10001
+        runAsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
       containers:
