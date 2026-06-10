@@ -42,7 +42,7 @@ Statt HACS (manuell, nicht versioniert) wird die Integration reproduzierbar per
   initContainers:
     # renovate: datasource=github-releases depName=solakon-de/solakon-one-homeassistant
     - name: install-solakon-one
-      image: alpine:3.20
+      image: alpine:3.24
       command: ["/bin/sh", "-c"]
       args:
         - |

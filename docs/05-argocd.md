@@ -134,16 +134,22 @@ generators:
 ```
 argocd/apps/
 ├── argo-workflows/      → Private CI-Plattform (Argo Workflows)
+├── csi-driver-smb/      → SMB-CSI-Driver (NAS-Mounts)
 ├── example-whoami/      → Referenz-Helm-Chart als Wiring-Test
+├── gameserver/          → 7 Days to Die (KubeVirt VM, Tailscale only)
 ├── gotify/              → Push-Notification-Server (Android/iOS-Client)
 ├── headlamp/            → Web-basiertes Kubernetes-Dashboard
+├── home-assistant/      → Home Automation (Solakon ONE, Zigbee ZHA, MQTT)
 ├── homepage/            → Zentrales Dashboard (home.homeserver)
+├── jellyfin/            → Media-Server (MetalLB LAN-IP, NAS via SMB)
 ├── kubeseal-webgui/     → Browser-UI zum Erzeugen von SealedSecrets
-├── metallb/             → L2-LoadBalancer — vergibt Pi-hole die dedizierte
-│                          LAN-IP 192.168.178.2
+├── kubevirt/            → KubeVirt Operator + CDI (VMs im Cluster)
+├── metallb/             → L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
 ├── minio/               → S3-kompatibler Artifact-Store für Argo Workflows
 ├── monitoring/          → VictoriaMetrics + Grafana + node-exporter +
 │                          kube-state-metrics + Alertmanager
+├── monitoring-dashboards/ → Extra Grafana-Dashboards als ConfigMaps
+├── mosquitto/           → MQTT-Broker (MetalLB .4:1883) für Nuki Smart Lock
 ├── paperless-ai/        → KI-gestützte Dokumenten-Kategorisierung
 ├── pihole/              → Netzwerkweiter DNS-Adblock (pihole.homeserver/admin/login)
 ├── sealed-secrets/      → bitnami-labs SealedSecrets-Controller
