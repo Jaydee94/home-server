@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: gameserver-ui
+description: Web UI for managing the 7DTD KubeVirt gameserver.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

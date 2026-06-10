@@ -1,0 +1,31 @@
+{{- if and .Values.smb.encryptedUsername .Values.smb.encryptedPassword }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  # Static PV is cluster-scoped; suffix with the namespace to keep the name and
+  # the volumeHandle unique if the app is ever re-deployed elsewhere.
+  name: gameserver-ui-data-{{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gameserver-ui
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  capacity:
+    storage: {{ .Values.smb.capacity }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    {{- toYaml .Values.smb.mountOptions | nindent 4 }}
+  csi:
+    driver: smb.csi.k8s.io
+    readOnly: false
+    # volumeHandle must be unique across the cluster for this CSI driver.
+    volumeHandle: gameserver-ui-data-{{ .Release.Namespace }}
+    volumeAttributes:
+      source: {{ .Values.smb.source | quote }}
+    nodeStageSecretRef:
+      name: {{ .Values.smb.secretName }}
+      namespace: {{ .Release.Namespace }}
+{{- end }}
