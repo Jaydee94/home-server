@@ -11,8 +11,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  yamllint:
-    name: yamllint (changed files)
+  lint:
+    name: lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -21,62 +21,46 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
-      - name: Install yamllint
-        run: pip install yamllint
+      - uses: azure/setup-helm@v5
+      - name: Install linters
+        run: pip install yamllint ansible ansible-lint
+      - name: Install required Ansible collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+
       - name: Collect changed YAML files
-        id: changes
+        id: yaml
         run: .github/scripts/changed-files.sh yaml >> "$GITHUB_OUTPUT"
-      - name: Run yamllint on changed files
-        if: steps.changes.outputs.files != ''
+      - name: yamllint (changed files)
         run: |
           set -euo pipefail
-          echo "Linting changed YAML files:"
-          printf '  %s\n' ${{ steps.changes.outputs.files }}
-          yamllint -c .yamllint ${{ steps.changes.outputs.files }}
-      - name: No YAML changes
-        if: steps.changes.outputs.files == ''
-        run: echo "No changed YAML files — nothing to lint."
+          if [ -z "${{ steps.yaml.outputs.files }}" ]; then
+            echo "No changed YAML files — skipping yamllint."
+          else
+            echo "Linting changed YAML files:"
+            printf '  %s\n' ${{ steps.yaml.outputs.files }}
+            yamllint -c .yamllint ${{ steps.yaml.outputs.files }}
+          fi
 
-  ansible-lint:
-    name: ansible-lint
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.x"
-      - name: Install ansible + ansible-lint
-        run: pip install ansible ansible-lint
-      - name: Install required collections
-        run: ansible-galaxy collection install -r ansible/requirements.yml
-      - name: Run ansible-lint
-        run: ansible-lint ansible/
-
-  helm-lint:
-    name: helm lint (changed charts)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
-      - uses: azure/setup-helm@v5
       - name: Collect changed Helm charts
         id: charts
         run: .github/scripts/changed-files.sh charts >> "$GITHUB_OUTPUT"
-      - name: Lint changed charts
-        if: steps.charts.outputs.charts != ''
+      - name: helm lint (changed charts)
         run: |
           set -euo pipefail
-          rc=0
-          for chart in ${{ steps.charts.outputs.charts }}; do
-            if grep -q '^dependencies:' "${chart}Chart.yaml"; then
-              echo "==> helm dependency build ${chart}"
-              helm dependency build "${chart}" || helm dependency update "${chart}"
-            fi
-            echo "==> helm lint ${chart}"
-            helm lint "${chart}" || rc=1
-          done
-          exit "${rc}"
-      - name: No chart changes
-        if: steps.charts.outputs.charts == ''
-        run: echo "No changed Helm charts — nothing to lint."
+          if [ -z "${{ steps.charts.outputs.charts }}" ]; then
+            echo "No changed Helm charts — skipping helm lint."
+          else
+            rc=0
+            for chart in ${{ steps.charts.outputs.charts }}; do
+              if grep -q '^dependencies:' "${chart}Chart.yaml"; then
+                echo "==> helm dependency build ${chart}"
+                helm dependency build "${chart}" || helm dependency update "${chart}"
+              fi
+              echo "==> helm lint ${chart}"
+              helm lint "${chart}" || rc=1
+            done
+            exit "${rc}"
+          fi
+
+      - name: ansible-lint
+        run: ansible-lint ansible/
