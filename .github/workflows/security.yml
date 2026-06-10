@@ -40,7 +40,7 @@ jobs:
           scanners: misconfig,secret
           format: sarif
           output: trivy-results.sarif
-          version: v0.69.3
+          version: v0.71.0
           # Soft-launch: report findings to the Security tab, do not block PRs.
           # Harden later with exit-code "1" + severity: HIGH,CRITICAL.
           exit-code: "0"
