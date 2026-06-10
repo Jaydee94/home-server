@@ -10,9 +10,12 @@ concurrency:
   group: lint-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Job names below MUST stay as "yamllint" and "helm lint (all charts)" because
+# the branch-protection rule on main requires those exact status-check names.
+
 jobs:
-  lint:
-    name: lint
+  yamllint:
+    name: yamllint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -21,34 +24,52 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
-      - uses: azure/setup-helm@v5
-      - name: Install linters
-        run: pip install yamllint ansible ansible-lint
-      - name: Install required Ansible collections
-        run: ansible-galaxy collection install -r ansible/requirements.yml
-
+      - name: Install yamllint
+        run: pip install yamllint
       - name: Collect changed YAML files
-        id: yaml
+        id: changes
         run: .github/scripts/changed-files.sh yaml >> "$GITHUB_OUTPUT"
-      - name: yamllint (changed files)
+      - name: Run yamllint on changed files
         run: |
           set -euo pipefail
-          if [ -z "${{ steps.yaml.outputs.files }}" ]; then
-            echo "No changed YAML files — skipping yamllint."
+          if [ -z "${{ steps.changes.outputs.files }}" ]; then
+            echo "No changed YAML files — nothing to lint."
           else
-            echo "Linting changed YAML files:"
-            printf '  %s\n' ${{ steps.yaml.outputs.files }}
-            yamllint -c .yamllint ${{ steps.yaml.outputs.files }}
+            printf '  %s\n' ${{ steps.changes.outputs.files }}
+            yamllint -c .yamllint ${{ steps.changes.outputs.files }}
           fi
 
+  ansible-lint:
+    name: ansible-lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.x"
+      - name: Install ansible + ansible-lint
+        run: pip install ansible ansible-lint
+      - name: Install required collections
+        run: ansible-galaxy collection install -r ansible/requirements.yml
+      - name: Run ansible-lint
+        run: ansible-lint ansible/
+
+  helm-lint:
+    name: helm lint (all charts)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: azure/setup-helm@v5
       - name: Collect changed Helm charts
         id: charts
         run: .github/scripts/changed-files.sh charts >> "$GITHUB_OUTPUT"
-      - name: helm lint (changed charts)
+      - name: Lint changed charts
         run: |
           set -euo pipefail
           if [ -z "${{ steps.charts.outputs.charts }}" ]; then
-            echo "No changed Helm charts — skipping helm lint."
+            echo "No changed Helm charts — nothing to lint."
           else
             rc=0
             for chart in ${{ steps.charts.outputs.charts }}; do
@@ -61,6 +82,3 @@ jobs:
             done
             exit "${rc}"
           fi
-
-      - name: ansible-lint
-        run: ansible-lint ansible/
