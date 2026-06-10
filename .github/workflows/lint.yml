@@ -84,6 +84,7 @@ jobs:
           if [ -n "${changed}" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "Changed charts:"
+            # shellcheck disable=SC2086  # intentional word-splitting: one chart per line
             printf '  %s\n' ${changed}
           else
             echo "No changed Helm charts — nothing to lint."
