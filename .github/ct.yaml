@@ -1,0 +1,14 @@
+---
+# Config for helm/chart-testing (ct) used by the Lint workflow.
+# ct only auto-discovers ./ct.yaml; this file is passed explicitly via --config.
+chart-dirs:
+  - argocd/apps
+target-branch: main
+# These charts are thin wrappers around upstream dependencies and intentionally
+# do not bump their own version / carry maintainers on every change. Disable the
+# opinionated ct checks so `ct lint` is effectively `helm lint` on changed charts
+# only. YAML is linted separately by the yamllint job with the repo .yamllint.
+check-version-increment: false
+validate-maintainers: false
+validate-chart-schema: false
+validate-yaml: false
