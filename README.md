@@ -53,6 +53,9 @@ Am Ende druckt das Playbook die ArgoCD-URL und das Admin-Passwort. Fertig.
 | Remote-Access    | **Tailscale**                          | WireGuard-Mesh-VPN — keine Portfreigaben, keine öffentliche IP         |
 | CI/CD intern     | **Argo Workflows + MinIO**             | Private CI/CD-Pipeline + S3-Artifact-Store im Cluster                 |
 | Media-Server     | **Jellyfin** (+ csi-driver-smb)        | Streamt Medien vom NAS via SMB; deutsches Live-TV (M3U+EPG)            |
+| Home Automation  | **Home Assistant**                     | Solakon-ONE Solar (Modbus TCP), Zigbee ZHA (Sonoff MG24 Dongle)        |
+| MQTT-Broker      | **Mosquitto** (MetalLB `.4`)           | Nuki Smart Lock Pro → Home Assistant via MQTT Auto-Discovery            |
+| Gameserver       | **7 Days to Die** (KubeVirt VM)        | KubeVirt-VM, Tailscale-only; Zeitplan Mi 20–24 Uhr; Node-Sharing       |
 | Ingress          | **Traefik v2** (mit k3s gebundled)     | HTTP/HTTPS-Routing in den Cluster                                      |
 | Provisioning     | **Ansible** (≥ 2.14)                   | Vollständig idempotent, Role-per-Concern, Vault für Secrets            |
 
@@ -147,6 +150,12 @@ home-server/
 │   ├── 11-gotify.md                  # Push-Notifications via Gotify
 │   ├── 12-paperless-ai.md            # KI-Dokumentenanalyse für Paperless-NGX
 │   ├── 13-argo-workflows.md          # Private CI/CD mit Argo Workflows + MinIO
+│   ├── 14-homepage.md                # Zentrales Dashboard
+│   ├── 15-pihole.md                  # LAN-Adblock + DNS-Migration
+│   ├── 16-jellyfin.md                # Media-Server + Live-TV
+│   ├── 17-homeassistant.md           # Home Assistant (Solakon ONE, Zigbee ZHA)
+│   ├── 18-nuki-mqtt.md               # Nuki Smart Lock Pro via MQTT
+│   ├── 19-gameserver.md              # 7 Days to Die (KubeVirt VM)
 │   └── assets/banner.svg
 ├── ansible/
 │   ├── site.yml                      # Entry-Point
@@ -165,19 +174,28 @@ home-server/
 │       ├── semaphore_targets/        # SSH-Pubkey auf Managed-Hosts pushen
 │       └── semaphore_bootstrap/      # Projects/Inventories/Templates per API
 └── argocd/
-    ├── bootstrap/root-applicationset.yaml  # Erkennt jedes Verzeichnis darunter
+    ├── bootstrap/
+    │   ├── root-applicationset.yaml        # Erkennt jedes Verzeichnis darunter
+    │   └── bootstrap-app.yaml              # ArgoCD-Selbstverwaltung des bootstrap/-Ordners
     └── apps/                               # Ein Ordner pro ArgoCD-Application
+        ├── argo-workflows/                 # Private CI/CD-Pipeline (Argo Workflows)
+        ├── csi-driver-smb/                 # SMB-CSI-Driver (NAS-Mounts)
         ├── example-whoami/                 # Referenz-Helm-Chart
-        ├── metallb/                        # L2-LoadBalancer für Pi-hole-IP
-        ├── pihole/                         # DNS + netzwerkweiter Adblock
+        ├── gameserver/                     # 7 Days to Die (KubeVirt VM, Tailscale only)
         ├── gotify/                         # Push-Notifications
         ├── headlamp/                       # Kubernetes-Web-Dashboard
+        ├── home-assistant/                 # Home Automation (Solakon ONE, Zigbee ZHA)
         ├── homepage/                       # Zentrales Dashboard
+        ├── jellyfin/                       # Media-Server (NAS via SMB)
         ├── kubeseal-webgui/                # Sealed-Secrets-Verschlüsselungs-UI
-        ├── monitoring/                     # VictoriaMetrics + Grafana
-        ├── argo-workflows/                 # Private CI/CD-Pipeline (Argo Workflows)
+        ├── kubevirt/                       # KubeVirt Operator + CDI
+        ├── metallb/                        # L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
         ├── minio/                          # S3-Artifact-Store für Argo Workflows
+        ├── monitoring/                     # VictoriaMetrics + Grafana
+        ├── monitoring-dashboards/          # Extra Grafana-Dashboards als ConfigMaps
+        ├── mosquitto/                      # MQTT-Broker (MetalLB .4) für Nuki Smart Lock
         ├── paperless-ai/                   # KI-Dokumentenanalyse für Paperless-NGX
+        ├── pihole/                         # DNS + netzwerkweiter Adblock
         ├── sealed-secrets/                 # SealedSecrets-Controller
         └── semaphore/                      # Ansible-Web-UI
 ```
@@ -239,6 +257,7 @@ Details: **[docs/05-argocd.md](docs/05-argocd.md)**.
 | 6443  | TCP       | LAN + Tailnet     | k3s-API                                |
 | 30080 | TCP       | LAN + Tailnet     | ArgoCD-UI (HTTP)                       |
 | 30443 | TCP       | LAN + Tailnet     | ArgoCD-UI (HTTPS)                      |
+| 1883  | TCP       | LAN               | Mosquitto MQTT (MetalLB `.4`, Nuki)    |
 | 41641 | UDP       | Internet          | Tailscale-WireGuard                    |
 
 Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
@@ -266,6 +285,9 @@ Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
 | [Homepage Dashboard](docs/14-homepage.md)                       | Zentrales Startpage-Dashboard (home.homeserver) |
 | [Pi-hole](docs/15-pihole.md)                                    | LAN-Adblock + DNS-Migration (dnsmasq → Pi-hole) |
 | [Jellyfin](docs/16-jellyfin.md)                                 | Media-Server (NAS via SMB) + deutsches Live-TV |
+| [Home Assistant](docs/17-homeassistant.md)                      | Solakon-ONE Solar (Modbus TCP), Zigbee ZHA (Sonoff MG24) |
+| [Nuki MQTT](docs/18-nuki-mqtt.md)                               | Nuki Smart Lock Pro → Mosquitto → Home Assistant |
+| [Gameserver](docs/19-gameserver.md)                             | 7 Days to Die auf KubeVirt VM (Tailscale, Zeitplan Mi 20–24 Uhr) |
 
 ---
 

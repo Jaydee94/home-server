@@ -134,16 +134,22 @@ generators:
 ```
 argocd/apps/
 ├── argo-workflows/      → Private CI-Plattform (Argo Workflows)
+├── csi-driver-smb/      → SMB-CSI-Driver (NAS-Mounts)
 ├── example-whoami/      → Referenz-Helm-Chart als Wiring-Test
+├── gameserver/          → 7 Days to Die (KubeVirt VM, Tailscale only)
 ├── gotify/              → Push-Notification-Server (Android/iOS-Client)
 ├── headlamp/            → Web-basiertes Kubernetes-Dashboard
+├── home-assistant/      → Home Automation (Solakon ONE, Zigbee ZHA, MQTT)
 ├── homepage/            → Zentrales Dashboard (home.homeserver)
+├── jellyfin/            → Media-Server (MetalLB LAN-IP, NAS via SMB)
 ├── kubeseal-webgui/     → Browser-UI zum Erzeugen von SealedSecrets
-├── metallb/             → L2-LoadBalancer — vergibt Pi-hole die dedizierte
-│                          LAN-IP 192.168.178.2
+├── kubevirt/            → KubeVirt Operator + CDI (VMs im Cluster)
+├── metallb/             → L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
 ├── minio/               → S3-kompatibler Artifact-Store für Argo Workflows
 ├── monitoring/          → VictoriaMetrics + Grafana + node-exporter +
 │                          kube-state-metrics + Alertmanager
+├── monitoring-dashboards/ → Extra Grafana-Dashboards als ConfigMaps
+├── mosquitto/           → MQTT-Broker (MetalLB .4:1883) für Nuki Smart Lock
 ├── paperless-ai/        → KI-gestützte Dokumenten-Kategorisierung
 ├── pihole/              → Netzwerkweiter DNS-Adblock (pihole.homeserver/admin/login)
 ├── sealed-secrets/      → bitnami-labs SealedSecrets-Controller
@@ -155,6 +161,42 @@ Eine neue App ist drei Schritte entfernt: Verzeichnis unter `argocd/apps/<name>/
 anlegen (plain Manifests, `kustomization.yaml` **oder** Helm-Chart mit
 `Chart.yaml` + `values.yaml`), committen, pushen — ArgoCD greift in
 ~3 Minuten zu.
+
+---
+
+## Bootstrap-Application (ArgoCD-Selbstverwaltung)
+
+Das `ApplicationSet` (`argocd/bootstrap/root-applicationset.yaml`) wird von
+Ansible einmalig auf den Cluster angewendet. Danach übernimmt ArgoCD via einer
+**Bootstrap-Application** (`argocd/bootstrap/bootstrap-app.yaml`) die Verwaltung
+des `argocd/bootstrap/`-Verzeichnisses aus Git:
+
+```
+Git: argocd/bootstrap/
+  ├── root-applicationset.yaml   ← ArgoCD synct und verwaltet dieses
+  └── bootstrap-app.yaml         ← wird NICHT gesynct (exclude)
+```
+
+**Funktionsweise:**
+
+- Die Bootstrap-Application beobachtet `argocd/bootstrap/` im Git-Repo.
+- `bootstrap-app.yaml` selbst ist aus dem Sync-Scope ausgeschlossen
+  (`directory.exclude: bootstrap-app.yaml`) um eine zirkuläre Abhängigkeit zu
+  vermeiden.
+- Änderungen an `root-applicationset.yaml` im Git werden dadurch **automatisch**
+  auf den Cluster angewendet — kein `make argocd` mehr nötig.
+
+**Status prüfen:**
+
+```bash
+ssh jaydee@192.168.178.127 \
+  'sudo kubectl -n argocd get application bootstrap'
+# NAME        SYNC STATUS   HEALTH STATUS
+# bootstrap   Synced        Healthy
+```
+
+**`ignoreDifferences`** im ApplicationSet verhindert, dass ArgoCD Laufzeit-Änderungen
+an bestimmten Feldern zurückdreht (z.B. `runStrategy` der Gameserver-VM).
 
 ---
 

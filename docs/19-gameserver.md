@@ -14,7 +14,7 @@ auf genau diesen Tailscale-Node.
 5. [VM starten](#vm-starten)
 6. [Tailscale Node-Sharing](#tailscale-node-sharing)
 7. [7DTD im Browser-Dashboard](#7dtd-im-browser-dashboard)
-8. [Täglicher Neustart](#täglicher-neustart)
+8. [Zeitplan & Scheduling](#zeitplan--scheduling)
 9. [Backup](#backup)
 10. [Troubleshooting](#troubleshooting)
 
@@ -297,22 +297,30 @@ git push
 
 ## VM starten
 
-Nachdem das SealedSecret eingetragen ist, `runStrategy` auf `Always` setzen:
+Nachdem das SealedSecret eingetragen ist und ArgoCD die App gesynct hat,
+verwalten die **CronJobs** den VM-Lebenszyklus automatisch. `runStrategy: Halted`
+bleibt der Git-Default — ArgoCD ignoriert Laufzeit-Abweichungen dieses Felds
+(`ignoreDifferences` in `root-applicationset.yaml`).
 
-```yaml
-# argocd/apps/gameserver/values.yaml
-vm:
-  runStrategy: Always
-```
+**Sofortstart (on-demand):**
 
 ```bash
-git add argocd/apps/gameserver/values.yaml
-git commit -m "feat(gameserver): start VM (runStrategy: Always)"
-git push
+# VM starten:
+ssh jaydee@192.168.178.127 \
+  'sudo kubectl patch vm 7dtd-server -n gameserver --type merge \
+   -p '"'"'{"spec":{"runStrategy":"Always"}}'"'"''
+
+# VM stoppen:
+ssh jaydee@192.168.178.127 \
+  'sudo kubectl patch vm 7dtd-server -n gameserver --type merge \
+   -p '"'"'{"spec":{"runStrategy":"Halted"}}'"'"''
 ```
 
-ArgoCD synct die Änderung. Die VM startet, cloud-init läuft durch (~5–10
-Minuten für Pakete + 7DTD-Download).
+**Geplanter Betrieb:** Die CronJobs starten die VM jeden Mittwoch um 20:00 Uhr
+und stoppen sie um 00:00 Uhr (Donnerstag) automatisch — kein manueller Eingriff
+nötig. Siehe [Zeitplan & Scheduling](#zeitplan--scheduling).
+
+Nach dem Start läuft cloud-init durch (~5–10 Minuten für Pakete + 7DTD-Download).
 
 ### VM-Status verfolgen
 
@@ -406,30 +414,63 @@ open http://localhost:8080
 
 ---
 
-## Täglicher Neustart
+## Zeitplan & Scheduling
 
-7DTD hat ein bekanntes Memory-Leak. Cloud-init richtet einen Cron-Job ein:
+Der Gameserver läuft **nur mittwochs von 20:00–00:00 Uhr** (Europe/Berlin).
+Zwei Kubernetes-CronJobs steuern den VM-Lebenszyklus:
+
+| CronJob | Schedule | Aktion |
+|---------|----------|--------|
+| `gameserver-start` | `0 20 * * 3` (Mi 20:00) | `runStrategy: Always` |
+| `gameserver-stop` | `0 0 * * 4` (Do 00:00) | `runStrategy: Halted` |
+
+```bash
+# Status prüfen:
+ssh jaydee@192.168.178.127 \
+  'sudo kubectl -n gameserver get cronjobs'
+```
+
+### On-Demand-Betrieb
+
+```bash
+# VM außerhalb des Zeitplans starten:
+ssh jaydee@192.168.178.127 \
+  'sudo kubectl patch vm 7dtd-server -n gameserver --type merge \
+   -p '"'"'{"spec":{"runStrategy":"Always"}}'"'"''
+
+# VM manuell stoppen:
+ssh jaydee@192.168.178.127 \
+  'sudo kubectl patch vm 7dtd-server -n gameserver --type merge \
+   -p '"'"'{"spec":{"runStrategy":"Halted"}}'"'"''
+```
+
+### Täglicher Docker-Neustart (Memory-Leak)
+
+7DTD hat ein bekanntes Memory-Leak. Cloud-init richtet in der VM einen
+Cron-Job ein:
 
 ```bash
 # /etc/cron.d/7dtd-restart (in der VM):
 0 4 * * * root docker restart 7dtd-server
 ```
 
-Der Neustart um 04:00 Uhr lokaler Zeit dauert ca. 2 Minuten. Spieler werden
-zuvor nicht benachrichtigt — falls gewünscht, ein Gotify-Notify-Skript
-ergänzen (z.B. via `telnet` an Port 8081 vor dem Restart).
+Der Neustart um 04:00 Uhr lokaler Zeit dauert ca. 2 Minuten. Da der
+Kubernetes-CronJob die VM bereits um 00:00 Uhr stoppt, greift dieser
+VM-interne Cron nur wenn die VM außerhalb des Zeitplans läuft.
 
-### Manueller Neustart
+### Zeitplan anpassen
 
-```bash
-# Via SSH in der VM:
-docker restart 7dtd-server
-
-# Oder direkt auf dem Host via kubectl exec:
-ssh jaydee@192.168.178.127 \
-  'sudo kubectl -n gameserver exec -it <virt-launcher-pod> -- \
-   docker restart 7dtd-server'
+```yaml
+# argocd/apps/gameserver/values.yaml
+schedule:
+  enabled: true
+  timezone: Europe/Berlin
+  start: "0 20 * * 3"   # Mittwoch 20:00
+  stop: "0 0 * * 4"     # Donnerstag 00:00
+  kubectlImage: "bitnami/kubectl:1.31"
 ```
+
+Commit + Push → ArgoCD synct die neuen CronJob-Schedules.
 
 ---
 
