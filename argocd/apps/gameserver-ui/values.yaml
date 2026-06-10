@@ -1,0 +1,21 @@
+---
+image:
+  repository: ghcr.io/jaydee94/gameserver-ui
+  # Nach jedem CI-Build auf den neuen sha-Tag pinnen (GitOps-reproduzierbar).
+  tag: "sha-e919b0f"
+  pullPolicy: IfNotPresent
+
+ingress:
+  host: gameserver.homeserver
+
+vm:
+  namespace: gameserver
+  name: 7dtd-server
+
+# SealedSecret mit Login-Daten. Solange beide Werte leer sind, wird kein
+# Secret gerendert und das Deployment referenziert es optional (Pod startet,
+# Login schlägt fehl) — sealen gemäß docs/20-gameserver-ui.md.
+sealedSecret:
+  secretName: gameserver-ui-auth
+  encryptedSessionSecret: ""
+  encryptedAdminPasswordHash: ""
