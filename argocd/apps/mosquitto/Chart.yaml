@@ -1,0 +1,26 @@
+---
+apiVersion: v2
+name: mosquitto
+description: |
+  Eclipse Mosquitto MQTT broker — wrapper around helmforgedev/mosquitto.
+  Dedicated MetalLB LAN IP 192.168.178.4:1883 for Nuki Smart Lock Pro.
+  HA connects internally via ClusterIP. Setup: docs/18-nuki-mqtt.md.
+type: application
+version: 0.2.0
+appVersion: "2.0.22"
+keywords:
+  - mosquitto
+  - mqtt
+  - home-assistant
+  - nuki
+home: https://mosquitto.org
+sources:
+  - https://github.com/eclipse/mosquitto
+  - https://github.com/helmforgedev/charts/tree/main/charts/mosquitto
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # renovate: datasource=helm depName=mosquitto registryUrl=https://repo.helmforge.dev
+  - name: mosquitto
+    repository: https://repo.helmforge.dev
+    version: "1.3.1"
