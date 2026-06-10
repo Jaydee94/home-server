@@ -20,8 +20,9 @@ vm:
   cpu:
     cores: 4
   memory:
-    # 8 GiB RAM — 7DTD recommends 6-8 GB for 5 players
-    requests: 8Gi
+    # guest: RAM visible to the VM OS; requests: pod scheduling budget (guest + QEMU overhead)
+    guest: 8Gi
+    requests: 8.5Gi
 
 # ---- OS Disk (DataVolume via CDI) ----
 dataVolume:
@@ -52,9 +53,8 @@ dataVolume:
 # Paste the output (long AgB... string) as the encryptedUserdata value below.
 sealedSecret:
   secretName: gameserver-cloudinit
-  # Empty → SealedSecret is not rendered; the VirtualMachine references the
-  # Secret by name regardless — if the Secret is missing the VM will fail to
-  # start (VirtualMachineInstance will show a "secret not found" error).
-  # Always seal the cloud-init before setting vm.runStrategy: Always.
+  # Empty → SealedSecret is not rendered AND the cloud-init disk/volume is omitted
+  # from the VirtualMachine spec (guarded template). Setting vm.runStrategy: Always
+  # without filling this value will cause a Helm render error — by design.
   # Expected format: starts with "AgB" (kubeseal RSA-OAEP + AES-GCM output).
   encryptedUserdata: ""

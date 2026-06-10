@@ -1,4 +1,7 @@
 ---
+{{- if and (eq .Values.vm.runStrategy "Always") (not .Values.sealedSecret.encryptedUserdata) }}
+{{- fail "vm.runStrategy is 'Always' but sealedSecret.encryptedUserdata is empty — seal cloud-init first (docs/19-gameserver.md#secrets-versiegeln)" }}
+{{- end }}
 # KubeVirt VirtualMachine: 7 Days to Die dedicated server.
 # Network: masquerade (NAT) — VM has outbound internet for Tailscale tunnel.
 # No Service/MetalLB/Ingress needed — inbound access via Tailscale only.
@@ -23,6 +26,8 @@ spec:
       domain:
         cpu:
           cores: {{ .Values.vm.cpu.cores }}
+        memory:
+          guest: {{ .Values.vm.memory.guest }}
         resources:
           requests:
             memory: {{ .Values.vm.memory.requests }}
@@ -31,9 +36,11 @@ spec:
             - name: os-disk
               disk:
                 bus: virtio
+            {{- if .Values.sealedSecret.encryptedUserdata }}
             - name: cloudinit
               disk:
                 bus: virtio
+            {{- end }}
           interfaces:
             - name: default
               masquerade: {}
@@ -44,7 +51,9 @@ spec:
         - name: os-disk
           dataVolume:
             name: {{ .Values.dataVolume.name }}
+        {{- if .Values.sealedSecret.encryptedUserdata }}
         - name: cloudinit
           cloudInitNoCloud:
             userDataSecretRef:
               name: {{ .Values.sealedSecret.secretName }}
+        {{- end }}

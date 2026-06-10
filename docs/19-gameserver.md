@@ -178,8 +178,11 @@ runcmd:
   - apt-get update -qq
   - apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
-  # Tailscale installieren und verbinden
-  - curl -fsSL https://tailscale.com/install.sh | sh
+  # Tailscale installieren via APT (signiertes Repository, kein curl-pipe-sh)
+  - curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/jammy.noarmor.gpg -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+  - curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/jammy.tailscale-keyring.list -o /etc/apt/sources.list.d/tailscale.list
+  - apt-get update -qq
+  - apt-get install -y tailscale
   - >-
     tailscale up
     --authkey=DEIN_TAILSCALE_AUTHKEY
@@ -216,8 +219,9 @@ runcmd:
     cat > /opt/7dtd/docker-compose.yml << 'COMPOSEEOF'
     services:
       7dtd-server:
-        # Pin to a specific tag from https://hub.docker.com/r/vinanrra/7dtd-server/tags
-        # and update manually when a new stable release is available.
+        # PFLICHT: Vor dem Versiegeln einen fixen Tag setzen (z.B. 1.0).
+        # :stable ist ein floating tag — VM-Rebuild zieht unbekannte Version
+        # und kann Spielstände beschädigen. Tags: https://hub.docker.com/r/vinanrra/7dtd-server/tags
         image: vinanrra/7dtd-server:stable
         container_name: 7dtd-server
         network_mode: host
@@ -251,7 +255,7 @@ runcmd:
 
 1. Tailscale Admin Console → **Keys** → **Generate auth key**
 2. Optionen:
-   - **Reusable**: ❌ (single-use ist sicherer für eine VM)
+   - **Reusable**: ✅ (reusable — single-use Keys können bei cloud-init-Fehlern nicht wiederholt werden; Expiry auf 90 Tage setzen)
    - **Ephemeral**: ❌ (VM soll dauerhaft im Tailnet bleiben)
    - **Pre-authorized**: ✅
    - **Tags**: `tag:gameserver`
@@ -317,10 +321,9 @@ Minuten für Pakete + 7DTD-Download).
 ssh jaydee@192.168.178.127 \
   'sudo kubectl -n gameserver get vmi 7dtd-server'
 
-# VNC-Konsole (SPICE) für cloud-init-Debugging
-ssh jaydee@192.168.178.127 \
-  'sudo kubectl -n gameserver exec -it deploy/virt-api -- \
-   virtctl console 7dtd-server'
+# Serielle Konsole für cloud-init-Debugging (virtctl lokal installieren: brew install virtctl)
+export KUBECONFIG=~/.kube/homeserver.yaml
+virtctl -n gameserver console 7dtd-server
 
 # Alternativ: SSH in die VM (nach cloud-init abgeschlossen)
 ssh ubuntu@$(sudo kubectl -n gameserver get vmi 7dtd-server \
