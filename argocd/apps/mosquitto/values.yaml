@@ -1,0 +1,44 @@
+---
+# Top-level: für die eigenen Templates (sealedsecret.yaml, service-lan.yaml).
+# Solange leer, wird kein SealedSecret gerendert — erst nach Eintragen der
+# versiegelten Werte (kubeseal-webgui, siehe docs/18-nuki-mqtt.md).
+sealedSecret:
+  encryptedUsername: ""
+  encryptedPassword: ""
+
+# Alles unter 'mosquitto:' wird an den helmforgedev/mosquitto Chart weitergegeben.
+mosquitto:
+  image:
+    tag: "2.0.22"
+
+  broker:
+    replicaCount: 1
+    listeners:
+      websocketEnabled: false
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 1Gi
+      accessMode: ReadWriteOnce
+
+  auth:
+    enabled: true
+    # existingSecret verweist auf den SealedSecret "mosquitto-auth".
+    # Der Init-Container liest username + password daraus und ruft
+    # mosquitto_passwd intern auf — kein lokales Docker nötig.
+    existingSecret: mosquitto-auth
+    existingSecretUsernameKey: username
+    existingSecretPasswordKey: password
+
+  # ClusterIP für HA-internen Zugriff (mosquitto.mosquitto.svc.cluster.local:1883).
+  # Der LAN-LoadBalancer (Nuki) wird durch service-lan.yaml bereitgestellt.
+  service:
+    type: ClusterIP
+
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi

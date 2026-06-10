@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mosquitto-lan
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: mosquitto
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: broker
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    metallb.io/address-pool: mosquitto
+spec:
+  type: LoadBalancer
+  # loadBalancerClass verhindert dass k3s Klipper diesen Service beansprucht.
+  # Ohne diese Angabe würden Klipper und MetalLB beide versuchen die IP zuzuweisen
+  # und der Service bliebe <pending> oder bekäme zwei EXTERNAL-IPs.
+  loadBalancerClass: metallb.universe.tf/metallb
+  loadBalancerIP: 192.168.178.4
+  externalTrafficPolicy: Cluster
+  ports:
+    - name: mqtt
+      port: 1883
+      targetPort: 1883
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: mosquitto
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: broker
