@@ -4,3 +4,11 @@
 #   generic-api-key:argocd/apps/.../values.yaml  # placeholder, not a real secret
 #
 # Keep each entry commented with WHY it is ignored. Empty by default.
+
+# KSV-0125: ghcr.io gilt Trivy als "untrusted registry" — False Positive, da ghcr.io unser
+# eigenes Container Registry (github.com/jaydee94) ist und wir volle Kontrolle haben.
+AVD-KSV-0125
+
+# DS-0026: Dockerfile ohne HEALTHCHECK — False Positive, da Kubernetes Readiness/Liveness
+# Probes die Health-Checks übernehmen; ein Docker HEALTHCHECK wäre redundant und ungenutzt.
+AVD-DS-0026

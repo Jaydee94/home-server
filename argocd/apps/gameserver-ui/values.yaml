@@ -1,4 +1,25 @@
 ---
+image:
+  repository: ghcr.io/jaydee94/gameserver-ui
+  # Nach jedem CI-Build auf den neuen sha-Tag pinnen (GitOps-reproduzierbar).
+  tag: "sha-e919b0f"
+  pullPolicy: IfNotPresent
+
+ingress:
+  host: gameserver.homeserver
+
+vm:
+  namespace: gameserver
+  name: 7dtd-server
+
+# SealedSecret mit Login-Daten. Solange beide Werte leer sind, wird kein
+# Secret gerendert und das Deployment referenziert es optional (Pod startet,
+# Login schlägt fehl) — sealen gemäß docs/20-gameserver-ui.md.
+sealedSecret:
+  secretName: gameserver-ui-auth
+  encryptedSessionSecret: "AgAjUDeYrKcSOuGfkZRPDmdmzZeqclnQqPozGMxUz6trK6UAMbY48qFo3yJ+QP2LKMyE+3WreEmEb803EtZMc8kkeaSasHvbsjppUztr5/Tkw4qVIP+6ChR8WBqt9fhkh2NyGlLYzTJBEL25ZUAsqvl1c4TWR46Y2k/pPoLI/1LsUFidas6xOHPAJO6M70lj0PcrNEXh5xEhT9vlMdqnH0Vpj1BKnNdiYFSo8UC00S87JA6wvtWBG2sBSLWkMy4pqu0+SZYxt/jKKJcnnLLy+0zJlNa6eWSPiZNcs+mwmTcbOeugqX5x1Rf+IBnpyjdToDr1Xdb+HvtuwLDxfkz/nRfKlaZUoiRyhL+nLOYBY935whiG3Bn0b1ZMOSiDtOvGzB5kNeWcsAxh4iu2W0mBIPiyF+Z84UUuy8NgWTu89YwmQ2KbaKCwTeBX75JL+fupzUGawuTSB+HHDlL5sXuhiUowOOx29bPr0AbB2kTzSO0IrE252iJnmypbKjvdF6fwFR54qiCaaXiEqRLoSf31EUjqnzyscvrhsmiCF24v+FUqqERcHbZ2lO9Lqm7YFvgKLdkgeF5Fnsdyrzo5X3djfJR8ZLchGycLUs/iyTNmHrwtUxRXpGbUdoh/Agbqh+NgdUdAZgmho7ve9YAHPGLbKMXh7EyVoKoOUwRgA7wymx7a9hmAmNx0jtK5advRlxqJtGqkdLk8gePhbEfesUbtrivbYovay5RwuI5Um8TmAiDxM1XFngfwNOuZT4Ix6nVp+DtfU8c/HnTGTw7EiJvZQsEh"
+  encryptedAdminPasswordHash: "AgB6EpXm17FFN/Y5u9GkPJ0RltuQQ+g9yFLmrcMeTyKIuENOwC1VqfVo90P8BNTegS12ZHdPADEr+YWDEO9yAcs1pD/A8ibnjVNbrVeiAp1OHdJYFpCgfWZ1/lYNxNmXP8QsTPBeVAYD+MaQAzOWUTuZJJb5fqXBzQQidSixIN5l5ccRP7wFkjzJl632HFnZ6h3g534QeIQk4ylDn5jiQhTdUpbo5uKnez9wCkQTOGli7OJeA5P4GkQAGpDQ5Efq1bQocYStq98cyNTqZc8TuU66XEIRC9mpFo/xbUgwEzM1ZVg7Zn/LmWwNL7ABm6mIhrGmsPM0H1H4V4X9BiAyOJmr7uWeb5bbATxxNVuXGA7oCsjTr6jr/bPc8S7Ad6d0C5YL2QSRtBTBQomfafWTFjw2AQRajo5OMR1CzlCr0ZXOGJQjh6i9AVIzqdA5jMxAzfQvjOQGldrxZODqDD4a/whf2lz5YBtF0VGXS2eTE04tEO0JvNaXr6oHhG6zcIv/mz6Xrj8gf8hb6utva6r/dvVp/kZGUd3zlxQXQ3B5f7v71COiOBAzz0taVrZkQL1jW+Lqzr3Jlm+nFwNO6T3pDJdhYBSx6iFmPq5HdxTamraMhxuUub/QKR0yK/e7VvWpMxMA5bRyQ9D4dr39wHijbsWD2xvH14SgQbOrManGcHs7TTdFj4nhD3hIYzqhYA5BGvqmMVHfMokriWnS9LCdfvauYZCkT8I26Q10C6yIxzy11JIe4zP2CbvMk8JxYIHsBz8xtI/Q6w4HGAPrs4U="
+
 # SMB-Mount für gameserver-data (NAS). Muster wie argocd/apps/jellyfin/.
 # Share wird als ReadWriteMany PV/PVC ins Deployment gemountet (/mnt/gameserver-data).
 # Solange encryptedUsername/encryptedPassword leer sind, wird kein SealedSecret gerendert
