@@ -52,5 +52,9 @@ dataVolume:
 # Paste the output (long AgB... string) as the encryptedUserdata value below.
 sealedSecret:
   secretName: gameserver-cloudinit
-  # Empty → SealedSecret is not rendered; VM stays in Halted state.
+  # Empty → SealedSecret is not rendered; the VirtualMachine references the
+  # Secret by name regardless — if the Secret is missing the VM will fail to
+  # start (VirtualMachineInstance will show a "secret not found" error).
+  # Always seal the cloud-init before setting vm.runStrategy: Always.
+  # Expected format: starts with "AgB" (kubeseal RSA-OAEP + AES-GCM output).
   encryptedUserdata: ""

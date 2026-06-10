@@ -18,7 +18,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/argocd/apps/kubevirt/kustomization\\.yaml$/"],
       "matchStrings": [
-        "# renovate: depName=(?<depName>\\S+)\\s+- https://github\\.com/[^/]+/[^/]+/releases/download/(?<currentValue>v[0-9][^/]+)/[^\\s]+"
+        "# renovate: depName=(?<depName>\\S+)\\s+- https://github\\.com/[^/]+/[^/]+/releases/download/(?<currentValue>v[^/]+)/[^\\s]+"
       ],
       "datasourceTemplate": "github-releases"
     }

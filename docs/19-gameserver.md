@@ -216,8 +216,9 @@ runcmd:
     cat > /opt/7dtd/docker-compose.yml << 'COMPOSEEOF'
     services:
       7dtd-server:
-        # renovate: docker depName=vinanrra/7dtd-server
-        image: vinanrra/7dtd-server:latest
+        # Pin to a specific tag from https://hub.docker.com/r/vinanrra/7dtd-server/tags
+        # and update manually when a new stable release is available.
+        image: vinanrra/7dtd-server:stable
         container_name: 7dtd-server
         network_mode: host
         restart: unless-stopped
@@ -242,6 +243,9 @@ runcmd:
 > **Hinweis**: Ersetze `DEIN_TAILSCALE_AUTHKEY`, `DEIN_SERVERPASSWORT`,
 > `DEIN_WEBADMIN_PASSWORT` und `DEIN_TELNET_PASSWORT` mit echten Werten,
 > bevor du versiegelst.
+>
+> **Sicherheit**: Lösche `/tmp/7dtd-userdata.yaml` nach dem Versiegeln:
+> `shred -u /tmp/7dtd-userdata.yaml`. Die Datei enthält Passwörter im Klartext.
 
 ### Schritt 2: Tailscale Auth Key erzeugen
 
