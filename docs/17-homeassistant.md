@@ -11,7 +11,7 @@ kein API-Token.**
 |---|---|
 | URL | <http://homeassistant.homeserver> (LAN + Tailnet, von Pi-hole aufgelöst) |
 | Namespace | `home-assistant` |
-| Chart | `argocd/apps/home-assistant/` (pajikos `home-assistant` 0.3.63, App 2025.6) |
+| Chart | `argocd/apps/home-assistant/` (pajikos `home-assistant` 0.3.64, App 2025.6) |
 | Integration | `solakon_one` (Domain), gepinnt auf Release **1.5.4** |
 | Verbindung | Modbus TCP → WLAN-Dongle des Wechselrichters, Port 502 |
 
@@ -42,7 +42,7 @@ Statt HACS (manuell, nicht versioniert) wird die Integration reproduzierbar per
   initContainers:
     # renovate: datasource=github-releases depName=solakon-de/solakon-one-homeassistant
     - name: install-solakon-one
-      image: alpine:3.20
+      image: alpine:3.24
       command: ["/bin/sh", "-c"]
       args:
         - |
