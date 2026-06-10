@@ -58,17 +58,17 @@ spec:
           kind: StatefulSet
           jqPathExpressions:
             - .spec.volumeClaimTemplates[]?.spec.volumeMode
-            - .spec.persistentVolumeClaimRetentionPolicy
+          jsonPointers:
+            - /spec/persistentVolumeClaimRetentionPolicy
         - group: kubevirt.io
           kind: VirtualMachine
           jsonPointers:
             - /spec/runStrategy
-          jqPathExpressions:
-            - .spec.template.metadata.annotations
-            - .spec.template.spec.domain.machine
-            - .spec.template.spec.domain.firmware
+            - /spec/template/metadata/annotations
+            - /spec/template/spec/domain/machine
+            - /spec/template/spec/domain/firmware
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
-          jqPathExpressions:
-            - .spec.conversion
-            - .status
+          jsonPointers:
+            - /spec/conversion
+            - /status
