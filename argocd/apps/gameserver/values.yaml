@@ -14,9 +14,12 @@
 # ---- VM Configuration ----
 vm:
   name: 7dtd-server
-  # runStrategy: Halted = VM is defined but does not start.
-  # Change to "Always" once gameserver-cloudinit SealedSecret is filled in.
-  runStrategy: Always
+  # runStrategy controls the initial state when the VM is first created.
+  # After the first ArgoCD sync, this field is managed exclusively by the
+  # scheduled CronJobs (ignoreDifferences in root-applicationset.yaml).
+  # On-demand start: kubectl patch vm 7dtd-server -n gameserver --type merge -p '{"spec":{"runStrategy":"Always"}}'
+  # On-demand stop:  kubectl patch vm 7dtd-server -n gameserver --type merge -p '{"spec":{"runStrategy":"Halted"}}'
+  runStrategy: Halted
   cpu:
     cores: 4
   memory:
@@ -51,6 +54,17 @@ dataVolume:
 #     --from-file=/dev/stdin
 #
 # Paste the output (long AgB... string) as the encryptedUserdata value below.
+# ---- Schedule ----
+# CronJobs start the VM on Wednesday at 20:00 and stop it Thursday at 00:00.
+# ArgoCD ignores runStrategy drift (see ignoreDifferences in root-applicationset.yaml),
+# so the CronJobs are the sole authority over when the VM runs.
+schedule:
+  enabled: true
+  timezone: Europe/Berlin
+  start: "0 20 * * 3"   # Wednesday 20:00
+  stop: "0 0 * * 4"     # Thursday 00:00 (= Wednesday midnight)
+  kubectlImage: "bitnami/kubectl:1.31"
+
 sealedSecret:
   secretName: gameserver-cloudinit
   # Empty → SealedSecret is not rendered AND the cloud-init disk/volume is omitted
