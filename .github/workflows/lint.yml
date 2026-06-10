@@ -6,19 +6,36 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   yamllint:
-    name: yamllint
+    name: yamllint (changed files)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.x"
       - name: Install yamllint
         run: pip install yamllint
-      - name: Run yamllint
-        run: yamllint -c .yamllint ansible/ argocd/
+      - name: Collect changed YAML files
+        id: changes
+        run: .github/scripts/changed-files.sh yaml >> "$GITHUB_OUTPUT"
+      - name: Run yamllint on changed files
+        if: steps.changes.outputs.files != ''
+        run: |
+          set -euo pipefail
+          echo "Linting changed YAML files:"
+          printf '  %s\n' ${{ steps.changes.outputs.files }}
+          yamllint -c .yamllint ${{ steps.changes.outputs.files }}
+      - name: No YAML changes
+        if: steps.changes.outputs.files == ''
+        run: echo "No changed YAML files — nothing to lint."
 
   ansible-lint:
     name: ansible-lint
@@ -36,17 +53,22 @@ jobs:
         run: ansible-lint ansible/
 
   helm-lint:
-    name: helm lint (all charts)
+    name: helm lint (changed charts)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - uses: azure/setup-helm@v5
-      - name: Lint every chart under argocd/apps/*
+      - name: Collect changed Helm charts
+        id: charts
+        run: .github/scripts/changed-files.sh charts >> "$GITHUB_OUTPUT"
+      - name: Lint changed charts
+        if: steps.charts.outputs.charts != ''
         run: |
           set -euo pipefail
           rc=0
-          for chart in argocd/apps/*/; do
-            [ -f "${chart}Chart.yaml" ] || continue
+          for chart in ${{ steps.charts.outputs.charts }}; do
             if grep -q '^dependencies:' "${chart}Chart.yaml"; then
               echo "==> helm dependency build ${chart}"
               helm dependency build "${chart}" || helm dependency update "${chart}"
@@ -55,3 +77,6 @@ jobs:
             helm lint "${chart}" || rc=1
           done
           exit "${rc}"
+      - name: No chart changes
+        if: steps.charts.outputs.charts == ''
+        run: echo "No changed Helm charts — nothing to lint."
