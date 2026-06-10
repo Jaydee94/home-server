@@ -1,0 +1,60 @@
+---
+# 7 Days to Die game server — KubeVirt VM configuration.
+#
+# SETUP REQUIRED before the VM can start:
+#   1. Seal the cloud-init user data (contains Tailscale auth key + passwords)
+#      → see docs/19-gameserver.md for the full sealing procedure
+#   2. Paste the sealed output into sealedSecret.encryptedUserdata below
+#   3. Change vm.runStrategy from "Halted" to "Always"
+#   4. Commit + push → ArgoCD syncs → VM starts
+#
+# The gameserver namespace must exist before this chart renders correctly.
+# ArgoCD creates it automatically via CreateNamespace=true.
+
+# ---- VM Configuration ----
+vm:
+  name: 7dtd-server
+  # runStrategy: Halted = VM is defined but does not start.
+  # Change to "Always" once gameserver-cloudinit SealedSecret is filled in.
+  runStrategy: Halted
+  cpu:
+    cores: 4
+  memory:
+    # guest: RAM visible to the VM OS; requests: pod scheduling budget (guest + QEMU overhead)
+    guest: 8Gi
+    requests: 8.5Gi
+
+# ---- OS Disk (DataVolume via CDI) ----
+dataVolume:
+  name: 7dtd-os-disk
+  # Ubuntu 22.04 LTS cloud image — CDI imports it directly from upstream
+  sourceUrl: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+  # 40 Gi: OS + Docker images + 7DTD game files (~30 GB after install)
+  size: 40Gi
+  storageClass: local-path
+
+# ---- Cloud-Init Secret ----
+# The cloud-init userdata contains the Tailscale auth key and the 7DTD server
+# password. The entire script must be sealed with kubeseal so no plaintext
+# credentials are stored in Git.
+#
+# Seal command (run from a machine with kubeseal + cluster access):
+#
+#   cat docs/19-gameserver.md   # read the cloud-init template first
+#
+#   # Fill in your values in /tmp/7dtd-cloudinit.yaml, then:
+#   printf '%s' "$(cat /tmp/7dtd-cloudinit.yaml)" | kubeseal --raw \
+#     --namespace gameserver \
+#     --name gameserver-cloudinit \
+#     --controller-name sealed-secrets-controller \
+#     --controller-namespace sealed-secrets \
+#     --from-file=/dev/stdin
+#
+# Paste the output (long AgB... string) as the encryptedUserdata value below.
+sealedSecret:
+  secretName: gameserver-cloudinit
+  # Empty → SealedSecret is not rendered AND the cloud-init disk/volume is omitted
+  # from the VirtualMachine spec (guarded template). Setting vm.runStrategy: Always
+  # without filling this value will cause a Helm render error — by design.
+  # Expected format: starts with "AgB" (kubeseal RSA-OAEP + AES-GCM output).
+  encryptedUserdata: ""
