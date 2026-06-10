@@ -1,0 +1,26 @@
+---
+# CDI DataVolume: imports Ubuntu 22.04 LTS cloud image from upstream into a
+# 40 Gi local-path PVC. The download happens once; CDI tracks progress via
+# the DataVolume status. Subsequent syncs are no-ops (CDI only imports once).
+# Note: CDI must be fully deployed (argocd/apps/kubevirt synced) before this
+# resource is created, otherwise the CRD will be missing.
+apiVersion: cdi.kubevirt.io/v1beta1
+kind: DataVolume
+metadata:
+  name: {{ .Values.dataVolume.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gameserver
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  source:
+    http:
+      url: {{ .Values.dataVolume.sourceUrl | quote }}
+  pvc:
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      requests:
+        storage: {{ .Values.dataVolume.size }}
+    storageClassName: {{ .Values.dataVolume.storageClass }}

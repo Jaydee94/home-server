@@ -1,0 +1,24 @@
+---
+# KubeVirt Operator + CDI — deployed via Kustomize from official GitHub releases.
+# Versions are tracked and bumped automatically by Renovate (see renovate.json).
+#
+# Prerequisites:
+#   - Host must support hardware virtualisation (VT-x / AMD-V, /dev/kvm present)
+#   - Run `virt-host-validate` on the server before first sync
+#   - See docs/19-gameserver.md for full setup instructions
+#
+# Bootstrap order handled by ArgoCD retry (ApplicationSet retry.limit=5):
+#   1. kubevirt-operator.yaml creates KubeVirt CRDs + Deployments
+#   2. kubevirt-cr.yaml triggers the operator to deploy virt-api/virt-controller/virt-handler
+#   3. cdi-operator.yaml creates CDI CRDs + Deployments in namespace "cdi"
+#   4. cdi-cr.yaml triggers CDI controller deployment
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # renovate: depName=kubevirt/kubevirt
+  - https://github.com/kubevirt/kubevirt/releases/download/v1.5.0/kubevirt-operator.yaml
+  - kubevirt-cr.yaml
+  # renovate: depName=kubevirt/containerized-data-importer
+  - https://github.com/kubevirt/containerized-data-importer/releases/download/v1.62.0/cdi-operator.yaml
+  - cdi-cr.yaml

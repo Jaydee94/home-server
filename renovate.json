@@ -12,6 +12,15 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+[\\s\\S]*?VERSION=(?<currentValue>\\S+)"
       ]
+    },
+    {
+      "description": "KubeVirt and CDI operator GitHub-release URLs in kustomization.yaml.",
+      "customType": "regex",
+      "managerFilePatterns": ["/argocd/apps/kubevirt/kustomization\\.yaml$/"],
+      "matchStrings": [
+        "# renovate: depName=(?<depName>\\S+)\\s+- https://github\\.com/[^/]+/[^/]+/releases/download/(?<currentValue>v[0-9][^/]+)/[^\\s]+"
+      ],
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [

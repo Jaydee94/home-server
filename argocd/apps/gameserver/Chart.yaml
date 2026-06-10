@@ -1,0 +1,25 @@
+---
+apiVersion: v2
+name: gameserver
+description: |
+  7 Days to Die dedicated server as a KubeVirt VM (Ubuntu 22.04 LTS).
+  4 vCPU / 8 GiB RAM / 40 GiB DataVolume on NVMe via CDI.
+  Access: Tailscale only (tag:gameserver, Node-Sharing for colleagues).
+  vinanrra/7dtd-server container (LinuxGSM) with daily restart against memory leak.
+  Requires: argocd/apps/kubevirt synced + /dev/kvm on the host.
+  Setup: docs/19-gameserver.md.
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - 7daystodie
+  - gameserver
+  - kubevirt
+  - tailscale
+home: https://github.com/vinanrra/Docker-7DaysToDie
+sources:
+  - https://github.com/vinanrra/Docker-7DaysToDie
+  - https://kubevirt.io
+  - https://hub.docker.com/r/vinanrra/7dtd-server
+maintainers:
+  - name: home-server-admin

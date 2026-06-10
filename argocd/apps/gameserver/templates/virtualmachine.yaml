@@ -1,0 +1,50 @@
+---
+# KubeVirt VirtualMachine: 7 Days to Die dedicated server.
+# Network: masquerade (NAT) — VM has outbound internet for Tailscale tunnel.
+# No Service/MetalLB/Ingress needed — inbound access via Tailscale only.
+# cloud-init: reads userdata from SealedSecret "gameserver-cloudinit".
+#   Installs Docker + Tailscale, starts vinanrra/7dtd-server container.
+apiVersion: kubevirt.io/v1
+kind: VirtualMachine
+metadata:
+  name: {{ .Values.vm.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: gameserver
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  runStrategy: {{ .Values.vm.runStrategy }}
+  template:
+    metadata:
+      labels:
+        kubevirt.io/vm: {{ .Values.vm.name }}
+    spec:
+      domain:
+        cpu:
+          cores: {{ .Values.vm.cpu.cores }}
+        resources:
+          requests:
+            memory: {{ .Values.vm.memory.requests }}
+        devices:
+          disks:
+            - name: os-disk
+              disk:
+                bus: virtio
+            - name: cloudinit
+              disk:
+                bus: virtio
+          interfaces:
+            - name: default
+              masquerade: {}
+      networks:
+        - name: default
+          pod: {}
+      volumes:
+        - name: os-disk
+          dataVolume:
+            name: {{ .Values.dataVolume.name }}
+        - name: cloudinit
+          cloudInitNoCloud:
+            userDataSecretRef:
+              name: {{ .Values.sealedSecret.secretName }}
