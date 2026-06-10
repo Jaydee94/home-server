@@ -158,6 +158,42 @@ anlegen (plain Manifests, `kustomization.yaml` **oder** Helm-Chart mit
 
 ---
 
+## Bootstrap-Application (ArgoCD-Selbstverwaltung)
+
+Das `ApplicationSet` (`argocd/bootstrap/root-applicationset.yaml`) wird von
+Ansible einmalig auf den Cluster angewendet. Danach übernimmt ArgoCD via einer
+**Bootstrap-Application** (`argocd/bootstrap/bootstrap-app.yaml`) die Verwaltung
+des `argocd/bootstrap/`-Verzeichnisses aus Git:
+
+```
+Git: argocd/bootstrap/
+  ├── root-applicationset.yaml   ← ArgoCD synct und verwaltet dieses
+  └── bootstrap-app.yaml         ← wird NICHT gesynct (exclude)
+```
+
+**Funktionsweise:**
+
+- Die Bootstrap-Application beobachtet `argocd/bootstrap/` im Git-Repo.
+- `bootstrap-app.yaml` selbst ist aus dem Sync-Scope ausgeschlossen
+  (`directory.exclude: bootstrap-app.yaml`) um eine zirkuläre Abhängigkeit zu
+  vermeiden.
+- Änderungen an `root-applicationset.yaml` im Git werden dadurch **automatisch**
+  auf den Cluster angewendet — kein `make argocd` mehr nötig.
+
+**Status prüfen:**
+
+```bash
+ssh jaydee@192.168.178.127 \
+  'sudo kubectl -n argocd get application bootstrap'
+# NAME        SYNC STATUS   HEALTH STATUS
+# bootstrap   Synced        Healthy
+```
+
+**`ignoreDifferences`** im ApplicationSet verhindert, dass ArgoCD Laufzeit-Änderungen
+an bestimmten Feldern zurückdreht (z.B. `runStrategy` der Gameserver-VM).
+
+---
+
 ## Neue Application hinzufügen
 
 Der GitOps-Workflow für neue Apps:
