@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "mosquitto.fullname" . }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+data:
+  mosquitto.conf: |
+    listener {{ .Values.service.targetPort }}
+    persistence true
+    persistence_location /mosquitto/data/
+    # Authenticated access only — the password file is injected from the
+    # mosquitto-auth SealedSecret. Communication itself is unencrypted; the
+    # Nuki Smart Lock does not support TLS, so the broker stays LAN-internal.
+    allow_anonymous false
+    password_file /mosquitto/auth/passwd
+    log_dest stdout

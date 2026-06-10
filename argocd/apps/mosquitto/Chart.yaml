@@ -1,0 +1,20 @@
+---
+apiVersion: v2
+name: mosquitto
+description: |
+  Eclipse Mosquitto MQTT broker. Bereitgestellt als dedizierter Broker für die
+  Nuki-Smart-Lock-Pro-Integration in Home Assistant (native MQTT Auto-Discovery).
+  Erreichbar im LAN über die MetalLB-IP 192.168.178.4:1883. Setup: docs/18-nuki-mqtt.md.
+type: application
+version: 0.1.0
+appVersion: "2.0.22"
+keywords:
+  - mosquitto
+  - mqtt
+  - home-assistant
+  - nuki
+home: https://mosquitto.org
+sources:
+  - https://github.com/eclipse/mosquitto
+maintainers:
+  - name: home-server-admin
