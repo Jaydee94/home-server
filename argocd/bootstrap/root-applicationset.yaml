@@ -59,3 +59,4 @@ spec:
           kind: VirtualMachine
           jsonPointers:
             - /spec/runStrategy
+            - /spec/template/spec/architecture
