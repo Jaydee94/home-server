@@ -68,7 +68,7 @@ schedule:
   timezone: Europe/Berlin
   start: "0 20 * * 3"   # Wednesday 20:00
   stop: "0 0 * * 4"     # Thursday 00:00 (= Wednesday midnight)
-  kubectlImage: "bitnami/kubectl@sha256:76cfac753a8bf917e2316d457d28747acb79189763ee6eb031af2bf16f377858"
+  kubectlImage: "bitnami/kubectl@sha256:d7e2de67927af4b644c0631e114024e32062ffde7af8e6af1be532eda91656b0"
 
 sealedSecret:
   secretName: gameserver-cloudinit
