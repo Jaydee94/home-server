@@ -11,6 +11,7 @@ interface VmStatus {
 
 export default function Dashboard() {
   const [status, setStatus] = useState<VmStatus | null>(null);
+  const [tailscaleIp, setTailscaleIp] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -29,6 +30,13 @@ export default function Dashboard() {
     const t = setInterval(refresh, 5000);
     return () => clearInterval(t);
   }, [refresh]);
+
+  useEffect(() => {
+    fetch("/api/vm/tailscale")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setTailscaleIp(d?.tailscaleIp ?? null))
+      .catch(() => setTailscaleIp(null));
+  }, []);
 
   async function act(action: "start" | "stop") {
     if (
@@ -72,6 +80,10 @@ export default function Dashboard() {
               <tr>
                 <td>IP</td>
                 <td>{status.ipAddress ?? "—"}</td>
+              </tr>
+              <tr>
+                <td>Tailscale IP</td>
+                <td>{tailscaleIp ?? "—"}</td>
               </tr>
               <tr>
                 <td>Läuft seit</td>
