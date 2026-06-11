@@ -1,0 +1,16 @@
+import { describe, it, expect } from "vitest";
+import { SshClient } from "@/lib/ssh";
+
+describe("SshClient", () => {
+  it("Konstruktor akzeptiert host, user und privateKey", () => {
+    const client = new SshClient({ host: "10.0.0.1", user: "ubuntu", privateKey: "key" });
+    expect(client).toBeDefined();
+  });
+
+  it("fromEnv liest VM_SSH_KEY_PATH und VM_SSH_USER aus der Umgebung", () => {
+    process.env.VM_SSH_KEY_PATH = "/tmp/nonexistent-key";
+    process.env.VM_SSH_USER = "ubuntu";
+    // Wirft weil Datei nicht existiert — das ist erwartet
+    expect(() => SshClient.fromEnv("10.0.0.1")).toThrow();
+  });
+});
