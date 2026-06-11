@@ -1,6 +1,20 @@
 import { Client, type ConnectConfig } from "ssh2";
 import { readFileSync } from "fs";
 
+function buildHostVerifier(): ConnectConfig["hostVerifier"] {
+  const pinned = process.env.VM_SSH_HOST_FINGERPRINT;
+  return (keyHash: Buffer | string) => {
+    const hex = Buffer.isBuffer(keyHash) ? keyHash.toString("hex") : keyHash;
+    if (!pinned) {
+      console.warn("[ssh] VM_SSH_HOST_FINGERPRINT not set — host key not verified");
+      return true;
+    }
+    const match = hex === pinned;
+    if (!match) console.error(`[ssh] Host key mismatch: got ${hex}, expected ${pinned}`);
+    return match;
+  };
+}
+
 export interface SshOptions {
   host: string;
   user: string;
@@ -68,6 +82,13 @@ export class SshClient {
   }
 
   private connectConfig(): ConnectConfig {
-    return { host: this.opts.host, username: this.opts.user, privateKey: this.opts.privateKey, readyTimeout: 10000 };
+    return {
+      host: this.opts.host,
+      username: this.opts.user,
+      privateKey: this.opts.privateKey,
+      readyTimeout: 10000,
+      hostHash: "sha256",
+      hostVerifier: buildHostVerifier(),
+    };
   }
 }
