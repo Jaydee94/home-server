@@ -1,0 +1,8 @@
+.shell { display: flex; min-height: 100vh; }
+.content { flex: 1; min-width: 0; padding: var(--sp-5); max-width: 1100px; }
+.mobilebar { display: none; }
+@media (max-width: 720px) {
+  .content { padding: var(--sp-4); }
+  .mobilebar { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3); border-bottom: 1px solid var(--border); }
+  .burger { background: none; border: none; color: var(--fg); font-size: 20px; cursor: pointer; }
+}
