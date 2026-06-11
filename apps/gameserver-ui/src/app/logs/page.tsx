@@ -1,62 +1,49 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 
 interface LogLine { id: number; text: string; }
-
 let lineCounter = 0;
 
 export default function LogsPage() {
   const [lines, setLines] = useState<LogLine[]>([]);
-  const [metrics, setMetrics] = useState<{ cpuPercent: number | null; memoryMb: number | null } | null>(null);
-  const [error, setError] = useState("");
-  const containerRef = useRef<HTMLPreElement>(null);
+  const [query, setQuery] = useState("");
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
+  const ref = useRef<HTMLPreElement>(null);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   useEffect(() => {
     const es = new EventSource("/api/logs");
-    es.onmessage = (e) => {
-      setLines(prev => [...prev.slice(-499), { id: lineCounter++, text: e.data }]);
-    };
-    es.onerror = () => { setError("Log-Stream unterbrochen"); es.close(); };
+    es.onmessage = (e) => { if (!pausedRef.current) setLines((prev) => [...prev.slice(-499), { id: lineCounter++, text: e.data }]); };
+    es.onerror = () => es.close();
     return () => es.close();
   }, []);
 
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const isAtBottom = el.scrollHeight - el.scrollTop <= el.clientHeight + 50;
-    if (isAtBottom) el.scrollTop = el.scrollHeight;
-  }, [lines]);
+  const filtered = useMemo(() => query ? lines.filter((l) => l.text.toLowerCase().includes(query.toLowerCase())) : lines, [lines, query]);
+  useEffect(() => { const el = ref.current; if (el && !paused) el.scrollTop = el.scrollHeight; }, [filtered, paused]);
 
-  useEffect(() => {
-    async function loadMetrics() {
-      const res = await fetch("/api/metrics");
-      if (res.ok) setMetrics(await res.json());
-    }
-    loadMetrics();
-    const t = setInterval(loadMetrics, 15000);
-    return () => clearInterval(t);
-  }, []);
+  function download() {
+    const blob = new Blob([lines.map((l) => l.text).join("\n")], { type: "text/plain" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "7dtd-logs.txt"; a.click(); URL.revokeObjectURL(a.href);
+  }
 
   return (
-    <main style={{ maxWidth: 1000, margin: "5vh auto", fontFamily: "sans-serif" }}>
-      <h1>Logs & Monitoring</h1>
-      {metrics ? (
-        <p>
-          CPU: <strong>{metrics.cpuPercent !== null ? `${metrics.cpuPercent}%` : "—"}</strong>
-          {" | "}
-          RAM: <strong>{metrics.memoryMb !== null ? `${metrics.memoryMb} MB` : "—"}</strong>
-        </p>
-      ) : (
-        <p style={{ color: "#888" }}>Metriken laden…</p>
-      )}
-      {error && <p style={{ color: "crimson" }}>{error}</p>}
-      <pre
-        ref={containerRef}
-        style={{ background: "#111", color: "#eee", padding: 16, height: "60vh", overflowY: "auto", fontSize: 12 }}
-      >
-        {lines.map(l => <div key={l.id}>{l.text}</div>)}
-      </pre>
-      <p><a href="/">← Dashboard</a></p>
+    <main style={{ display: "grid", gap: "var(--sp-4)" }}>
+      <h1 style={{ fontSize: 20 }}>Logs</h1>
+      <div style={{ display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
+        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Suchen…"
+          style={{ flex: 1, minWidth: 160, padding: "var(--sp-2) var(--sp-3)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: 6, color: "var(--fg)" }} />
+        <Button variant="secondary" onClick={() => setPaused((p) => !p)}>{paused ? "▶ Fortsetzen" : "⏸ Pause"}</Button>
+        <Button variant="secondary" onClick={() => navigator.clipboard.writeText(lines.map((l) => l.text).join("\n"))}>⧉ Kopieren</Button>
+        <Button variant="secondary" onClick={download}>⬇ Download</Button>
+      </div>
+      <Card>
+        <pre ref={ref} style={{ background: "var(--bg)", color: "var(--fg)", padding: "var(--sp-3)", height: "60vh", overflowY: "auto", fontSize: 12, borderRadius: 6 }}>
+          {filtered.map((l) => <div key={l.id}>{l.text}</div>)}
+        </pre>
+      </Card>
     </main>
   );
 }

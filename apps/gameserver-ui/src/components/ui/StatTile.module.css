@@ -1,0 +1,4 @@
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--sp-3) var(--sp-4); }
+.label { font-size: 10px; letter-spacing: .5px; color: var(--fg-dim); text-transform: uppercase; }
+.value { font-size: 22px; font-weight: 700; margin-top: var(--sp-1); }
+.unit { font-size: 13px; color: var(--fg-dim); font-weight: 400; }

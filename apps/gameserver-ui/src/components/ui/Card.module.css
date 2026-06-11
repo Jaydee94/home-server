@@ -1,0 +1,2 @@
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--sp-4); }
+.title { font-size: 10px; letter-spacing: .5px; color: var(--fg-dim); text-transform: uppercase; margin-bottom: var(--sp-3); }

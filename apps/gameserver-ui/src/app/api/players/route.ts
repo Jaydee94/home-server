@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
 import { telnetCommand, parseLp, telnetOptsFromEnv } from "@/lib/telnet";
+import { SessionTracker } from "@/lib/playersession";
+
+const tracker = new SessionTracker();
 
 async function requireRunningVm(): Promise<{ ip: string } | NextResponse> {
   const status = await VmClient.inCluster().getStatus();
@@ -17,7 +20,10 @@ export async function GET() {
     if (result instanceof NextResponse) return result;
     const ssh = SshClient.fromEnv(result.ip);
     const output = await telnetCommand(ssh, telnetOptsFromEnv(), "lp");
-    return NextResponse.json({ players: parseLp(output) });
+    const players = parseLp(output);
+    tracker.seen(players.map((p) => p.id));
+    const enriched = players.map((p) => ({ ...p, onlineSince: tracker.since(p.id) }));
+    return NextResponse.json({ players: enriched });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 });
   }

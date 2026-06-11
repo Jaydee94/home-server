@@ -1,0 +1,5 @@
+.stack { position: fixed; top: var(--sp-4); right: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-2); z-index: 100; }
+.toast { min-width: 240px; max-width: 360px; padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-sm);
+  font-size: 13px; box-shadow: 0 6px 20px #0008; border: 1px solid var(--border); background: var(--surface-2); color: var(--fg); }
+.ok { border-color: #16431f; background: #0c2a16; color: #bbf7d0; }
+.error { border-color: #5a1a1a; background: #2a0e0e; color: var(--danger-contrast); }

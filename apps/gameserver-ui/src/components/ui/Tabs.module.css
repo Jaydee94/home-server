@@ -1,0 +1,3 @@
+.tabs { display: flex; gap: var(--sp-1); border-bottom: 1px solid var(--border); margin-bottom: var(--sp-4); }
+.tab { padding: var(--sp-2) var(--sp-3); color: var(--fg-muted); cursor: pointer; border-bottom: 2px solid transparent; background: none; border-top: none; border-left: none; border-right: none; font: inherit; }
+.active { color: var(--accent); border-bottom-color: var(--accent); }

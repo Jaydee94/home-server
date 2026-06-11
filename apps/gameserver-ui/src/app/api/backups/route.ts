@@ -3,6 +3,7 @@ import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
 import { telnetCommand, telnetOptsFromEnv } from "@/lib/telnet";
 import { listBackups, backupFilePath } from "@/lib/backups";
+import { backupsToPrune } from "@/lib/retention";
 import { mkdirSync, createWriteStream, existsSync, unlinkSync, renameSync } from "fs";
 import { join } from "path";
 import { Readable } from "stream";
@@ -43,6 +44,15 @@ export async function POST() {
     } catch (err) {
       if (existsSync(partialPath)) unlinkSync(partialPath);
       throw err;
+    }
+
+    const keepN = Number(process.env.BACKUP_KEEP ?? "7");
+    for (const old of backupsToPrune(listBackups(dir), keepN)) {
+      try {
+        unlinkSync(backupFilePath(dir, old.filename));
+      } catch {
+        /* ignore */
+      }
     }
 
     return NextResponse.json({ ok: true, filename });
