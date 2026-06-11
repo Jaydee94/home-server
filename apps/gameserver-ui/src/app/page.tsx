@@ -16,6 +16,7 @@ export default function Dashboard() {
   const { status, running } = useVmStatus();
   const [tailscaleIp, setTailscaleIp] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [horde, setHorde] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
@@ -23,6 +24,23 @@ export default function Dashboard() {
   useEffect(() => {
     fetch("/api/vm/tailscale").then((r) => (r.ok ? r.json() : null)).then((d) => setTailscaleIp(d?.tailscaleIp ?? null)).catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!running) return;
+    (async () => {
+      const [gtRes, cfgRes] = await Promise.all([fetch("/api/gametime"), fetch("/api/config")]);
+      if (!gtRes.ok) return;
+      const gt = await gtRes.json();
+      let freq = 7;
+      if (cfgRes.ok) {
+        const d = await cfgRes.json();
+        const { extractConfigValue } = await import("@/lib/config");
+        freq = Number(extractConfigValue(d.xml ?? "", "BloodMoonFrequency") ?? "7") || 7;
+      }
+      const { nextBloodMoon } = await import("@/lib/gametime");
+      const next = nextBloodMoon(gt.day, freq);
+      setHorde(next === gt.day ? "Heute Nacht!" : `Tag ${next} (in ${next - gt.day})`);
+    })().catch(() => {});
+  }, [running]);
   const loadMetrics = useCallback(async () => {
     const r = await fetch("/api/metrics"); if (r.ok) setMetrics(await r.json());
   }, []);
@@ -66,6 +84,7 @@ export default function Dashboard() {
         <StatTile label="CPU" value={metrics?.cpuPercent ?? "—"} unit={metrics?.cpuPercent != null ? "%" : undefined} />
         <StatTile label="RAM" value={metrics?.memoryMb ?? "—"} unit={metrics?.memoryMb != null ? "MB" : undefined} />
         <StatTile label="Status" value={running ? "Online" : "Offline"} />
+        <StatTile label="Blutmond" value={horde ?? "—"} />
       </div>
 
       <Card title="Verbinden (Tailscale)">
