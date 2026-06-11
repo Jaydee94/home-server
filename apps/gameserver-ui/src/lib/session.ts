@@ -1,6 +1,6 @@
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
-import bcrypt from "bcryptjs";
+import { timingSafeEqual } from "crypto";
 
 export interface SessionData {
   loggedIn?: boolean;
@@ -17,7 +17,10 @@ export async function getSession() {
   return getIronSession<SessionData>(await cookies(), sessionOptions);
 }
 
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  if (!hash) return false;
-  return bcrypt.compare(password, hash);
+export function verifyPassword(input: string, expected: string): boolean {
+  if (!expected) return false;
+  const a = Buffer.from(input);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
