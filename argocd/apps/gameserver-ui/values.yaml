@@ -2,7 +2,7 @@
 image:
   repository: ghcr.io/jaydee94/gameserver-ui
   # Nach jedem CI-Build auf den neuen sha-Tag pinnen (GitOps-reproduzierbar).
-  tag: "sha-e919b0f"
+  tag: "sha-920a343"
   pullPolicy: IfNotPresent
 
 ingress:
