@@ -11,6 +11,9 @@ vm:
   namespace: gameserver
   name: 7dtd-server
 
+victoriaMetrics:
+  url: "http://vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428"
+
 # SealedSecret mit Login-Daten. Solange beide Werte leer sind, wird kein
 # Secret gerendert und das Deployment referenziert es optional (Pod startet,
 # Login schlägt fehl) — sealen gemäß docs/20-gameserver-ui.md.
