@@ -51,6 +51,8 @@ spec:
               value: "8081"
             - name: NAS_MOUNT_PATH
               value: /mnt/gameserver-data
+            - name: VICTORIA_URL
+              value: {{ .Values.victoriaMetrics.url | quote }}
             - name: TELNET_PASSWORD
               valueFrom:
                 secretKeyRef:
