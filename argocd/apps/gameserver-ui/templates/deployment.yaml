@@ -43,6 +43,26 @@ spec:
                   name: {{ .Values.sealedSecret.secretName }}
                   key: adminPasswordHash
                   optional: true
+            - name: VM_SSH_KEY_PATH
+              value: /etc/gameserver-ui/ssh/privateKey
+            - name: VM_SSH_USER
+              value: ubuntu
+            - name: VM_TELNET_PORT
+              value: "8081"
+            - name: NAS_MOUNT_PATH
+              value: /mnt/gameserver-data
+            - name: TELNET_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.telnet.secretName }}
+                  key: password
+                  optional: true
+            - name: VM_SSH_HOST_FINGERPRINT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.sshSecret.secretName }}
+                  key: hostFingerprint
+                  optional: true
           resources:
             requests:
               cpu: 50m
@@ -60,6 +80,13 @@ spec:
               mountPath: /tmp
             - name: next-cache
               mountPath: /app/.next/cache
+            - name: ssh-key
+              mountPath: /etc/gameserver-ui/ssh
+              readOnly: true
+            {{- if and .Values.smb.encryptedUsername .Values.smb.encryptedPassword }}
+            - name: gameserver-data
+              mountPath: /mnt/gameserver-data
+            {{- end }}
           readinessProbe:
             httpGet: { path: /login, port: 3000 }
             initialDelaySeconds: 5
@@ -68,3 +95,12 @@ spec:
           emptyDir: {}
         - name: next-cache
           emptyDir: {}
+        - name: ssh-key
+          secret:
+            secretName: {{ .Values.sshSecret.secretName }}
+            defaultMode: 0400
+        {{- if and .Values.smb.encryptedUsername .Values.smb.encryptedPassword }}
+        - name: gameserver-data
+          persistentVolumeClaim:
+            claimName: gameserver-ui-data
+        {{- end }}
