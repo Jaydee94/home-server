@@ -2,7 +2,7 @@
 image:
   repository: ghcr.io/jaydee94/gameserver-ui
   tag: "stable"
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
 
 ingress:
   host: gameserver.homeserver
