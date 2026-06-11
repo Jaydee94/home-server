@@ -28,7 +28,7 @@ export async function POST() {
     mkdirSync(dir, { recursive: true });
 
     // 1. Spielwelt in der VM speichern
-    await telnetCommand(telnetOptsFromEnv(ip), "saveworld");
+    await telnetCommand(ssh, telnetOptsFromEnv(), "saveworld");
 
     // 2. tar-Stream über SSH auf NAS schreiben
     const now = new Date().toISOString().replace(/:/g, "-").slice(0, 19);
