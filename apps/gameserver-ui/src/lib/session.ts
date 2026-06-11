@@ -1,6 +1,6 @@
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
-import { timingSafeEqual } from "crypto";
+import { timingSafeEqual, createHash } from "crypto";
 
 export interface SessionData {
   loggedIn?: boolean;
@@ -19,8 +19,8 @@ export async function getSession() {
 
 export function verifyPassword(input: string, expected: string): boolean {
   if (!expected) return false;
-  const a = Buffer.from(input);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
+  // SHA-256 normalisiert beide Seiten auf 32 Bytes — verhindert Längen-Leak
+  const a = createHash("sha256").update(input).digest();
+  const b = createHash("sha256").update(expected).digest();
   return timingSafeEqual(a, b);
 }
