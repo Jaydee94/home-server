@@ -48,3 +48,6 @@ kubeconfig
 
 # Playwright MCP browser session data
 .playwright-mcp/
+
+# Visual brainstorming companion (local only)
+.superpowers/
