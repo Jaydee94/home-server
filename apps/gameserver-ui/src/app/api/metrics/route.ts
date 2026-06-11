@@ -8,7 +8,7 @@ export async function GET() {
     const vm = process.env.VM_NAME ?? "7dtd-server";
 
     const [cpuRes, memRes] = await Promise.all([
-      fetch(`${VICTORIA_URL}/api/v1/query?query=rate(kubevirt_vmi_vcpu_seconds%7Bname%3D%22${vm}%22%7D%5B5m%5D)*100`),
+      fetch(`${VICTORIA_URL}/api/v1/query?query=rate(kubevirt_vmi_vcpu_seconds_total%7Bname%3D%22${vm}%22%7D%5B5m%5D)*100`),
       fetch(`${VICTORIA_URL}/api/v1/query?query=kubevirt_vmi_memory_resident_bytes%7Bname%3D%22${vm}%22%7D`),
     ]);
 
