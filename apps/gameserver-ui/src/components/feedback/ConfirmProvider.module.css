@@ -1,0 +1,5 @@
+.overlay { position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; z-index: 90; padding: var(--sp-4); }
+.modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: var(--sp-5); max-width: 420px; width: 100%; }
+.title { font-size: 15px; font-weight: 700; margin-bottom: var(--sp-2); }
+.body { font-size: 13px; color: var(--fg-muted); margin-bottom: var(--sp-4); }
+.actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
