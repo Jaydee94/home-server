@@ -18,7 +18,7 @@ export async function DELETE(
       return NextResponse.json({ error: "VM läuft nicht" }, { status: 503 });
     }
     const ssh = SshClient.fromEnv(status.ipAddress);
-    await ssh.exec(`sudo rm -rf ${MODS_DIR}/${name}`);
+    await ssh.exec(`sudo rm -rf -- '${MODS_DIR}/${name}'`);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 400 });
