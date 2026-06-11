@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/feedback/ToastProvider";
 
-interface Player { name: string; id: string; level: number; }
+interface Player { name: string; id: string; level: number; onlineSince: number | null; }
 
 export default function PlayersPage() {
   const [players, setPlayers] = useState<Player[] | null>(null);
@@ -36,8 +36,9 @@ export default function PlayersPage() {
       <Card>
         {!players ? <Skeleton height={80} /> : players.length === 0 ? <EmptyState>Keine Spieler online</EmptyState> : (
           <Table>
-            <thead><tr><th>Name</th><th>Level</th></tr></thead>
-            <tbody>{players.map((p) => <tr key={p.id}><td>{p.name}</td><td>{p.level}</td></tr>)}</tbody>
+            <thead><tr><th>Name</th><th>Level</th><th>Online seit</th></tr></thead>
+            <tbody>{players.map((p) => <tr key={p.id}><td>{p.name}</td><td>{p.level}</td>
+              <td>{p.onlineSince ? new Date(p.onlineSince).toLocaleTimeString("de-DE") : "—"}</td></tr>)}</tbody>
           </Table>
         )}
       </Card>
