@@ -13,7 +13,12 @@ export class SshClient {
   static fromEnv(host: string): SshClient {
     const keyPath = process.env.VM_SSH_KEY_PATH ?? "/etc/gameserver-ui/ssh/privateKey";
     const user = process.env.VM_SSH_USER ?? "ubuntu";
-    const privateKey = readFileSync(keyPath, "utf8");
+    let privateKey: string;
+    try {
+      privateKey = readFileSync(keyPath, "utf8");
+    } catch {
+      throw new Error(`SSH key not found at ${keyPath} — set VM_SSH_KEY_PATH`);
+    }
     return new SshClient({ host, user, privateKey });
   }
 
@@ -40,7 +45,7 @@ export class SshClient {
   }
 
   stream(command: string): ReadableStream<Uint8Array> {
-    const { host, user, privateKey } = this.opts;
+    const self = this;
     return new ReadableStream({
       start(controller) {
         const conn = new Client();
@@ -48,17 +53,21 @@ export class SshClient {
           conn.exec(command, (err, stream) => {
             if (err) { controller.error(err); conn.end(); return; }
             stream.on("data", (d: Buffer) => controller.enqueue(d));
-            stream.on("close", () => { controller.close(); conn.end(); });
+            stream.on("close", (code: number) => {
+              conn.end();
+              if (code !== 0) controller.error(new Error(`Stream exit ${code}`));
+              else controller.close();
+            });
             stream.on("error", (e: Error) => { controller.error(e); conn.end(); });
           });
         });
         conn.on("error", (e) => controller.error(e));
-        conn.connect({ host, username: user, privateKey });
+        conn.connect(self.connectConfig());
       },
     });
   }
 
   private connectConfig(): ConnectConfig {
-    return { host: this.opts.host, username: this.opts.user, privateKey: this.opts.privateKey };
+    return { host: this.opts.host, username: this.opts.user, privateKey: this.opts.privateKey, readyTimeout: 10000 };
   }
 }
