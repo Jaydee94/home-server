@@ -17,20 +17,34 @@ function makeMetricResponse(value: string | null) {
 }
 
 describe("/api/metrics", () => {
-  it("liefert CPU und RAM wenn VictoriaMetrics antwortet", async () => {
+  it("liefert CPU, RAM und memoryTotalMb wenn VictoriaMetrics antwortet", async () => {
     fetchMock
       .mockResolvedValueOnce(makeMetricResponse("25.5"))
-      .mockResolvedValueOnce(makeMetricResponse(String(512 * 1024 * 1024)));
+      .mockResolvedValueOnce(makeMetricResponse(String(512 * 1024 * 1024)))
+      .mockResolvedValueOnce(makeMetricResponse(String(8192 * 1024 * 1024)));
 
     const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.cpuPercent).toBe(25.5);
     expect(body.memoryMb).toBe(512);
+    expect(body.memoryTotalMb).toBe(8192);
   });
 
-  it("liefert null-Werte wenn Metriken leer sind", async () => {
+  it("liefert memoryTotalMb null wenn Metrik leer", async () => {
     fetchMock
+      .mockResolvedValueOnce(makeMetricResponse("25.5"))
+      .mockResolvedValueOnce(makeMetricResponse(String(512 * 1024 * 1024)))
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { result: [] } }) });
+
+    const res = await GET();
+    const body = await res.json();
+    expect(body.memoryTotalMb).toBeNull();
+  });
+
+  it("liefert null-Werte wenn alle Metriken leer sind", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { result: [] } }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { result: [] } }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ data: { result: [] } }) });
 
@@ -39,10 +53,12 @@ describe("/api/metrics", () => {
     const body = await res.json();
     expect(body.cpuPercent).toBeNull();
     expect(body.memoryMb).toBeNull();
+    expect(body.memoryTotalMb).toBeNull();
   });
 
   it("liefert null wenn VictoriaMetrics nicht erreichbar (HTTP-Fehler)", async () => {
     fetchMock
+      .mockResolvedValueOnce({ ok: false, json: async () => ({}) })
       .mockResolvedValueOnce({ ok: false, json: async () => ({}) })
       .mockResolvedValueOnce({ ok: false, json: async () => ({}) });
 
@@ -51,11 +67,12 @@ describe("/api/metrics", () => {
     const body = await res.json();
     expect(body.cpuPercent).toBeNull();
     expect(body.memoryMb).toBeNull();
+    expect(body.memoryTotalMb).toBeNull();
   });
 
   it("liefert 502 wenn fetch wirft", async () => {
     const err = new Error("Network error");
-    fetchMock.mockRejectedValueOnce(err).mockRejectedValueOnce(err);
+    fetchMock.mockRejectedValueOnce(err);
 
     const res = await GET();
     expect(res.status).toBe(502);
@@ -66,7 +83,8 @@ describe("/api/metrics", () => {
   it("rundet CPU auf eine Nachkommastelle", async () => {
     fetchMock
       .mockResolvedValueOnce(makeMetricResponse("12.3456789"))
-      .mockResolvedValueOnce(makeMetricResponse(String(256 * 1024 * 1024)));
+      .mockResolvedValueOnce(makeMetricResponse(String(256 * 1024 * 1024)))
+      .mockResolvedValueOnce(makeMetricResponse(String(8192 * 1024 * 1024)));
 
     const res = await GET();
     const body = await res.json();
