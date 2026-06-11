@@ -8,10 +8,13 @@ export default function ConfigPage() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    fetch("/api/config").then(r => r.json()).then(d => {
-      if (d.xml) setXml(d.xml);
-      else setError(d.error ?? "Fehler beim Laden");
-    });
+    fetch("/api/config")
+      .then(r => r.json())
+      .then(d => {
+        if (d.xml) setXml(d.xml);
+        else setError(d.error ?? "Fehler beim Laden");
+      })
+      .catch(e => setError(String(e)));
   }, []);
 
   async function save() {
@@ -23,8 +26,13 @@ export default function ConfigPage() {
       body: JSON.stringify({ xml }),
     });
     setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 3000); }
-    else setError((await res.json()).error ?? "Fehler beim Speichern");
+    if (res.ok) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } else {
+      setSaved(false);
+      setError((await res.json()).error ?? "Fehler beim Speichern");
+    }
   }
 
   return (

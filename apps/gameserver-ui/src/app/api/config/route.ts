@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
-import { writeFileSync, existsSync, mkdirSync } from "fs";
+import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 
 const VM_CONFIG_PATH = "/opt/7dtd/config/serverconfig.xml";
@@ -42,11 +42,11 @@ export async function PUT(req: Request) {
 
     // Auf NAS persistieren wenn Mount verfügbar
     const nasDir = process.env.NAS_MOUNT_PATH ?? "/mnt/gameserver-data";
-    if (existsSync(nasDir)) {
-      try {
-        mkdirSync(nasDir, { recursive: true });
-        writeFileSync(join(nasDir, "serverconfig.xml"), xml);
-      } catch { /* NAS optional */ }
+    try {
+      mkdirSync(nasDir, { recursive: true });
+      writeFileSync(join(nasDir, "serverconfig.xml"), xml);
+    } catch (e) {
+      console.warn("[config] NAS persist failed:", e);
     }
 
     return NextResponse.json({ ok: true });
