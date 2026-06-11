@@ -3,7 +3,7 @@ import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
 import { telnetCommand, telnetOptsFromEnv } from "@/lib/telnet";
 import { listBackups, backupFilePath } from "@/lib/backups";
-import { mkdirSync, createWriteStream } from "fs";
+import { mkdirSync, createWriteStream, existsSync, unlinkSync, renameSync } from "fs";
 import { join } from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
@@ -35,8 +35,15 @@ export async function POST() {
     const filename = `backup-${now}.tar.gz`;
     const destPath = backupFilePath(dir, filename);
 
-    const sshStream = ssh.stream("sudo tar czf - /opt/7dtd/data/Saves 2>/dev/null");
-    await pipeline(Readable.fromWeb(sshStream as any), createWriteStream(destPath));
+    const partialPath = destPath + ".partial";
+    try {
+      const sshStream = ssh.stream("sudo tar czf - /opt/7dtd/data/Saves 2>/dev/null");
+      await pipeline(Readable.fromWeb(sshStream as any), createWriteStream(partialPath));
+      renameSync(partialPath, destPath);
+    } catch (err) {
+      if (existsSync(partialPath)) unlinkSync(partialPath);
+      throw err;
+    }
 
     return NextResponse.json({ ok: true, filename });
   } catch (err) {

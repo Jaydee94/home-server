@@ -34,25 +34,30 @@ export async function POST(
     // Server stoppen
     await ssh.exec("sudo docker stop 7dtd-server");
 
-    // Backup in Chunks als base64 in die VM übertragen
-    const fileContent = readFileSync(filePath);
-    const b64 = fileContent.toString("base64");
+    try {
+      // Backup in Chunks als base64 in die VM übertragen
+      const fileContent = readFileSync(filePath);
+      const b64 = fileContent.toString("base64");
 
-    await ssh.exec("sudo rm -f /tmp/restore.b64");
-    for (let i = 0; i < b64.length; i += CHUNK_SIZE) {
-      const chunk = b64.slice(i, i + CHUNK_SIZE);
-      const op = i === 0 ? ">" : ">>";
-      // printf statt echo um Backslash-Interpretation zu vermeiden
-      await ssh.exec(`printf '%s' '${chunk}' ${op} /tmp/restore.b64`);
+      await ssh.exec("sudo rm -f /tmp/restore.b64");
+      for (let i = 0; i < b64.length; i += CHUNK_SIZE) {
+        const chunk = b64.slice(i, i + CHUNK_SIZE);
+        const op = i === 0 ? ">" : ">>";
+        // printf statt echo um Backslash-Interpretation zu vermeiden
+        await ssh.exec(`printf '%s' '${chunk}' ${op} /tmp/restore.b64`);
+      }
+
+      // Saves-Verzeichnis leeren und Archiv entpacken
+      // Archive-Pfade: opt/7dtd/data/Saves/... → strip 3 Komponenten → -C /opt/7dtd/data
+      await ssh.exec(
+        "base64 -d /tmp/restore.b64 | sudo tar xzf - -C /opt/7dtd/data --strip-components=3 2>&1 && sudo rm -f /tmp/restore.b64",
+      );
+    } finally {
+      // Server immer wieder starten, auch bei Fehler
+      await ssh.exec("sudo docker start 7dtd-server").catch((e: unknown) => {
+        console.error("[restore] docker start failed:", e);
+      });
     }
-
-    // Saves-Verzeichnis leeren und Archiv entpacken
-    await ssh.exec(
-      "base64 -d /tmp/restore.b64 | sudo tar xzf - -C /opt/7dtd/data/Saves --strip-components=3 2>/dev/null; sudo rm -f /tmp/restore.b64",
-    );
-
-    // Server wieder starten
-    await ssh.exec("sudo docker start 7dtd-server");
 
     return NextResponse.json({ ok: true });
   } catch (err) {
