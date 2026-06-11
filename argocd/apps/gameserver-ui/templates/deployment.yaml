@@ -98,7 +98,7 @@ spec:
         - name: ssh-key
           secret:
             secretName: {{ .Values.sshSecret.secretName }}
-            defaultMode: 0400
+            defaultMode: 0444
         {{- if and .Values.smb.encryptedUsername .Values.smb.encryptedPassword }}
         - name: gameserver-data
           persistentVolumeClaim:
