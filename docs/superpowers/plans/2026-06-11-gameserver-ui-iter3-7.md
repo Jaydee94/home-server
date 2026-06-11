@@ -1598,13 +1598,295 @@ Via kubeseal-webgui (`http://kubeseal-webgui.homeserver` oder Cluster-IP):
 
 Erzeugten `encryptedData.password`-Wert in `values.yaml` unter `telnet.encryptedPassword` eintragen.
 
-- [ ] **Step 5: Commit + PR erstellen**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add argocd/apps/gameserver-ui/values.yaml
 git commit -m "feat(gameserver-ui): Image-Tag + Telnet-Secret versiegelt"
+```
 
-gh pr create --title "feat(gameserver-ui): Iterationen 3-7 (Spieler, Logs, Config, Backups, Zeitplan)" \
+---
+
+## Task 9: Mod-Management (Iteration 8)
+
+**Files:**
+- Create: `apps/gameserver-ui/src/lib/mods.ts`
+- Create: `apps/gameserver-ui/src/lib/__tests__/mods.test.ts`
+- Create: `apps/gameserver-ui/src/app/api/mods/route.ts`
+- Create: `apps/gameserver-ui/src/app/api/mods/[name]/route.ts`
+- Create: `apps/gameserver-ui/src/app/mods/page.tsx`
+
+7DTD-Mods-Verzeichnis in der VM: `/opt/7dtd/mods/` (jeder Mod = Unterordner mit DLLs/XML).
+Upload-Format: `.zip` (enthält Mod-Ordner direkt oder mit einer Ebene darüber).
+Transfer: multipart-Upload → base64-Chunks via SSH → `unzip` in der VM.
+
+- [ ] **Step 1: Failing Mods-Lib-Tests**
+
+`apps/gameserver-ui/src/lib/__tests__/mods.test.ts`:
+```typescript
+import { describe, it, expect } from "vitest";
+import { sanitizeModName } from "@/lib/mods";
+
+describe("sanitizeModName", () => {
+  it("erlaubt gültige Mod-Namen", () => {
+    expect(sanitizeModName("MyMod")).toBe("MyMod");
+    expect(sanitizeModName("Mod-v1.2")).toBe("Mod-v1.2");
+  });
+  it("wirft bei Pfad-Traversal", () => {
+    expect(() => sanitizeModName("../etc")).toThrow();
+    expect(() => sanitizeModName("foo/bar")).toThrow();
+  });
+  it("wirft bei leerem Namen", () => {
+    expect(() => sanitizeModName("")).toThrow();
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+```bash
+cd apps/gameserver-ui && npx vitest run src/lib/__tests__/mods.test.ts
+```
+
+- [ ] **Step 3: Mods-Lib implementieren**
+
+`apps/gameserver-ui/src/lib/mods.ts`:
+```typescript
+export interface ModInfo {
+  name: string;
+  sizeBytes: number;
+}
+
+export function sanitizeModName(name: string): string {
+  if (!name || name.includes("/") || name.includes("..") || name.includes("\\")) {
+    throw new Error(`Ungültiger Mod-Name: ${name}`);
+  }
+  return name;
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+```bash
+cd apps/gameserver-ui && npx vitest run src/lib/__tests__/mods.test.ts
+```
+
+- [ ] **Step 5: Mods-API (GET + POST)**
+
+`apps/gameserver-ui/src/app/api/mods/route.ts`:
+```typescript
+import { NextResponse } from "next/server";
+import { VmClient } from "@/lib/k8s";
+import { SshClient } from "@/lib/ssh";
+import { sanitizeModName } from "@/lib/mods";
+
+const MODS_DIR = "/opt/7dtd/mods";
+
+export async function GET() {
+  try {
+    const status = await VmClient.inCluster().getStatus();
+    if (status.vmiPhase !== "Running" || !status.ipAddress) {
+      return NextResponse.json({ error: "VM läuft nicht" }, { status: 503 });
+    }
+    const ssh = SshClient.fromEnv(status.ipAddress);
+    const out = await ssh.exec(`ls -1 ${MODS_DIR} 2>/dev/null || echo ""`);
+    const mods = out.split("\n").map(n => n.trim()).filter(Boolean).map(name => ({ name, sizeBytes: 0 }));
+    return NextResponse.json({ mods });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 502 });
+  }
+}
+
+// POST: multipart/form-data mit field "file" (zip)
+export async function POST(req: Request) {
+  try {
+    const status = await VmClient.inCluster().getStatus();
+    if (status.vmiPhase !== "Running" || !status.ipAddress) {
+      return NextResponse.json({ error: "VM läuft nicht" }, { status: 503 });
+    }
+
+    const formData = await req.formData();
+    const file = formData.get("file") as File | null;
+    if (!file) return NextResponse.json({ error: "Kein File-Field" }, { status: 400 });
+    if (!file.name.endsWith(".zip")) {
+      return NextResponse.json({ error: "Nur .zip-Dateien erlaubt" }, { status: 400 });
+    }
+
+    const ssh = SshClient.fromEnv(status.ipAddress);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+
+    // Zip-Inhalt via base64 in Chunks übertragen
+    const b64 = Buffer.from(bytes).toString("base64");
+    const CHUNK = 65536;
+    await ssh.exec(`rm -f /tmp/mod_upload.zip`);
+    for (let i = 0; i < b64.length; i += CHUNK) {
+      const chunk = b64.slice(i, i + CHUNK);
+      const op = i === 0 ? ">" : ">>";
+      await ssh.exec(`printf '%s' '${chunk}' ${op} /tmp/mod_upload.b64`);
+    }
+    await ssh.exec(`base64 -d /tmp/mod_upload.b64 > /tmp/mod_upload.zip && rm /tmp/mod_upload.b64`);
+    await ssh.exec(`sudo unzip -o /tmp/mod_upload.zip -d ${MODS_DIR} && sudo rm /tmp/mod_upload.zip`);
+
+    return NextResponse.json({ ok: true, name: file.name.replace(".zip", "") });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 502 });
+  }
+}
+```
+
+- [ ] **Step 6: Mods-API (DELETE)**
+
+`apps/gameserver-ui/src/app/api/mods/[name]/route.ts`:
+```typescript
+import { NextResponse } from "next/server";
+import { VmClient } from "@/lib/k8s";
+import { SshClient } from "@/lib/ssh";
+import { sanitizeModName } from "@/lib/mods";
+
+const MODS_DIR = "/opt/7dtd/mods";
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ name: string }> }) {
+  try {
+    const { name } = await params;
+    sanitizeModName(name); // wirft bei ungültigem Namen
+
+    const status = await VmClient.inCluster().getStatus();
+    if (status.vmiPhase !== "Running" || !status.ipAddress) {
+      return NextResponse.json({ error: "VM läuft nicht" }, { status: 503 });
+    }
+    const ssh = SshClient.fromEnv(status.ipAddress);
+    await ssh.exec(`sudo rm -rf '${MODS_DIR}/${name}'`);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 400 });
+  }
+}
+```
+
+- [ ] **Step 7: Mods-UI (Drag & Drop)**
+
+`apps/gameserver-ui/src/app/mods/page.tsx`:
+```typescript
+"use client";
+import { useEffect, useRef, useState } from "react";
+
+interface ModInfo { name: string; sizeBytes: number; }
+
+export default function ModsPage() {
+  const [mods, setMods] = useState<ModInfo[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function load() {
+    const res = await fetch("/api/mods");
+    if (res.ok) { setMods((await res.json()).mods); setError(""); }
+    else setError("Fehler beim Laden");
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function upload(file: File) {
+    if (!file.name.endsWith(".zip")) { setError("Nur .zip-Dateien"); return; }
+    setBusy(true); setMsg(""); setError("");
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/mods", { method: "POST", body: form });
+    setBusy(false);
+    if (res.ok) { setMsg(`✓ ${file.name} installiert`); load(); }
+    else setError("Fehler: " + ((await res.json()).error ?? "unbekannt"));
+  }
+
+  async function deleteMod(name: string) {
+    if (!confirm(`Mod "${name}" löschen?`)) return;
+    setBusy(true); setMsg(""); setError("");
+    const res = await fetch(`/api/mods/${encodeURIComponent(name)}`, { method: "DELETE" });
+    setBusy(false);
+    if (res.ok) { setMsg(`✓ ${name} gelöscht`); load(); }
+    else setError("Fehler: " + ((await res.json()).error ?? "unbekannt"));
+  }
+
+  return (
+    <main style={{ maxWidth: 700, margin: "5vh auto", fontFamily: "sans-serif" }}>
+      <h1>Mod-Verwaltung</h1>
+      {msg && <p style={{ color: "green" }}>{msg}</p>}
+      {error && <p style={{ color: "crimson" }}>{error}</p>}
+
+      <div
+        onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={e => {
+          e.preventDefault(); setDragOver(false);
+          const f = e.dataTransfer.files[0];
+          if (f) upload(f);
+        }}
+        onClick={() => inputRef.current?.click()}
+        style={{
+          border: `2px dashed ${dragOver ? "#0070f3" : "#ccc"}`,
+          borderRadius: 8,
+          padding: "2rem",
+          textAlign: "center",
+          cursor: busy ? "wait" : "pointer",
+          background: dragOver ? "#f0f7ff" : "transparent",
+          marginBottom: "1.5rem",
+        }}
+      >
+        {busy ? "Wird hochgeladen…" : "Mod-Zip hier ablegen oder klicken"}
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".zip"
+          style={{ display: "none" }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) upload(f); e.target.value = ""; }}
+        />
+      </div>
+
+      <table cellPadding={6} style={{ width: "100%", borderCollapse: "collapse" }}>
+        <thead><tr style={{ textAlign: "left", borderBottom: "1px solid #ccc" }}>
+          <th>Mod-Name</th><th></th>
+        </tr></thead>
+        <tbody>
+          {mods.length === 0 && <tr><td colSpan={2}>Keine Mods installiert</td></tr>}
+          {mods.map(m => (
+            <tr key={m.name} style={{ borderBottom: "1px solid #eee" }}>
+              <td>{m.name}</td>
+              <td><button disabled={busy} onClick={() => deleteMod(m.name)}>Löschen</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p><a href="/">← Dashboard</a></p>
+    </main>
+  );
+}
+```
+
+- [ ] **Step 8: Tests grün**
+
+```bash
+cd apps/gameserver-ui && npx vitest run
+```
+
+- [ ] **Step 9: Commit**
+
+```bash
+git add apps/gameserver-ui/src/lib/mods.ts \
+  apps/gameserver-ui/src/lib/__tests__/mods.test.ts \
+  apps/gameserver-ui/src/app/api/mods/ \
+  apps/gameserver-ui/src/app/mods/
+git commit -m "feat(gameserver-ui): Mod-Verwaltung mit Drag & Drop (Iter. 8)"
+```
+
+---
+
+## Task 8 (aktualisiert): Infra-Updates + Navigation + PR
+
+- [ ] **Step 5: PR erstellen**
+
+```bash
+gh pr create --title "feat(gameserver-ui): Iterationen 3-8 (Spieler, Logs, Config, Backups, Zeitplan, Mods)" \
   --body "Closes #123
 
 ## Summary
@@ -1613,6 +1895,7 @@ gh pr create --title "feat(gameserver-ui): Iterationen 3-7 (Spieler, Logs, Confi
 - Iter. 5: serverconfig.xml-Editor mit SSH-Rollout + NAS-Persistenz
 - Iter. 6: Spielwelt-Backups (tar-Stream→NAS) + Restore
 - Iter. 7: CronJob-Zeitplanung (Schedule + Suspend)
+- Iter. 8: Mod-Verwaltung mit Drag & Drop
 
 ## Test plan
 - [ ] \`npx vitest run\` grün
@@ -1623,6 +1906,8 @@ gh pr create --title "feat(gameserver-ui): Iterationen 3-7 (Spieler, Logs, Confi
 - [ ] Config laden + speichern → Docker-Neustart in VM
 - [ ] Backup erstellen → .tar.gz auf NAS; Restore rückgängig
 - [ ] CronJob-Schedule ändern → K8s-Objekt aktualisiert
+- [ ] Mod-Zip hochladen per Drag & Drop → erscheint in Liste
+- [ ] Mod löschen → verschwindet aus Liste
 
 🤖 Generated with Claude Code"
 ```
