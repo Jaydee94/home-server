@@ -13,4 +13,9 @@ describe("sanitizeModName", () => {
   it("wirft bei leerem Namen", () => {
     expect(() => sanitizeModName("")).toThrow();
   });
+  it("wirft bei Shell-Sonderzeichen", () => {
+    expect(() => sanitizeModName("x'; rm -rf /")).toThrow();
+    expect(() => sanitizeModName("mod$name")).toThrow();
+    expect(() => sanitizeModName("mod`cmd`")).toThrow();
+  });
 });
