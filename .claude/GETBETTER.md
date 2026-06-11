@@ -1,6 +1,6 @@
 # GETBETTER
 
-_Letzte Aktualisierung: 2026-06-07_
+_Letzte Aktualisierung: 2026-06-11_
 
 ## Entscheidungen
 
@@ -55,6 +55,10 @@ _Letzte Aktualisierung: 2026-06-07_
 - **`iconStyle: color` statt `theme` für farbige Original-Logos**: `iconStyle: theme` tönt alle Icons in die Theme-Farbe (teal). Design zeigt farbige Original-Logos (ArgoCD rot, Grafana orange, etc.) → `iconStyle: color` in settings.yaml.
 
 - **Claude Design Bundle via `curl | gunzip | tar`**: Design-Handoff-Bundles von `api.anthropic.com/v1/design/h/<hash>` sind gzip-tar-Archive. Dekomprimieren: `curl -sL <url> | gunzip | tar -t` (auflisten), `tar -xO "<pfad>"` (einzelne Datei ausgeben). WebFetch/WebFetch scheitern am Binary-Content — direkt curl nutzen.
+
+- **`ssh2.forwardOut` für localhost-gebundene Dienste in VMs**: 7DTD Telnet bindet nur auf `127.0.0.1:8081` (kein externer Zugriff). Direktes TCP vom Pod schlägt mit ECONNREFUSED fehl. Fix: `SshClient.forwardOut(port)` öffnet einen SSH-Tunnel und gibt einen bidirektionalen Channel zurück — das Telnet-Protokoll läuft darüber transparent. Gleiches Muster gilt für jeden VM-lokalen Dienst.
+
+- **kubeseal-webgui statt kubeseal-CLI auf dem Server**: `kubeseal --raw` auf dem Server kann einen falschen/veralteten Key verwenden → SealedSecret bleibt `Degraded ("no key could decrypt secret")`. kubeseal-webgui fetcht das Zertifikat live vom Controller und ist zuverlässiger. Für nicht-triviale Secrets: immer kubeseal-webgui bevorzugen.
 
 ## Anti-Patterns
 
@@ -113,6 +117,10 @@ _Letzte Aktualisierung: 2026-06-07_
 - **`body`-Hintergrund setzen reicht nicht wenn ein Tailwind-Wrapper darüber liegt**: Wenn ein Framework einen `fixed`/`absolute` Vollbild-Wrapper mit Theme-Farbe rendert, ist die `body`-CSS-Regel visuell wirkungslos. Diagnose: `document.querySelectorAll('div[class*="bg-"]')` + `getComputedStyle(el).backgroundColor` zeigt den tatsächlichen Übeltäter. Erst dann den richtigen Selektor überschreiben.
 
 - **Design-Bundle-CSS als "fertig implementiert" deklarieren ohne Live-Screenshot-Vergleich**: Das Design-Bundle-CSS war funktional identisch zum bereits gemergten Stand — aber der homepage Tailwind-Wrapper wurde nicht berücksichtigt. Ein Live-Screenshot vor der Fertigmeldung hätte den Fehler sofort sichtbar gemacht.
+
+- **kubeseal-CLI auf dem Server für Sealed Secrets nutzen**: `kubeseal --raw` auf dem Server verwendet nicht zwingend das aktive Controller-Zertifikat → SealedSecret bleibt `Degraded ("no key could decrypt secret")`. Stattdessen kubeseal-webgui nutzen (fetcht Zertifikat live vom Controller) oder das Zertifikat explizit via `--cert` übergeben.
+
+- **Rolling Update bei CSI-Volume-Mount-Änderungen**: Wenn sich SMB/NFS-Mount-Optionen (uid, gid) ändern, übernimmt ein Rolling Update die neuen Optionen NICHT — der alte Pod hält den CSI-Stage und der neue Pod bekommt denselben Stage zugewiesen. Einziger Fix: `scale --replicas=0` (vollständiger Unmount) → `scale --replicas=1` (frischer Mount mit neuen Optionen).
 
 ## Was funktioniert
 
@@ -177,3 +185,9 @@ _Letzte Aktualisierung: 2026-06-07_
 - **Playwright Screenshot-Vergleich als Verifikationsworkflow für visuelle Änderungen**: Vor dem Merge einen Screenshot nehmen, nach dem Merge + ArgoCD-Refresh + `rollout status` einen zweiten — direkter visueller Vergleich. `browser_navigate` → `browser_take_screenshot` → `Read` (PNG-Preview). Für CSS-Änderungen zuverlässiger als nur YAML-Lint.
 
 - **`kubectl rollout status` nach `argocd annotate refresh=hard`**: Nach einem ArgoCD-Hard-Refresh muss der Deployment-Rollout abgewartet werden bevor ein Screenshot sinnvoll ist. Sequenz: annotate → sleep 15 → `rollout status --timeout=60s` → navigate → screenshot.
+
+- **`ssh2.forwardOut(port)` für VM-lokale TCP-Dienste**: Wenn ein Dienst in der VM nur auf `127.0.0.1` lauscht (z.B. 7DTD Telnet auf Port 8081), tunnelt `SshClient.forwardOut(port)` die Verbindung durch SSH. Der zurückgegebene Channel ist ein normaler Node.js Duplex-Stream — Protokoll-Implementierungen (Telnet, HTTP) laufen darüber transparent. Voraussetzung: bestehende SSH-Verbindung via ssh2 Client.
+
+- **`kubectl scale --replicas=0` → wait → `scale --replicas=1` für CSI-Remount**: Wenn sich SMB/NFS-Mount-Optionen (uid, gid, file_mode) in einem PV ändern, erzwingt ein vollständiges Scale-Down (alle Pods terminieren → CSI NodeUnpublishVolume + NodeUnstageVolume) gefolgt von Scale-Up einen frischen Mount mit den neuen Optionen. Rolling-Restart reicht nicht — der alte Stage bleibt aktiv solange mindestens ein Pod das Volume nutzt.
+
+- **Playwright Full-UI-Regression nach jedem Rollout**: Nach dem Merge wichtiger PRs alle Seiten per Playwright durchklicken — Login, Dashboard, alle Feature-Seiten, alle destruktiven Aktionen (Backup, Welt speichern). Fehler (EACCES, ECONNREFUSED) werden sofort sichtbar ohne SSH-Logs lesen zu müssen.
