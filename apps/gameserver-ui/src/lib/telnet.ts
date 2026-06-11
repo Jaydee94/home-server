@@ -1,4 +1,4 @@
-import * as net from "net";
+import type { SshClient } from "@/lib/ssh";
 
 export interface Player {
   name: string;
@@ -27,47 +27,45 @@ export function parseLp(output: string): Player[] {
 }
 
 export interface TelnetOptions {
-  host: string;
   port: number;
   password: string;
   timeoutMs?: number;
 }
 
-export async function telnetCommand(opts: TelnetOptions, command: string): Promise<string> {
-  const { host, port, password, timeoutMs = 10000 } = opts;
+export async function telnetCommand(ssh: SshClient, opts: TelnetOptions, command: string): Promise<string> {
+  const { port, password, timeoutMs = 10000 } = opts;
+  const { channel, close } = await ssh.forwardOut(port);
   return new Promise((resolve, reject) => {
-    const sock = net.createConnection({ host, port });
     let buf = "";
     let authed = false;
-    const timer = setTimeout(() => { sock.destroy(); reject(new Error("Telnet timeout")); }, timeoutMs);
+    const done = (fn: () => void) => { clearTimeout(timer); channel.destroy(); close(); fn(); };
+    const timer = setTimeout(() => done(() => reject(new Error("Telnet timeout"))), timeoutMs);
 
-    sock.setEncoding("utf8");
-    sock.on("data", (chunk: string) => {
+    channel.setEncoding("utf8");
+    channel.on("data", (chunk: string) => {
       buf += chunk;
       if (!authed && buf.includes("Please enter password:")) {
-        sock.write(password + "\r\n");
+        channel.write(password + "\r\n");
         buf = "";
         return;
       }
       if (!authed && (buf.includes("Logon successful") || buf.includes("Press 'help'"))) {
         authed = true;
         buf = "";
-        sock.write(command + "\r\n");
+        channel.write(command + "\r\n");
         return;
       }
       if (authed && buf.includes("\n")) {
-        clearTimeout(timer);
-        setTimeout(() => { sock.destroy(); resolve(buf.trim()); }, 300);
+        setTimeout(() => done(() => resolve(buf.trim())), 300);
       }
     });
-    sock.on("error", (e) => { clearTimeout(timer); reject(e); });
-    sock.on("close", () => clearTimeout(timer));
+    channel.on("error", (e) => done(() => reject(e)));
+    channel.on("close", () => { clearTimeout(timer); close(); });
   });
 }
 
-export function telnetOptsFromEnv(host: string): TelnetOptions {
+export function telnetOptsFromEnv(): TelnetOptions {
   return {
-    host,
     port: Number(process.env.VM_TELNET_PORT ?? "8081"),
     password: process.env.TELNET_PASSWORD ?? "",
   };

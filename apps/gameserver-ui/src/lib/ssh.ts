@@ -81,6 +81,20 @@ export class SshClient {
     });
   }
 
+  forwardOut(dstPort: number) {
+    return new Promise<{ channel: import("stream").Duplex; close: () => void }>((resolve, reject) => {
+      const conn = new Client();
+      conn.on("ready", () => {
+        conn.forwardOut("127.0.0.1", 0, "127.0.0.1", dstPort, (err, channel) => {
+          if (err) { conn.end(); return reject(err); }
+          resolve({ channel, close: () => conn.end() });
+        });
+      });
+      conn.on("error", reject);
+      conn.connect(this.connectConfig());
+    });
+  }
+
   private connectConfig(): ConnectConfig {
     return {
       host: this.opts.host,

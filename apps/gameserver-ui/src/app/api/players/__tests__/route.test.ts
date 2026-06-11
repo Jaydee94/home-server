@@ -7,10 +7,11 @@ const { getStatus, telnetCommandMock, parseLpMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/k8s", () => ({ VmClient: { inCluster: () => ({ getStatus }) } }));
+vi.mock("@/lib/ssh", () => ({ SshClient: { fromEnv: vi.fn().mockReturnValue({}) } }));
 vi.mock("@/lib/telnet", () => ({
   telnetCommand: telnetCommandMock,
   parseLp: parseLpMock,
-  telnetOptsFromEnv: vi.fn().mockReturnValue({ host: "10.0.0.1", port: 8081, password: "pw" }),
+  telnetOptsFromEnv: vi.fn().mockReturnValue({ port: 8081, password: "pw" }),
 }));
 
 import { GET, POST } from "@/app/api/players/route";
@@ -40,7 +41,7 @@ describe("/api/players", () => {
       method: "POST", body: JSON.stringify({ action: "broadcast", message: "Hallo!" }),
     }));
     expect(res.status).toBe(200);
-    expect(telnetCommandMock).toHaveBeenCalledWith(expect.any(Object), "say Hallo!");
+    expect(telnetCommandMock).toHaveBeenCalledWith(expect.any(Object), expect.any(Object), "say Hallo!");
   });
 
   it("POST saveworld sendet saveworld-Befehl", async () => {
@@ -50,7 +51,7 @@ describe("/api/players", () => {
       method: "POST", body: JSON.stringify({ action: "saveworld" }),
     }));
     expect(res.status).toBe(200);
-    expect(telnetCommandMock).toHaveBeenCalledWith(expect.any(Object), "saveworld");
+    expect(telnetCommandMock).toHaveBeenCalledWith(expect.any(Object), expect.any(Object), "saveworld");
   });
 
   it("POST mit ungültiger action gibt 400", async () => {
