@@ -28,8 +28,8 @@ smb:
   capacity: "500Gi"
   mountOptions:
     - vers=3.0
-    - uid=1000
-    - gid=1000
+    - uid=10001
+    - gid=10001
     - file_mode=0664
     - dir_mode=0775
     - _netdev
