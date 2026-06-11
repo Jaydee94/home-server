@@ -23,20 +23,20 @@ export async function GET() {
       const reader = vmStream.getReader();
       const encoder = new TextEncoder();
       const decoder = new TextDecoder();
-
       function pump(): void {
         reader.read().then(({ done, value }) => {
           if (done) { controller.close(); return; }
           const lines = decoder.decode(value).split("\n");
           for (const line of lines) {
-            if (line.trim()) {
-              controller.enqueue(encoder.encode(`data: ${line}\n\n`));
-            }
+            if (line.trim()) controller.enqueue(encoder.encode(`data: ${line}\n\n`));
           }
           pump();
         }).catch(e => controller.error(e));
       }
       pump();
+    },
+    cancel() {
+      vmStream.cancel();
     },
   });
 
@@ -45,6 +45,7 @@ export async function GET() {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }
