@@ -10,7 +10,14 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useConfirm } from "@/components/feedback/ConfirmProvider";
 
-interface Metrics { cpuPercent: number | null; memoryMb: number | null; }
+interface Metrics { cpuPercent: number | null; memoryMb: number | null; memoryTotalMb: number | null; }
+
+function ramDisplay(mb: number | null, totalMb: number | null): { value: string; unit?: string } {
+  if (mb === null) return { value: "—" };
+  const usedGb = (mb / 1024).toFixed(1);
+  if (totalMb === null) return { value: usedGb, unit: "GB" };
+  return { value: `${usedGb} / ${(totalMb / 1024).toFixed(1)}`, unit: "GB" };
+}
 
 export default function Dashboard() {
   const { status, running } = useVmStatus();
@@ -82,7 +89,7 @@ export default function Dashboard() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "var(--sp-3)" }}>
         <StatTile label="CPU" value={metrics?.cpuPercent ?? "—"} unit={metrics?.cpuPercent != null ? "%" : undefined} />
-        <StatTile label="RAM" value={metrics?.memoryMb ?? "—"} unit={metrics?.memoryMb != null ? "MB" : undefined} />
+        <StatTile label="RAM" {...ramDisplay(metrics?.memoryMb ?? null, metrics?.memoryTotalMb ?? null)} />
         <StatTile label="Status" value={running ? "Online" : "Offline"} />
         <StatTile label="Blutmond" value={horde ?? "—"} />
       </div>
