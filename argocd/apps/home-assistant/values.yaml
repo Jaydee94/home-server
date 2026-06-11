@@ -23,26 +23,80 @@ home-assistant:
             pathType: Prefix
     tls: []
 
-  # GitOps-Installation der Solakon-ONE Custom-Integration (Balkonkraftwerk /
-  # FoxESS-Hybrid-Wechselrichter, Modbus TCP, lokal). Der Init-Container kopiert
-  # das gepinnte Release beim Pod-Start in den geteilten /config-PVC. Idempotent:
-  # Ziel-Ordner wird vorher gelöscht, sodass die Version stets dem Git-Stand
-  # entspricht. Setup-Details: docs/17-homeassistant.md.
+  # GitOps-Installation der HA-Erweiterungen. Jeder Init-Container kopiert das
+  # gepinnte Release beim Pod-Start in den geteilten /config-PVC. Idempotent: das
+  # Ziel wird vorher überschrieben/gelöscht, sodass die installierte Version stets
+  # dem Git-Stand entspricht. Renovate hält die VERSION-Pins über den regex-Manager
+  # in renovate.json aktuell. Setup-Details: docs/17-homeassistant.md.
   initContainers:
-    # renovate: datasource=github-releases depName=solakon-de/solakon-one-homeassistant
-    - name: install-solakon-one
+    # Bubble-Card — Lovelace-Frontend-Ressource (#86). Bezieht die gebaute
+    # dist/bubble-card.js aus dem Repo-Tree am Tag (kein Release-Asset, analog HACS
+    # via hacs.json: content_in_root=false, filename=bubble-card.js).
+    # renovate: datasource=github-releases depName=Clooos/Bubble-Card
+    - name: install-bubble-card
       image: alpine:3.24
       command: ["/bin/sh", "-c"]
       args:
         - |
           set -eu
-          VERSION=1.5.4
+          VERSION=3.2.3
+          apk add --no-cache curl
+          mkdir -p /config/www
+          curl -fsSL "https://github.com/Clooos/Bubble-Card/raw/v${VERSION}/dist/bubble-card.js" -o /config/www/bubble-card.js
+      volumeMounts:
+        - name: home-assistant
+          mountPath: /config
+
+    # Hourly Weather Card — Lovelace-Frontend-Ressource (#88). Tag ohne v-Präfix.
+    # renovate: datasource=github-releases depName=decompil3d/lovelace-hourly-weather
+    - name: install-hourly-weather
+      image: alpine:3.24
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          VERSION=6.8.0
+          apk add --no-cache curl
+          mkdir -p /config/www/hourly-weather
+          curl -fsSL "https://github.com/decompil3d/lovelace-hourly-weather/releases/download/${VERSION}/hourly-weather.js" -o /config/www/hourly-weather/hourly-weather.js
+      volumeMounts:
+        - name: home-assistant
+          mountPath: /config
+
+    # AI Automation Suggester — Python-Custom-Integration (#89)
+    # renovate: datasource=github-releases depName=ITSpecialist111/ai_automation_suggester
+    - name: install-ai-automation-suggester
+      image: alpine:3.24
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          VERSION=1.5.7
           apk add --no-cache curl tar
-          rm -rf /config/custom_components/solakon_one
+          rm -rf /config/custom_components/ai_automation_suggester
           mkdir -p /config/custom_components
-          curl -fsSL "https://github.com/solakon-de/solakon-one-homeassistant/archive/refs/tags/${VERSION}.tar.gz" -o /tmp/s.tgz
-          tar -xzf /tmp/s.tgz -C /tmp
-          cp -r "/tmp/solakon-one-homeassistant-${VERSION}/custom_components/solakon_one" /config/custom_components/solakon_one
+          curl -fsSL "https://github.com/ITSpecialist111/ai_automation_suggester/archive/refs/tags/v${VERSION}.tar.gz" -o /tmp/ai.tgz
+          tar -xzf /tmp/ai.tgz -C /tmp
+          cp -r "/tmp/ai_automation_suggester-${VERSION}/custom_components/ai_automation_suggester" /config/custom_components/ai_automation_suggester
+      volumeMounts:
+        - name: home-assistant
+          mountPath: /config
+
+    # Dreame Vacuum — Python-Custom-Integration für Dreame D9 Max (#90)
+    # renovate: datasource=github-releases depName=Tasshack/dreame-vacuum
+    - name: install-dreame-vacuum
+      image: alpine:3.24
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          set -eu
+          VERSION=1.0.9
+          apk add --no-cache curl tar
+          rm -rf /config/custom_components/dreame_vacuum
+          mkdir -p /config/custom_components
+          curl -fsSL "https://github.com/Tasshack/dreame-vacuum/archive/refs/tags/v${VERSION}.tar.gz" -o /tmp/dreame.tgz
+          tar -xzf /tmp/dreame.tgz -C /tmp
+          cp -r "/tmp/dreame-vacuum-${VERSION}/custom_components/dreame_vacuum" /config/custom_components/dreame_vacuum
       volumeMounts:
         - name: home-assistant
           mountPath: /config
@@ -66,10 +120,17 @@ home-assistant:
       hostPath:
         path: /dev/serial/by-id/usb-SONOFF_SONOFF_Dongle_Plus_MG24_46718ac707a3ef11a29a8c6661ce3355-if00-port0
         type: CharDevice
+    # Midnight-Theme (#91) — als einzelne Datei nach /config/themes/midnight.yaml
+    - name: theme-midnight
+      configMap:
+        name: ha-theme-midnight
 
   additionalMounts:
     - name: zigbee-dongle
       mountPath: /dev/ttyUSB0
+    - name: theme-midnight
+      mountPath: /config/themes/midnight.yaml
+      subPath: midnight.yaml
 
   resources:
     requests:

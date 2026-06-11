@@ -6,7 +6,7 @@
   ],
   "customManagers": [
     {
-      "description": "Pin of the Solakon-ONE HA custom integration release in the home-assistant init container.",
+      "description": "Pinned release versions (VERSION=...) of the home-assistant init-container extensions (Lovelace cards + custom integrations).",
       "customType": "regex",
       "managerFilePatterns": ["/argocd/apps/home-assistant/values\\.yaml$/"],
       "matchStrings": [
