@@ -51,6 +51,10 @@ export async function POST(req: Request) {
     await ssh.exec(
       `base64 -d /tmp/mod_upload.b64 > /tmp/mod_upload.zip && rm /tmp/mod_upload.b64`
     );
+    // Zip-Slip-Prüfung: Python3 ist auf Ubuntu immer verfügbar
+    await ssh.exec(
+      `python3 -c "import zipfile,sys; z=zipfile.ZipFile('/tmp/mod_upload.zip'); bad=[n for n in z.namelist() if n.startswith('/') or '..' in n.split('/')]; sys.exit(1) if bad else sys.exit(0)" || (rm -f /tmp/mod_upload.zip; exit 1)`
+    );
     await ssh.exec(
       `sudo mkdir -p ${MODS_DIR} && sudo unzip -o /tmp/mod_upload.zip -d ${MODS_DIR} && sudo rm /tmp/mod_upload.zip`
     );

@@ -18,4 +18,10 @@ describe("sanitizeModName", () => {
     expect(() => sanitizeModName("mod$name")).toThrow();
     expect(() => sanitizeModName("mod`cmd`")).toThrow();
   });
+  it("wirft bei führendem Bindestrich", () => {
+    expect(() => sanitizeModName("-mod")).toThrow();
+  });
+  it("wirft bei führendem Punkt", () => {
+    expect(() => sanitizeModName(".hidden")).toThrow();
+  });
 });
