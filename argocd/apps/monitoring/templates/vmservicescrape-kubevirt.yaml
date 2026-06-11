@@ -5,6 +5,7 @@ metadata:
   name: kubevirt
   namespace: monitoring
 spec:
+  discoveryRole: endpointslices
   namespaceSelector:
     matchNames:
       - kubevirt
