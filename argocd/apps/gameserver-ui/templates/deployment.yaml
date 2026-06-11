@@ -37,11 +37,11 @@ spec:
                   name: {{ .Values.sealedSecret.secretName }}
                   key: sessionSecret
                   optional: true
-            - name: ADMIN_PASSWORD_HASH
+            - name: ADMIN_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.sealedSecret.secretName }}
-                  key: adminPasswordHash
+                  key: adminPassword
                   optional: true
             - name: VM_SSH_KEY_PATH
               value: /etc/gameserver-ui/ssh/privateKey

@@ -3,7 +3,7 @@ import { getSession, verifyPassword } from "@/lib/session";
 
 export async function POST(req: Request) {
   const { password } = await req.json().catch(() => ({}));
-  if (!(await verifyPassword(password ?? "", process.env.ADMIN_PASSWORD_HASH ?? ""))) {
+  if (!verifyPassword(password ?? "", process.env.ADMIN_PASSWORD ?? "")) {
     return NextResponse.json({ error: "Falsches Passwort" }, { status: 401 });
   }
   const session = await getSession();
