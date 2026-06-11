@@ -60,4 +60,14 @@ describe("/api/players", () => {
     }));
     expect(res.status).toBe(400);
   });
+
+  it("POST broadcast lehnt Nachrichten mit Newlines ab", async () => {
+    getStatus.mockResolvedValue({ vmiPhase: "Running", ipAddress: "10.0.0.1" });
+    const res = await POST(new Request("http://x/api/players", {
+      method: "POST",
+      body: JSON.stringify({ action: "broadcast", message: "Hallo\r\nquit" }),
+    }));
+    expect(res.status).toBe(400);
+    expect(telnetCommandMock).not.toHaveBeenCalled();
+  });
 });

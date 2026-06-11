@@ -29,7 +29,9 @@ export async function POST(req: Request) {
     const opts = telnetOptsFromEnv(result.ip);
 
     if (action === "broadcast") {
-      if (!message) return NextResponse.json({ error: "message fehlt" }, { status: 400 });
+      if (typeof message !== "string" || /[\r\n\x00]/.test(message) || message.length > 200) {
+        return NextResponse.json({ error: "Ungültige Nachricht" }, { status: 400 });
+      }
       await telnetCommand(opts, `say ${message}`);
       return NextResponse.json({ ok: true });
     }
