@@ -1,0 +1,5 @@
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th { text-align: left; color: var(--fg-dim); font-weight: 600; font-size: 11px;
+  text-transform: uppercase; letter-spacing: .4px; padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border); }
+.table td { padding: var(--sp-3); border-bottom: 1px solid var(--border); }
+.table tr:last-child td { border-bottom: none; }

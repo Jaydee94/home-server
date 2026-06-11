@@ -1,0 +1,5 @@
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+.ok { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+.warn { background: var(--warn); box-shadow: 0 0 8px var(--warn); }
+.danger { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+.idle { background: var(--fg-dim); }
