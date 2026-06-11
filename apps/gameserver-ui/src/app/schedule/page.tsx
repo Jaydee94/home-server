@@ -73,8 +73,10 @@ export default function SchedulePage() {
                       type="time"
                       defaultValue={`${String(simple.hour).padStart(2, "0")}:${String(simple.minute).padStart(2, "0")}`}
                       disabled={busy || job.suspended}
-                      onBlur={(e) => {
+                      onBlur={e => {
+                        if (!e.target.value) return;
                         const [h, m] = e.target.value.split(":").map(Number);
+                        if (!Number.isInteger(h) || !Number.isInteger(m)) return;
                         patch(job.name, { schedule: toSimpleCron(h, m) });
                       }}
                     />
