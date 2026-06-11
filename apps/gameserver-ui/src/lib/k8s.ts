@@ -4,6 +4,13 @@ const NAMESPACE = process.env.GAMESERVER_NAMESPACE ?? "gameserver";
 const VM_NAME = process.env.VM_NAME ?? "7dtd-server";
 const GVK = { group: "kubevirt.io", version: "v1" };
 
+export interface CronJobInfo {
+  name: string;
+  schedule: string;
+  suspended: boolean;
+  lastScheduleTime?: string;
+}
+
 export interface VmStatus {
   runStrategy: string;
   printableStatus: string;
@@ -26,12 +33,18 @@ type KubeVirtVmi = {
 };
 
 export class VmClient {
-  constructor(private api: k8s.CustomObjectsApi) {}
+  constructor(
+    private api: k8s.CustomObjectsApi,
+    private batchApi: k8s.BatchV1Api
+  ) {}
 
   static inCluster(): VmClient {
     const kc = new k8s.KubeConfig();
     kc.loadFromDefault();
-    return new VmClient(kc.makeApiClient(k8s.CustomObjectsApi));
+    return new VmClient(
+      kc.makeApiClient(k8s.CustomObjectsApi),
+      kc.makeApiClient(k8s.BatchV1Api)
+    );
   }
 
   async getStatus(): Promise<VmStatus> {
@@ -76,6 +89,30 @@ export class VmClient {
         name: VM_NAME,
         body: { spec: { runStrategy: strategy } },
       },
+      k8s.setHeaderOptions("Content-Type", k8s.PatchStrategy.MergePatch)
+    );
+  }
+
+  async getCronJobs(): Promise<CronJobInfo[]> {
+    const res = await this.batchApi.listNamespacedCronJob({ namespace: NAMESPACE });
+    return (res.items ?? []).map((cj) => ({
+      name: cj.metadata?.name ?? "",
+      schedule: cj.spec?.schedule ?? "",
+      suspended: cj.spec?.suspend ?? false,
+      lastScheduleTime: cj.status?.lastScheduleTime?.toISOString(),
+    }));
+  }
+
+  async updateCronJobSchedule(name: string, schedule: string): Promise<void> {
+    await this.batchApi.patchNamespacedCronJob(
+      { namespace: NAMESPACE, name, body: { spec: { schedule } } },
+      k8s.setHeaderOptions("Content-Type", k8s.PatchStrategy.MergePatch)
+    );
+  }
+
+  async suspendCronJob(name: string, suspended: boolean): Promise<void> {
+    await this.batchApi.patchNamespacedCronJob(
+      { namespace: NAMESPACE, name, body: { spec: { suspend: suspended } } },
       k8s.setHeaderOptions("Content-Type", k8s.PatchStrategy.MergePatch)
     );
   }

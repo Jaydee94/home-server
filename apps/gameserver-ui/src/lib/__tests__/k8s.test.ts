@@ -1,6 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { VmClient } from "@/lib/k8s";
 
+function fakeBatchApi() {
+  return {
+    listNamespacedCronJob: vi.fn().mockResolvedValue({ items: [] }),
+    patchNamespacedCronJob: vi.fn().mockResolvedValue({}),
+  };
+}
+
 function fakeApi(overrides: Record<string, unknown> = {}) {
   return {
     getNamespacedCustomObject: vi.fn(),
@@ -28,7 +35,7 @@ describe("VmClient.getStatus", () => {
           },
         }),
     });
-    const c = new VmClient(api as never);
+    const c = new VmClient(api as never, fakeBatchApi() as never);
     const s = await c.getStatus();
     expect(s).toEqual({
       runStrategy: "Always",
@@ -49,7 +56,7 @@ describe("VmClient.getStatus", () => {
         })
         .mockRejectedValueOnce(Object.assign(new Error("not found"), { code: 404 })),
     });
-    const c = new VmClient(api as never);
+    const c = new VmClient(api as never, fakeBatchApi() as never);
     const s = await c.getStatus();
     expect(s.vmiPhase).toBeNull();
     expect(s.runStrategy).toBe("Halted");
@@ -62,7 +69,7 @@ describe("VmClient.getStatus", () => {
         .mockResolvedValueOnce({ spec: {}, status: {} })
         .mockRejectedValueOnce(Object.assign(new Error("forbidden"), { code: 403 })),
     });
-    const c = new VmClient(api as never);
+    const c = new VmClient(api as never, fakeBatchApi() as never);
     await expect(c.getStatus()).rejects.toThrow("forbidden");
   });
 });
@@ -70,7 +77,7 @@ describe("VmClient.getStatus", () => {
 describe("VmClient.setRunStrategy", () => {
   it("patcht die VM mit merge-patch", async () => {
     const api = fakeApi();
-    const c = new VmClient(api as never);
+    const c = new VmClient(api as never, fakeBatchApi() as never);
     await c.setRunStrategy("Always");
     expect(api.patchNamespacedCustomObject).toHaveBeenCalledWith(
       expect.objectContaining({
