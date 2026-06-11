@@ -1,110 +1,153 @@
-# 17 – Home Assistant: Solakon-ONE Solar-Integration (Balkonkraftwerk)
+# 17 – Home Assistant
 
 Home Assistant läuft als ArgoCD-App im k3s-Cluster (pajikos Helm-Chart, Config
-auf `local-path`-PVC). Für das Balkonkraftwerk ist die Custom-Integration
-[**Solakon ONE**](https://github.com/solakon-de/solakon-one-homeassistant)
-eingebunden – sie liest den FoxESS-basierten Hybrid-Wechselrichter **lokal über
-Modbus TCP** aus (PV-Strings, Batterie, Netz-Ein-/Einspeisung). **Keine Cloud,
-kein API-Token.**
+auf `local-path`-PVC). Erweiterungen (Lovelace-Karten, Custom-Integrationen,
+Themes) werden **GitOps-reproduzierbar per Init-Container bzw. ConfigMap**
+eingebracht – bewusst **ohne HACS**, damit jede Version dem Git-Stand entspricht
+und Renovate Updates automatisiert.
 
 | | |
 |---|---|
 | URL | <http://homeassistant.homeserver> (LAN + Tailnet, von Pi-hole aufgelöst) |
 | Namespace | `home-assistant` |
 | Chart | `argocd/apps/home-assistant/` (pajikos `home-assistant` 0.3.64, App 2025.6) |
-| Integration | `solakon_one` (Domain), gepinnt auf Release **1.5.4** |
-| Verbindung | Modbus TCP → WLAN-Dongle des Wechselrichters, Port 502 |
 
-## Architektur
+## Erweiterungs-Architektur
 
 ```
-Balkonkraftwerk (Solakon ONE / FoxESS-Hybrid-WR)
-        ▲ Modbus TCP (Port 502)  ← WLAN-Dongle hängt im LAN (192.168.178.x)
-        │
 k3s ─ home-assistant Pod
-   ├─ initContainer "install-solakon-one"
-   │     └─ lädt Release 1.5.4 → /config/custom_components/solakon_one (idempotent)
-   ├─ HA-Container (lädt die Integration beim Start)
-   └─ config-PVC (local-path, 10Gi) → /config  (DB, .storage, custom_components)
+   ├─ initContainer "install-bubble-card"            → /config/www/bubble-card.js
+   ├─ initContainer "install-hourly-weather"         → /config/www/hourly-weather/hourly-weather.js
+   ├─ initContainer "install-ai-automation-suggester" → /config/custom_components/ai_automation_suggester
+   ├─ initContainer "install-dreame-vacuum"          → /config/custom_components/dreame_vacuum
+   ├─ ConfigMap "ha-theme-midnight" (subPath-Mount)  → /config/themes/midnight.yaml
+   ├─ HA-Container (lädt Karten/Integrationen/Themes beim Start)
+   └─ config-PVC (local-path, 10Gi) → /config  (DB, .storage, www, custom_components, themes)
 ```
 
-Pod-Egress ins LAN ist erlaubt – die NetworkPolicy
-(`templates/networkpolicy.yaml`) beschränkt nur **Ingress** (Port 8123 von
-Traefik), nicht Egress. Kein `hostNetwork` nötig: Modbus TCP ist eine
-ausgehende TCP-Verbindung zur Dongle-IP.
+Jeder Init-Container nutzt `alpine:3.24`, lädt das **gepinnte** Release und kopiert
+es idempotent in den geteilten `/config`-PVC (Ziel wird vorher überschrieben bzw.
+gelöscht). Die `# renovate:`-Annotation über jedem Container sorgt dafür, dass
+Renovate (regex-Manager in `renovate.json`) bei neuen Releases automatisch PRs für
+das `VERSION=`-Pin öffnet.
 
-## GitOps-Installation der Integration
+**Update einer Erweiterung:** `VERSION` in `values.yaml` anheben (oder den
+Renovate-PR mergen) → push → ArgoCD synct → Pod startet neu → der Init-Container
+kopiert die neue Version.
 
-Statt HACS (manuell, nicht versioniert) wird die Integration reproduzierbar per
-**Init-Container** eingebracht. In `argocd/apps/home-assistant/values.yaml`:
+> **Lovelace-Ressourcen registrieren (einmalig):** HA läuft im Storage-/UI-Modus.
+> Frontend-Karten (Bubble-Card, Hourly Weather) müssen nach dem ersten Pod-Start
+> **einmal manuell** als Ressource hinterlegt werden:
+> *Einstellungen → Dashboards → ⋮ → Ressourcen → Hinzufügen*. Die Registrierung
+> persistiert in `/config/.storage` auf dem PVC und überlebt Pod-Restarts.
 
-```yaml
-  initContainers:
-    # renovate: datasource=github-releases depName=solakon-de/solakon-one-homeassistant
-    - name: install-solakon-one
-      image: alpine:3.24
-      command: ["/bin/sh", "-c"]
-      args:
-        - |
-          set -eu
-          VERSION=1.5.4
-          apk add --no-cache curl tar
-          rm -rf /config/custom_components/solakon_one
-          mkdir -p /config/custom_components
-          curl -fsSL "https://github.com/solakon-de/solakon-one-homeassistant/archive/refs/tags/${VERSION}.tar.gz" -o /tmp/s.tgz
-          tar -xzf /tmp/s.tgz -C /tmp
-          cp -r "/tmp/solakon-one-homeassistant-${VERSION}/custom_components/solakon_one" /config/custom_components/solakon_one
-      volumeMounts:
-        - name: home-assistant
-          mountPath: /config
-```
+## Bubble-Card (Lovelace) — #86
 
-**Update der Integration:** `VERSION` in `values.yaml` anheben (oder den
-Renovate-PR mergen) → push → ArgoCD synct → der Pod startet neu → der
-Init-Container kopiert die neue Version. Da der Ziel-Ordner vorher gelöscht wird,
-entspricht die installierte Version immer dem Git-Stand.
+Modernes Bubble-UI mit Pop-up-Overlays, Button-Stacks und Media-Controls.
 
-## Inverter-Onboarding
+- Init-Container `install-bubble-card`, bezieht die gebaute
+  `dist/bubble-card.js` aus dem Repo-Tree am Tag (`Clooos/Bubble-Card`). Bubble-Card
+  v3 liefert **kein** Release-Asset mehr – die Datei liegt im `dist/`-Ordner
+  (so installiert auch HACS gemäß `hacs.json`).
+- Lovelace-Ressource registrieren: URL `/local/bubble-card.js`, Typ
+  **JavaScript-Modul**.
+- Danach im Dashboard verfügbar unter *Karte hinzufügen → Bubble Card*.
 
-> Diese Schritte sind noch offen (IP/Modbus-Status unbekannt) und Voraussetzung
-> für den Funktionstest.
+## Hourly Weather Card (Lovelace) — #88
 
-1. **LAN-IP des WLAN-Dongles ermitteln** – FritzBox → Heimnetz → Netzwerk (oder
-   DHCP-Lease-Liste). Die IP per FritzBox-Reservierung **fest vergeben**, damit
-   sie sich nicht ändert.
-2. **Modbus TCP am Dongle aktivieren** – in der FoxESS-Cloud/App bzw. der
-   Dongle-Konfiguration. Ohne diese Freischaltung ist Port 502 geschlossen
-   (`Connection refused`).
-3. **Integration in HA hinzufügen** – <http://homeassistant.homeserver> →
-   Settings → Devices & Services → *Add Integration* → „Solakon ONE". Eintragen:
-   - **Host/IP:** die feste Dongle-IP
-   - **Port:** `502`
-   - **Modbus Device-ID:** meist `1` (Bereich 1–247)
-   - **Update-Intervall:** z. B. `30` s (1–300)
+Visualisiert die kommenden Wetterbedingungen als farbigen Balken.
 
-Die Verbindungsdaten persistiert HA in `/config/.storage` auf dem PVC – das ist
-UI-State und wird (wie üblich) nicht in Git gehalten.
+- Init-Container `install-hourly-weather`, Asset `hourly-weather.js`
+  (`decompil3d/lovelace-hourly-weather`). **Hinweis:** dieses Repo taggt **ohne**
+  `v`-Präfix (z. B. `6.8.0`), die Download-URL ist entsprechend ohne `v`.
+- Lovelace-Ressource registrieren: URL `/local/hourly-weather/hourly-weather.js`,
+  Typ **JavaScript-Modul**.
+- Beispiel-Konfiguration (benötigt eine Wetter-Entity):
+
+  ```yaml
+  type: custom:hourly-weather
+  entity: weather.dein_wetter
+  num_segments: 12
+  name: Nächste 12 Stunden
+  ```
+
+## AI Automation Suggester (Integration) — #89
+
+LLM-gestützte Automatisierungsvorschläge auf Basis der eigenen Entities, Geräte
+und Bereiche.
+
+- Init-Container `install-ai-automation-suggester`, kopiert das
+  `custom_components/ai_automation_suggester`-Verzeichnis aus dem Release-Tarball
+  (`ITSpecialist111/ai_automation_suggester`).
+- Config-Flow: *Einstellungen → Geräte & Dienste → + Integration hinzufügen →
+  AI Automation Suggester*. Dort Provider + API-Key wählen.
+- **Provider:** Da der Stack ohnehin Claude nutzt, bietet sich **Anthropic**
+  (`claude-sonnet-4-6`) an. Der API-Key wird **nicht** in Git gehalten – er wird
+  einmalig im UI-Config-Flow eingetragen und von HA in `/config/.storage`
+  persistiert.
+
+## Dreame Vacuum (Integration) — #90
+
+Vollständige Steuerung für Dreame-Saugroboter (Live-Karte, Zimmer-Cleaning,
+Automations-Events). Getestet für den **Dreame D9 Max** (`dreame.vacuum.p2259`).
+
+- Init-Container `install-dreame-vacuum`, kopiert
+  `custom_components/dreame_vacuum` aus dem Release-Tarball (`Tasshack/dreame-vacuum`).
+- Config-Flow: *Einstellungen → Geräte & Dienste → + Integration → Dreame Vacuum*.
+- **Lokale Verbindung (empfohlen):** Geräte-IP (FritzBox-DHCP-Reservierung) +
+  Miio-Token. Token einmalig extrahieren:
+
+  ```bash
+  pip install python-miio
+  miiocli discover --handshake 1
+  ```
+
+  Alternativ Xiaomi-Cloud-Login (kein Token, aber Cloud-Abhängigkeit).
+
+## Midnight Theme — #91
+
+Dunkles Community-Theme
+([home-assistant-community-themes/midnight](https://github.com/home-assistant-community-themes/midnight)).
+Da es kein versioniertes Release-Artefakt gibt, wird das Theme-YAML **direkt im
+Repo versioniert** und als ConfigMap bereitgestellt.
+
+- `templates/midnight-theme-configmap.yaml` enthält das vollständige Theme-YAML
+  (ConfigMap `ha-theme-midnight`).
+- In `values.yaml` als `additionalVolumes`/`additionalMounts` per `subPath` nach
+  `/config/themes/midnight.yaml` gemountet.
+- `frontend.themes: !include_dir_merge_named themes` ist **bereits** im
+  Chart-Default-`templateConfig` aktiv – es ist keine Config-Anpassung nötig.
+- Aktivieren: *Profil → Theme → midnight* (oder Service-Call
+  `frontend.set_theme`).
 
 ## Verifikation
 
 ```bash
-# 1. ArgoCD-App synced & healthy
+# ArgoCD-App synced & healthy
 ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
   'sudo kubectl -n argocd get applications home-assistant'
 
-# 2. Init-Container-Log (Pod-Name vorher mit `get pods` holen)
+# Frontend-Karten im PVC vorhanden
 ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n home-assistant logs <pod> -c install-solakon-one'
+  'sudo kubectl -n home-assistant exec deploy/home-assistant -- \
+   ls -la /config/www/bubble-card.js /config/www/hourly-weather/hourly-weather.js'
 
-# 3. Dateien im PVC vorhanden
+# Custom-Integrations vorhanden
 ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n home-assistant exec <pod> -- ls /config/custom_components/solakon_one/manifest.json'
+  'sudo kubectl -n home-assistant exec deploy/home-assistant -- \
+   ls /config/custom_components/ai_automation_suggester/manifest.json \
+      /config/custom_components/dreame_vacuum/manifest.json'
+
+# Midnight-Theme + ConfigMap
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+  'sudo kubectl -n home-assistant get configmap ha-theme-midnight && \
+   sudo kubectl -n home-assistant exec deploy/home-assistant -- \
+   head -5 /config/themes/midnight.yaml'
+
+# Init-Container-Logs (Pod-Name vorher mit `get pods` holen)
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+  'sudo kubectl -n home-assistant logs <pod> -c install-bubble-card'
 ```
-
-4. **UI:** „Solakon ONE" muss unter *Add Integration* auffindbar sein (HA hat die
-   Custom-Component beim Start geladen).
-5. **Live-Daten** (sobald der Config-Flow durch ist): Entities wie
-   `sensor.solakon_one_battery_power`, PV-String- und Netz-Sensoren liefern Werte.
 
 ## Zigbee via ZHA
 
@@ -145,7 +188,8 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
 
 | Symptom | Ursache / Fix |
 |---|---|
-| „Solakon ONE" fehlt unter *Add Integration* | Pod nicht neu gestartet oder Init-Container fehlgeschlagen → Init-Container-Log prüfen; Pod rollen: `kubectl -n home-assistant rollout restart deploy/home-assistant`. |
-| `Connection refused` / Timeout im Config-Flow | Modbus TCP am Dongle nicht aktiv, falsche IP oder Port ≠ 502. Dongle-IP per `nmap -p502 <ip>` testen. |
-| Falsche/leere Werte | Falsche Modbus-Device-ID – andere ID (z. B. 1 vs. 247) probieren. |
-| Init-Container `cp: no such file` nach Solakon-Update | Bei einem Major-Release kann sich der Ordnername im Tarball ändern → Pfad in `values.yaml` an das neue Release anpassen. |
+| Karte/Integration fehlt nach Deploy | Pod nicht neu gestartet oder Init-Container fehlgeschlagen → Init-Container-Log prüfen; Pod rollen: `kubectl -n home-assistant rollout restart deploy/home-assistant`. |
+| Lovelace-Karte „Custom element doesn't exist" | Ressource nicht registriert oder falsche URL → *Einstellungen → Dashboards → Ressourcen* prüfen (`/local/...`, Typ JavaScript-Modul); Browser-Cache leeren. |
+| Init-Container `cp: no such file` nach Major-Update | Bei einem Major-Release kann sich der Ordnername im Tarball ändern → Pfad in `values.yaml` an das neue Release anpassen. |
+| `curl: not found` im Init-Container | `apk add --no-cache curl` fehlt — alpine bringt curl nicht mit. |
+| Midnight-Theme nicht wählbar | ConfigMap nicht gemountet oder `frontend.themes` nicht aktiv → `kubectl get configmap ha-theme-midnight`; Datei im Pod prüfen (`/config/themes/midnight.yaml`). |
