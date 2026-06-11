@@ -36,6 +36,12 @@ export default function BackupsPage() {
     const r = await fetch(`/api/backups/${encodeURIComponent(filename)}/restore`, { method: "POST" });
     setBusy(false); toast(r.ok ? "ok" : "error", r.ok ? "Wiederhergestellt" : "Restore fehlgeschlagen");
   }
+  async function del(filename: string) {
+    if (!(await confirm({ title: "Backup löschen?", body: `"${filename}" wird dauerhaft entfernt.`, danger: true }))) return;
+    setBusy(true);
+    const r = await fetch(`/api/backups/${encodeURIComponent(filename)}`, { method: "DELETE" });
+    setBusy(false); toast(r.ok ? "ok" : "error", r.ok ? "Backup gelöscht" : "Löschen fehlgeschlagen"); if (r.ok) load();
+  }
 
   return (
     <main style={{ display: "grid", gap: "var(--sp-4)" }}>
@@ -52,7 +58,11 @@ export default function BackupsPage() {
               <tr key={b.filename}>
                 <td>{new Date(b.timestamp).toLocaleString("de-DE")}</td>
                 <td>{(b.sizeBytes / 1024 / 1024).toFixed(1)} MB</td>
-                <td style={{ textAlign: "right" }}><Button variant="secondary" disabled={busy} onClick={() => restore(b.filename)}>Restore</Button></td>
+                <td style={{ textAlign: "right", display: "flex", gap: "var(--sp-2)", justifyContent: "flex-end" }}>
+                  <a href={`/api/backups/${encodeURIComponent(b.filename)}`}><Button variant="secondary">⬇</Button></a>
+                  <Button variant="secondary" disabled={busy} onClick={() => restore(b.filename)}>Restore</Button>
+                  <Button variant="danger" disabled={busy} onClick={() => del(b.filename)}>Löschen</Button>
+                </td>
               </tr>
             ))}</tbody>
           </Table>
