@@ -218,7 +218,11 @@ runcmd:
       <property name="ControlPanelPassword" value="DEIN_WEBADMIN_PASSWORT"/>
       <property name="TelnetEnabled"      value="true"/>
       <property name="TelnetPort"         value="8081"/>
-      <property name="TelnetPassword"     value="DEIN_TELNET_PASSWORT"/>
+      <!-- LEER lassen: die Gameserver-UI spricht Telnet über einen SSH-Tunnel
+           (= localhost), und 7DTD erlaubt localhost-Telnet ohne Passwort. Ein
+           nicht-leeres TelnetPassword bricht die UI, SOFERN es nicht exakt dem
+           gameserver-ui `TELNET_PASSWORD`-Secret entspricht. Siehe Troubleshooting. -->
+      <property name="TelnetPassword"     value=""/>
     </ServerSettings>
     XMLEOF
 
@@ -658,4 +662,19 @@ Verifikation (Laufzeit, nicht nur Datei): `GamePref.EACEnabled = False` und kein
 ```bash
 S=$(docker inspect -f '{{.State.StartedAt}}' 7dtd-server)
 docker logs --since "$S" 7dtd-server | grep -iE 'GamePref.EACEnabled|\[EAC\]'
+```
+
+**Achtung TelnetPassword:** Die Gameserver-UI (`/api/version`, `/api/gametime`,
+Restart via Telnet `lp`/`saveworld`) verbindet sich über einen SSH-Tunnel —
+also als **localhost**. 7DTD erlaubt localhost-Telnet **ohne** Passwort, wenn
+`TelnetPassword` leer ist. Ist es **nicht leer und ≠ dem gameserver-ui
+`TELNET_PASSWORD`-Secret**, schlägt die Telnet-Auth fehl → `/api/version` &
+Restart liefern `502 "Telnet timeout"`, obwohl Port 8081 lauscht. Lösung:
+`TelnetPassword` leer lassen (localhost-bypass) **oder** in serverconfig und
+gameserver-ui-Secret denselben Wert setzen. Prüfen (per Hash, ohne Klartext):
+```bash
+# Secret:
+kubectl -n gameserver-ui get secret gameserver-ui-telnet -o jsonpath='{.data.password}' | base64 -d | sha256sum
+# serverconfig:
+docker exec 7dtd-server grep -oP 'TelnetPassword"\s*value="\K[^"]*' /home/sdtdserver/serverfiles/sdtdserver.xml | tr -d '\n' | sha256sum
 ```
