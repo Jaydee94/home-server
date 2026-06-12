@@ -16,6 +16,7 @@ Browser → Traefik (LAN/Tailnet) → Namespace gameserver-ui
 
 - **Authentifizierung:** Single-Admin, iron-session-Cookie, bcrypt-Hash aus SealedSecret `gameserver-ui-auth`
 - **VM-Steuerung:** PATCH `spec.runStrategy` (`Always` = starten, `Halted` = stoppen)
+- **Metriken:** VictoriaMetrics-Abfragen via `/api/metrics` — CPU-Auslastung (`kubevirt_vmi_vcpu_seconds_total`) und RAM `X.X / Y.Y GB` (`kubevirt_vmi_memory_resident_bytes` / `kubevirt_vm_resource_requests`)
 - **RBAC:** Cross-Namespace — ServiceAccount im Namespace `gameserver-ui`, Role/RoleBinding im Namespace `gameserver` (nur `get/list` auf VMI, `get/list/patch` auf VM)
 - **Image:** `ghcr.io/jaydee94/gameserver-ui` — Build via GitHub Actions (`.github/workflows/gameserver-ui.yml`), Tag `sha-<short-sha>`
 
@@ -114,9 +115,20 @@ Die VM muss im Namespace `gameserver` existieren und den Namen `7dtd-server` tra
 4. „Stoppen" (Bestätigungs-Dialog) → VMI verschwindet, Status `Stopped`
 5. RBAC-Negativtest: `kubectl auth can-i delete vm -n gameserver --as=system:serviceaccount:gameserver-ui:gameserver-ui` → `no`
 
+## Implementierte Seiten
+
+| Seite | Pfad | Funktion |
+|---|---|---|
+| Dashboard | `/` | VM-Status, CPU/RAM-Kacheln, Horde-Night-Countdown, Starten/Stoppen |
+| Logs | `/logs` | Live-Logs mit Suche, Pause, Kopieren und Download |
+| Console | `/console` | Interaktive Telnet-Console zur VM |
+| Config | `/config` | Servereinstellungen inline bearbeiten |
+| Backups | `/backups` | Backup erstellen (mit Retention), Download, Löschen |
+| Mods | `/mods` | Mod-Liste anzeigen und verwalten |
+| Players | `/players` | Online-Spieler mit Session-Dauer |
+
 ## Weiterführend
 
 - Quellcode: `apps/gameserver-ui/`
 - Helm-Chart: `argocd/apps/gameserver-ui/`
 - Gameserver-Infra (KubeVirt VM, CronJobs, Tailscale): `docs/19-gameserver.md`
-- Iterationen 3–7 (Logs, Config, Backups, Zeitplan): folgen als separate Plan-Dokumente

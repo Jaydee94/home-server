@@ -51,11 +51,13 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │  │  │  ┌──────┴────────────────┴──────────────────────┐   │   │   │
 │  │  │  │  argocd/apps/ — verwaltet vom ApplicationSet:│   │   │   │
 │  │  │  │    metallb (LB-IP), pihole (DNS+Adblock),    │   │   │   │
-│  │  │  │    monitoring (VictoriaMetrics + Grafana),   │   │   │   │
+│  │  │  │    monitoring + monitoring-dashboards,        │   │   │   │
 │  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
 │  │  │  │    semaphore, argo-workflows + minio,        │   │   │   │
 │  │  │  │    headlamp, gotify, homepage, paperless-ai, │   │   │   │
-│  │  │  │    home-assistant, example-whoami            │   │   │   │
+│  │  │  │    home-assistant, jellyfin, mosquitto,      │   │   │   │
+│  │  │  │    kubevirt, gameserver, gameserver-ui,      │   │   │   │
+│  │  │  │    csi-driver-smb, example-whoami            │   │   │   │
 │  │  │  └─────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
 │  │  │  ┌──────────────────────────────────────────────┐   │   │   │
@@ -89,6 +91,13 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │       ├── gotify/                                                  │
 │       ├── homepage/                                                │
 │       ├── paperless-ai/                                            │
+│       ├── home-assistant/                                           │
+│       ├── jellyfin/                                                 │
+│       ├── mosquitto/                                                │
+│       ├── kubevirt/                                                 │
+│       ├── gameserver/                                               │
+│       ├── gameserver-ui/                                            │
+│       ├── csi-driver-smb/                                           │
 │       └── my-new-app/       ← Verzeichnis anlegen → auto-deployed  │
 └─────────────────────────────────────────────────────────────────────┘
 ```
