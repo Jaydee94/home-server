@@ -26,8 +26,18 @@ describe("serializeProperties", () => {
     expect(out).toContain(`name="ServerMaxPlayerCount" value="16"`);
     expect(out).toContain(`name="ServerPassword" value="secret"`);
   });
-  it("ignores keys not present in the XML", () => {
-    const out = serializeProperties(XML, { DoesNotExist: "x" });
-    expect(out).not.toContain("DoesNotExist");
+  it("ergänzt fehlende Properties vor </ServerSettings>", () => {
+    const out = serializeProperties(XML, { GameDifficulty: "2" });
+    expect(out).toContain(`name="GameDifficulty" value="2"`);
+    // vor dem schließenden Tag, XML bleibt valide
+    expect(out.indexOf(`name="GameDifficulty"`)).toBeLessThan(out.indexOf("</ServerSettings>"));
+    // bestehende bleiben erhalten
+    expect(out).toContain(`name="ServerName" value="ZCPM"`);
+  });
+  it("dupliziert eine ergänzte Property bei erneutem Setzen nicht", () => {
+    const once = serializeProperties(XML, { GameDifficulty: "2" });
+    const twice = serializeProperties(once, { GameDifficulty: "4" });
+    expect(twice.match(/name="GameDifficulty"/g)).toHaveLength(1);
+    expect(twice).toContain(`name="GameDifficulty" value="4"`);
   });
 });
