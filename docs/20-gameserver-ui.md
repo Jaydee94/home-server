@@ -107,6 +107,20 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
 
 Die VM muss im Namespace `gameserver` existieren und den Namen `7dtd-server` tragen.
 
+### Konsole zeigt `IOException … socket has been shut down`
+
+7DTD hält pro Telnet-Verbindung einen Writer-Thread (`TelnetConnection.handleWriting`),
+der das Server-Log fortlaufend an den Client broadcastet. Wird der Socket abrupt
+gekappt (`channel.destroy()` ohne vorheriges 7DTD-`exit`), stirbt dieser Thread beim
+nächsten Schreibvorgang mit `ERR/EXC IOException: Unable to write data … socket has
+been shut down`. Da 7DTD die jüngste Log-History auch an neu verbundene Clients
+sendet, erscheint der Fehler in der Ausgabe des **nächsten** Befehls.
+
+`telnetCommand` (`src/lib/telnet.ts`) meldet sich deshalb per `exit` ab (der Server
+schließt den Socket selbst) und filtert Server-Logzeilen (ISO-Zeitstempel) via
+`stripServerLog()` aus der angezeigten Ausgabe. Tritt der Fehler erneut auf, prüfen
+ob diese beiden Mechanismen noch greifen.
+
 ## End-to-End-Verifikation nach Merge
 
 1. `http://gameserver.homeserver` → Redirect auf `/login`
@@ -114,6 +128,9 @@ Die VM muss im Namespace `gameserver` existieren und den Namen `7dtd-server` tra
 3. „Starten" → nach ~60 s VMI-Phase `Running` + Tailscale-IP sichtbar
 4. „Stoppen" (Bestätigungs-Dialog) → VMI verschwindet, Status `Stopped`
 5. RBAC-Negativtest: `kubectl auth can-i delete vm -n gameserver --as=system:serviceaccount:gameserver-ui:gameserver-ui` → `no`
+6. Konsole (`/console`): nacheinander `lp` und `gettime` senden → nur das jeweilige
+   Ergebnis (`Total of N …`, `Day X, HH:MM`) sichtbar, **keine** `ERR/EXC IOException`-Zeilen.
+   Gegenprobe `/logs`: keine neuen `IOException … socket has been shut down` nach Befehlen.
 
 ## Implementierte Seiten
 
