@@ -165,6 +165,7 @@ packages:
   - ca-certificates
   - curl
   - gnupg
+  - unzip   # von der Gameserver-UI für Mod-Uploads benötigt (sudo unzip)
 
 runcmd:
   # Docker Engine installieren
@@ -189,8 +190,8 @@ runcmd:
     --advertise-tags=tag:gameserver
     --hostname=7dtd-server
 
-  # Datenverzeichnis anlegen
-  - mkdir -p /opt/7dtd/data /opt/7dtd/config
+  # Datenverzeichnis anlegen (mods → Bind-Mount für Gameserver-UI-Uploads)
+  - mkdir -p /opt/7dtd/data /opt/7dtd/config /opt/7dtd/mods
 
   # Server-Konfiguration schreiben (serverconfig.xml)
   - |
@@ -232,8 +233,21 @@ runcmd:
           - PGID=1000
           - TimeZone=Europe/Berlin
         volumes:
+          # serverfiles MUSS ein benanntes Volume sein (nicht das anonyme Image-Volume):
+          # sonst legt jedes `docker compose up -d` nach einer Config-Änderung ein
+          # frisches leeres serverfiles an → SteamCMD lädt die komplette ~16-GB-
+          # Installation neu. Ein benanntes Volume überlebt Recreates.
+          - serverfiles:/home/sdtdserver/serverfiles
           - /opt/7dtd/data:/home/sdtdserver/.local/share/7DaysToDie
           - /opt/7dtd/config/serverconfig.xml:/home/sdtdserver/serverfiles/sdtdserver/serverconfig.xml
+          # Mods-Bind-Mount: Gameserver-UI entpackt Uploads nach /opt/7dtd/mods;
+          # 7DTD lädt sie aus serverfiles/Mods beim Container-Neustart (vinanrra "Manual Mods").
+          # ACHTUNG: dieser Mount ÜBERDECKT serverfiles/Mods komplett — die Stock-TFP-Mods
+          # (0_TFP_Harmony u.a., für DLL-Mods zwingend) müssen daher EINMALIG nach dem
+          # ersten Install nach /opt/7dtd/mods kopiert werden (siehe Gotcha unten).
+          - /opt/7dtd/mods:/home/sdtdserver/serverfiles/Mods
+    volumes:
+      serverfiles:
     COMPOSEEOF
 
   # 7DTD starten
@@ -558,3 +572,31 @@ ssh jaydee@192.168.178.127 \
    -o jsonpath="{.status.interfaces[*].ipAddress}"'
 # Gibt die pod-interne IP zurück — besser: Tailscale-IP aus der Admin Console
 ```
+
+### Mod-Upload (Gameserver-UI) + serverfiles-Persistenz
+
+Der Mod-Upload der Gameserver-UI (`docs/20-gameserver-ui.md`) entpackt Zips per
+`sudo unzip` nach `/opt/7dtd/mods`; 7DTD lädt aus `serverfiles/Mods`. Drei
+VM-seitige Voraussetzungen:
+
+1. **`unzip` installiert** (in `packages:` oben). Sonst `502: unzip: command not found`.
+2. **`serverfiles` ist ein benanntes Volume.** Liegt die Spielinstallation im
+   anonymen Image-Volume, erzeugt jedes `docker compose up -d` nach einer
+   Config-Änderung ein leeres serverfiles → **kompletter ~16-GB-Redownload**.
+   Recovery ohne Redownload, falls das alte Volume noch existiert:
+   ```bash
+   sudo docker volume ls   # das ~16-GB-Volume ist die alte Installation
+   # in /opt/7dtd/docker-compose.yml serverfiles als external pinnen:
+   #   volumes: { serverfiles: { external: true, name: <alte-volume-id> } }
+   cd /opt/7dtd && sudo docker compose up -d
+   ```
+3. **Stock-TFP-Mods einmalig nach `/opt/7dtd/mods` seeden.** Der Bind-Mount
+   `/opt/7dtd/mods → serverfiles/Mods` überdeckt die mitgelieferten Mods
+   (`0_TFP_Harmony` — zwingend für DLL-Mods —, `TFP_CommandExtensions`,
+   `TFP_MapRendering`, `TFP_WebServer`, `Xample_MarkersMod`). Nach dem ersten
+   Install einmalig:
+   ```bash
+   sudo cp -an /var/lib/docker/volumes/<serverfiles-vol>/_data/Mods/. /opt/7dtd/mods/
+   ```
+   Verifikation im Log: `[MODS] Loaded Mod: TFP_Harmony` **und** der eigene Mod
+   (`docker logs 7dtd-server | grep '\[MODS\] Loaded Mod'`).
