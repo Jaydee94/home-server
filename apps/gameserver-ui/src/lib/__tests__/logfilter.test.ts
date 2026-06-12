@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isConnectionNoise } from "@/lib/logfilter";
+import { isConnectionNoise, appendLogLine, MAX_LOG_LINES } from "@/lib/logfilter";
 
 describe("isConnectionNoise", () => {
   const noise = [
@@ -33,5 +33,22 @@ describe("isConnectionNoise", () => {
 
   it.each(game)("lässt echtes Spielgeschehen durch: %s", (line) => {
     expect(isConnectionNoise(line)).toBe(false);
+  });
+});
+
+describe("appendLogLine", () => {
+  it("hängt unterhalb des Limits ohne Verlust an", () => {
+    const out = appendLogLine(["a", "b"], "c", 10);
+    expect(out).toEqual(["a", "b", "c"]);
+  });
+  it("verwirft am Limit die älteste Zeile (FIFO), Länge bleibt = max", () => {
+    const full = Array.from({ length: 5 }, (_, i) => `line${i}`); // line0..line4
+    const out = appendLogLine(full, "neu", 5);
+    expect(out).toHaveLength(5);
+    expect(out[0]).toBe("line1"); // line0 (älteste) verworfen
+    expect(out[out.length - 1]).toBe("neu");
+  });
+  it("Client-Limit entspricht dem Server-Tail (2000), damit Boot-Zeilen erhalten bleiben", () => {
+    expect(MAX_LOG_LINES).toBe(2000);
   });
 });

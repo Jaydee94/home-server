@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { isConnectionNoise } from "@/lib/logfilter";
+import { isConnectionNoise, appendLogLine } from "@/lib/logfilter";
 
 interface LogLine { id: number; text: string; }
 let lineCounter = 0;
@@ -18,7 +18,7 @@ export default function LogsPage() {
 
   useEffect(() => {
     const es = new EventSource("/api/logs");
-    es.onmessage = (e) => { if (!pausedRef.current) setLines((prev) => [...prev.slice(-499), { id: lineCounter++, text: e.data }]); };
+    es.onmessage = (e) => { if (!pausedRef.current) setLines((prev) => appendLogLine(prev, { id: lineCounter++, text: e.data })); };
     es.onerror = () => es.close();
     return () => es.close();
   }, []);
