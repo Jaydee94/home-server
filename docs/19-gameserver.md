@@ -194,13 +194,13 @@ runcmd:
   - mkdir -p /opt/7dtd/data /opt/7dtd/config /opt/7dtd/mods
 
   # Server-Konfiguration schreiben (serverconfig.xml)
-  # ACHTUNG: Dieser Block ist nur ein MINIMAL-Platzhalter. Er darf NICHT als
-  # configfile gemountet werden (unvollständig → 7DTD-Crash "double fault").
-  # Vor dem Aktivieren des serverconfig-Mounts muss diese Datei durch eine
-  # VOLLSTÄNDIGE 7DTD-serverconfig ersetzt werden (Seeding aus der vom Image
-  # generierten serverfiles/sdtdserver.xml — siehe Troubleshooting "Server-Config
-  # & Gameserver-UI"). Auf einem frischen Setup daher zuerst OHNE den
-  # serverconfig-Mount booten, dann seeden und den Mount aktivieren.
+  # ACHTUNG: Der folgende Block ist hier GEKÜRZT dargestellt. Da diese Datei als
+  # configfile gemountet wird (-> serverfiles/sdtdserver.xml), MUSS sie die
+  # VOLLSTÄNDIGE 7DTD-serverconfig enthalten (~98 Properties) — ein Minimal-Auszug
+  # bringt 7DTD beim Start zum Absturz ("double fault"). Vor dem Versiegeln daher
+  # die komplette Config einsetzen (Basis: vom Image generierte
+  # serverfiles/sdtdserver.xml; eigene Werte inkl. EACEnabled=false überlagern).
+  # Details/Seeding: Troubleshooting "Server-Config & Gameserver-UI".
   - |
     cat > /opt/7dtd/config/serverconfig.xml << 'XMLEOF'
     <?xml version="1.0"?>
