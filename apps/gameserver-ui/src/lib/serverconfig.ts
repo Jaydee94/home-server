@@ -12,7 +12,14 @@ export function serializeProperties(xml: string, changes: Record<string, string>
   let out = xml;
   for (const [name, value] of Object.entries(changes)) {
     const re = new RegExp(`(<property\\s+name="${name}"\\s+value=")[^"]*(")`, "i");
-    if (re.test(out)) out = out.replace(re, `$1${value}$2`);
+    if (re.test(out)) {
+      out = out.replace(re, `$1${value}$2`);
+    } else {
+      // Fehlende Property vor dem schließenden Tag ergänzen, damit auch nicht
+      // bereits vorhandene Einstellungen gesetzt werden können.
+      const entry = `\t<property name="${name}" value="${value}"/>\n`;
+      out = out.replace(/([ \t]*<\/ServerSettings>)/i, `${entry}$1`);
+    }
   }
   return out;
 }
