@@ -9,12 +9,23 @@ import { useToast } from "@/components/feedback/ToastProvider";
 import { useConfirm } from "@/components/feedback/ConfirmProvider";
 
 interface BackupMeta { filename: string; timestamp: string; sizeBytes: number; }
+interface TarEntry { name: string; size: number; }
 
 export default function BackupsPage() {
   const [backups, setBackups] = useState<BackupMeta[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openFile, setOpenFile] = useState<string | null>(null);
+  const [entries, setEntries] = useState<TarEntry[] | null>(null);
   const toast = useToast();
   const confirm = useConfirm();
+
+  async function showContents(filename: string) {
+    if (openFile === filename) { setOpenFile(null); setEntries(null); return; }
+    setOpenFile(filename); setEntries(null);
+    const r = await fetch(`/api/backups/${encodeURIComponent(filename)}/contents`);
+    if (r.ok) setEntries((await r.json()).entries);
+    else { toast("error", "Inhalt nicht lesbar"); setOpenFile(null); }
+  }
 
   async function load() { const r = await fetch("/api/backups"); setBackups(r.ok ? (await r.json()).backups : []); }
   useEffect(() => { load(); }, []);
@@ -59,6 +70,7 @@ export default function BackupsPage() {
                 <td>{new Date(b.timestamp).toLocaleString("de-DE")}</td>
                 <td>{(b.sizeBytes / 1024 / 1024).toFixed(1)} MB</td>
                 <td style={{ textAlign: "right", display: "flex", gap: "var(--sp-2)", justifyContent: "flex-end" }}>
+                  <Button variant="secondary" onClick={() => showContents(b.filename)}>{openFile === b.filename ? "🔍 Schließen" : "🔍 Inhalt"}</Button>
                   <a href={`/api/backups/${encodeURIComponent(b.filename)}`}><Button variant="secondary">⬇</Button></a>
                   <Button variant="secondary" disabled={busy} onClick={() => restore(b.filename)}>Restore</Button>
                   <Button variant="danger" disabled={busy} onClick={() => del(b.filename)}>Löschen</Button>
@@ -68,6 +80,21 @@ export default function BackupsPage() {
           </Table>
         )}
       </Card>
+      {openFile && (
+        <Card>
+          <div style={{ fontSize: 13, marginBottom: "var(--sp-2)" }}>Inhalt: <code>{openFile}</code>{entries && ` — ${entries.length} Einträge`}</div>
+          {!entries ? <Skeleton height={120} /> : (
+            <div style={{ maxHeight: "50vh", overflowY: "auto", fontFamily: "monospace", fontSize: 12 }}>
+              {entries.map((e) => (
+                <div key={e.name} style={{ display: "flex", justifyContent: "space-between", gap: "var(--sp-3)", padding: "1px 0", color: e.name.endsWith("/") ? "var(--fg-muted)" : "var(--fg)" }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.name}</span>
+                  <span style={{ flexShrink: 0, color: "var(--fg-muted)" }}>{e.name.endsWith("/") ? "" : `${(e.size / 1024).toFixed(1)} KB`}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
     </main>
   );
 }
