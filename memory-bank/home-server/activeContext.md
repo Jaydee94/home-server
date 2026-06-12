@@ -1,37 +1,38 @@
 # Active Context
 
 ## Aktueller Branch
-main (alle gameserver-ui-Arbeiten gemergt + live verifiziert)
+feat/gameserver-ui-config-form (PR offen)
 
 ## Aktueller Fokus
-Gameserver-UI Konsolen-/Logs-/Dashboard-Verbesserungen abgeschlossen.
+Benutzerfreundliche serverconfig.xml-Konfiguration in der Gameserver-UI.
 
-## Zuletzt abgeschlossen (12.06.2026) — alle live verifiziert
-- **PR #163**: Telnet graceful `exit` (`channel.end`) statt `channel.destroy()` →
-  keine `IOException` mehr; `stripServerLog` filtert Server-Logzeilen.
-- **PR #164**: Konsolen-Output ab `Executing command`-Marker schneiden
-  (`extractCommandOutput`) → 'session.'-Fragment weg; `/logs` Toggle
-  „Verbindungs-Logs" (`isConnectionNoise`, Default aus), `--tail` 100→500.
-- **PR #165**: Container-Neustart (`POST /api/restart`, `restartServer`) — nur
-  `docker restart 7dtd-server` statt VM-Stopp/Start; saveworld + 30s-Countdown bei
-  Online-Spielern, sofort bei 0. Buttons Dashboard + Mods. Spielversion-Kachel
-  (`GET /api/version`, `parseVersion` → `V 2.6 (b14)`).
-- **Echter Restart end-to-end getestet**: UI-Klick → Container StartedAt wechselte
-  (05:27→06:31), `StartGame done` + `GameServer.LogOn successful`, danach
-  `gettime` wieder responsiv.
+## Erledigt in diesem Branch
+- `configSchema.ts`: kuratiertes Schema aller ~70 V2.6-Properties (Quelle: mitgelieferte
+  serverconfig.xml des Servers, V2.6 b14) mit type/label/description/default/options/range.
+- Typgerechte Controls (`ConfigFieldControl.tsx`): enum→Dropdown, bool→Toggle,
+  begrenzte int→Slider+Zahl, offene→Stepper, text/password.
+- `GameWorld` = dynamisches Dropdown via `GET /api/worlds` (listet Welten im Container:
+  serverfiles/Data/Worlds + GeneratedWorlds, + RWG).
+- `config/page.tsx`: ~8 Gruppen als Akkordeon + Suche; geänderte Felder hervorgehoben
+  + Zähler am Speichern-Button; Default-Hinweis je Feld; „Experten (XML)" bleibt.
+- `buildConfigModel` mergt Schema+Datei; unbekannte Properties → „Sonstige".
+- `serializeProperties` ergänzt fehlende Properties (alle Settings setzbar). ACHTUNG:
+  bestehender Test „ignores keys not present" wurde bewusst zu „ergänzt fehlende" geändert.
+- TDD: configSchema/configModel/serverconfig Tests. Suite 116/116, tsc+eslint+build clean.
+- docs/20 Config-Zeile aktualisiert. Spec: docs/superpowers/specs/2026-06-12-...-config-form-design.md
 
-## Wichtige verifizierte Fakten (gameserver-ui ↔ VM)
-- 7DTD = Docker-Container `7dtd-server` (vinanrra/7dtd-server, --network host) auf KubeVirt-VM.
-- `docker logs 7dtd-server` == LinuxGSM `/home/sdtdserver/log/console/sdtdserver-console.log`
-  (byte-identisch) — enthält Gameplay (GMSG joined/died, Chat, PlayerSpawned).
-- VM-SSH: nur SealedSecret-Key `gameserver-ui-ssh` für ubuntu autorisiert (jaydee-Key NICHT);
-  docker braucht `sudo`. VMI-IP via `kubectl -n gameserver get vmi 7dtd-server`.
-- Deploy: gameserver-ui Image-Tag `:stable` → nach Merge **Pod-Restart nötig**
-  (`kubectl -n gameserver-ui rollout restart deploy gameserver-ui`); ArgoCD triggert
-  bei gleichem Tag keinen Rollout.
+## Verifizierte Fakten (V2.6)
+- Welten auf Server: Navezgane, Pregen06k01/06k02/08k01/08k02 (+ Empty/Playtesting), keine generierten.
+- `version`-Telnet → `Game version: V 2.6 (b14)`.
+- Welt-Pfade: /home/sdtdserver/serverfiles/Data/Worlds, /home/sdtdserver/.local/share/7DaysToDie/GeneratedWorlds.
 
-## Offene Punkte (nicht gameserver-ui)
-- TinyTeller ggf. noch auf NAS unter /opt/tinyteller — manuell stoppen.
+## Offene Punkte
+- PR mergen → Image-Build → **Pod-Restart** der gameserver-ui (Tag :stable).
+- Live verifizieren: /config Akkordeon/Controls, Map-Dropdown, Speichern.
+- Hinweis: Speichern startet den 7DTD-Container neu (~1 Min).
 
-## Davor gemergt
-- PR #162/#161: TinyTeller entfernt. PR #159: Homepage-Redesign. PR #47: NAS-Migration.
+## Zuletzt gemergt (alle live verifiziert)
+- PR #166: memory-bank-sync.
+- PR #165: Container-Neustart + Spielversions-Kachel (echter Restart getestet).
+- PR #164: Konsolen-Output sauber + /logs Verbindungs-Toggle.
+- PR #163: Telnet graceful exit → keine IOException.

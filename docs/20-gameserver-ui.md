@@ -147,7 +147,7 @@ ob diese beiden Mechanismen noch greifen.
 | Dashboard | `/` | VM-Status, CPU/RAM/Version-Kacheln, Horde-Night-Countdown, Starten/Stoppen/**Neustarten** (Container-Restart) |
 | Logs | `/logs` | Live-Logs (`docker logs 7dtd-server`, == LinuxGSM `sdtdserver-console.log`) mit Suche, Pause, Kopieren, Download; Toggle „Verbindungs-Logs" blendet Telnet-Polling-Rauschen aus (Default aus) |
 | Console | `/console` | Interaktive Telnet-Console zur VM |
-| Config | `/config` | Servereinstellungen inline bearbeiten |
+| Config | `/config` | Alle ~70 serverconfig.xml-Settings (V2.6) mit typgerechten Controls (Dropdown/Toggle/Slider/Stepper), gruppiert (Akkordeon) + Suche; Map-Dropdown via `/api/worlds`; „Experten (XML)" für Rohbearbeitung. Speichern schreibt XML + Container-Neustart |
 | Backups | `/backups` | Backup erstellen (mit Retention), Download, Löschen |
 | Mods | `/mods` | Mod-Liste anzeigen/verwalten; „Mods anwenden (Neustart)" lädt hochgeladene Mods via Container-Restart |
 | Players | `/players` | Online-Spieler mit Session-Dauer |
