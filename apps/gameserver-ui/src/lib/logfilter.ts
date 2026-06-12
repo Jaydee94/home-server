@@ -17,3 +17,15 @@ const NOISE_PATTERNS: RegExp[] = [
 export function isConnectionNoise(line: string): boolean {
   return NOISE_PATTERNS.some((re) => re.test(line));
 }
+
+// Maximale Anzahl Log-Zeilen, die der Client im Speicher behält. Muss zum
+// Server-Tail (`buildContainerLogsCommand`, --tail=2000) passen — ist das
+// Client-Limit kleiner, werden die frühen Boot-/[MODS]-Zeilen des aktuellen
+// Server-Starts verworfen und sind in der UI nicht mehr sicht-/suchbar.
+export const MAX_LOG_LINES = 2000;
+
+// Hängt eine Zeile an und begrenzt den Puffer auf `max` Zeilen (FIFO: älteste
+// fällt raus). Reine Funktion, damit das Limit testbar ist.
+export function appendLogLine<T>(prev: T[], line: T, max: number = MAX_LOG_LINES): T[] {
+  return [...prev.slice(-(max - 1)), line];
+}
