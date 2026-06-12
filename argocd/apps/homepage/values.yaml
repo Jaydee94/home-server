@@ -161,10 +161,6 @@ homepage:
               href: http://jays-ugreen:4096
               description: KI-Coding-Assistent
               icon: mdi-robot
-          - TinyTeller:
-              href: http://jays-ugreen:3002
-              description: Finanzen
-              icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/actual-budget.svg
           - Day Pilot:
               href: http://jays-ugreen:3003
               description: Tagesplanung

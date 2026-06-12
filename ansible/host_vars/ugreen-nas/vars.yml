@@ -17,12 +17,6 @@ paperless_secret_key: "{{ vault_paperless_secret_key }}"
 node_exporter_base_dir: /opt/node-exporter
 cadvisor_port: 18080
 
-# ---- TinyTeller ---------------------------------------------
-tinyteller_base_dir: /opt/tinyteller
-tinyteller_frontend_port: 3002
-tinyteller_backend_port: 3004
-tinyteller_cors_origin: "http://ugreen-nas:3002"
-
 # ---- Day Pilot ----------------------------------------------
 day_pilot_base_dir: /opt/day-pilot
 day_pilot_frontend_port: 3003
