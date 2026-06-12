@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseProperties, serializeProperties, type ConfigProp } from "../serverconfig";
+import { parseProperties, serializeProperties, removeProperty, type ConfigProp } from "../serverconfig";
 
 const XML = `<?xml version="1.0"?>
 <ServerSettings>
@@ -39,5 +39,37 @@ describe("serializeProperties", () => {
     const twice = serializeProperties(once, { GameDifficulty: "4" });
     expect(twice.match(/name="GameDifficulty"/g)).toHaveLength(1);
     expect(twice).toContain(`name="GameDifficulty" value="4"`);
+  });
+});
+
+describe("removeProperty", () => {
+  const WITH_COMMENT = `<?xml version="1.0"?>
+<ServerSettings>
+  <property name="ServerName" value="ZCPM"/>
+  <property name="ControlPanelEnabled" value="false"/>	<!-- veraltet -->
+  <property name="ServerPort" value="26900"/>
+</ServerSettings>`;
+
+  it("entfernt die Ziel-Property inkl. nachgestelltem Kommentar", () => {
+    const out = removeProperty(WITH_COMMENT, "ControlPanelEnabled");
+    expect(out).not.toContain("ControlPanelEnabled");
+    expect(out).not.toContain("veraltet");
+  });
+
+  it("lässt andere Properties unangetastet", () => {
+    const out = removeProperty(WITH_COMMENT, "ControlPanelEnabled");
+    expect(out).toContain(`name="ServerName" value="ZCPM"`);
+    expect(out).toContain(`name="ServerPort" value="26900"`);
+    expect(out).toContain("</ServerSettings>");
+  });
+
+  it("ist no-op bei unbekanntem Namen", () => {
+    const out = removeProperty(WITH_COMMENT, "DoesNotExist");
+    expect(out).toBe(WITH_COMMENT);
+  });
+
+  it("hinterlässt keine leere Zeile", () => {
+    const out = removeProperty(WITH_COMMENT, "ControlPanelEnabled");
+    expect(out).not.toMatch(/\n[ \t]*\n[ \t]*<property name="ServerPort"/);
   });
 });

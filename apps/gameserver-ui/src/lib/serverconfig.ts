@@ -8,6 +8,14 @@ export function parseProperties(xml: string): ConfigProp[] {
   return out;
 }
 
+// Entfernt die <property name="…">-Zeile (inkl. evtl. nachgestelltem Kommentar bis
+// Zeilenende) vollständig aus dem XML. Unbekannter Name → unverändert.
+export function removeProperty(xml: string, name: string): string {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^[ \\t]*<property\\s+name="${escaped}"[^>]*/>.*(?:\\r?\\n|$)`, "im");
+  return xml.replace(re, "");
+}
+
 export function serializeProperties(xml: string, changes: Record<string, string>): string {
   let out = xml;
   for (const [name, value] of Object.entries(changes)) {
