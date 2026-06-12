@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
-import { sanitizeModName } from "@/lib/mods";
+import { sanitizeModName, isProtectedMod } from "@/lib/mods";
 
 const MODS_DIR = "/opt/7dtd/mods";
 
@@ -12,6 +12,13 @@ export async function DELETE(
   try {
     const { name } = await params;
     sanitizeModName(name);
+
+    if (isProtectedMod(name)) {
+      return NextResponse.json(
+        { error: `System-Mod "${name}" kann nicht gelöscht werden` },
+        { status: 403 }
+      );
+    }
 
     const status = await VmClient.inCluster().getStatus();
     if (status.vmiPhase !== "Running" || !status.ipAddress) {

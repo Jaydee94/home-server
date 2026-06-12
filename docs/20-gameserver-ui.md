@@ -166,7 +166,7 @@ Verifikation: Upload → `200`, Mod in der Liste, im Container sichtbar via
 | Console | `/console` | Interaktive Telnet-Console zur VM |
 | Config | `/config` | Alle ~70 serverconfig.xml-Settings (V2.6) mit typgerechten Controls (Dropdown/Toggle/Slider/Stepper), gruppiert (Akkordeon) + Suche; Map-Dropdown via `/api/worlds`; „Experten (XML)" für Rohbearbeitung; veraltete/unbekannte Properties (Gruppe „Sonstige") per 🗑 entfernbar. Speichern schreibt XML + Container-Neustart |
 | Backups | `/backups` | Backup erstellen (mit Retention), Download, Löschen |
-| Mods | `/mods` | Mod-Liste anzeigen/verwalten; „Mods anwenden (Neustart)" lädt hochgeladene Mods via Container-Restart |
+| Mods | `/mods` | Mod-Liste anzeigen/verwalten; „Mods anwenden (Neustart)" lädt hochgeladene Mods via Container-Restart. Stock-Mods (Präfix `0_TFP`/`TFP_`/`Xample_`, z. B. `0_TFP_Harmony`) sind als „System" markiert und vor Löschen geschützt — auch server-seitig (DELETE → 403) |
 | Players | `/players` | Online-Spieler mit Session-Dauer |
 
 ## Weiterführend

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
+import { isProtectedMod } from "@/lib/mods";
 
 const MODS_DIR = "/opt/7dtd/mods";
 
@@ -16,7 +17,7 @@ export async function GET() {
       .split("\n")
       .map((n) => n.trim())
       .filter(Boolean)
-      .map((name) => ({ name, sizeBytes: 0 }));
+      .map((name) => ({ name, sizeBytes: 0, protected: isProtectedMod(name) }));
     return NextResponse.json({ mods });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 });

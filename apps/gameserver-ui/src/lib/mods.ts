@@ -1,6 +1,17 @@
 export interface ModInfo {
   name: string;
   sizeBytes: number;
+  protected: boolean;
+}
+
+// Mitgelieferte Stock-Mods (TFP/Beispiel-Mods aus dem vinanrra-Image) dürfen nicht
+// gelöscht werden — 0_TFP_Harmony ist z. B. zwingend für DLL-Mods. Erkennung per
+// Präfix nach TFP-Namenskonvention; case-sensitive, da die echten Ordnernamen
+// großgeschrieben sind.
+const PROTECTED_PREFIXES = ["0_TFP", "TFP_", "Xample_"];
+
+export function isProtectedMod(name: string): boolean {
+  return PROTECTED_PREFIXES.some((prefix) => name.startsWith(prefix));
 }
 
 export function sanitizeModName(name: string): string {
