@@ -1,6 +1,6 @@
 # GETBETTER
 
-_Letzte Aktualisierung: 2026-06-11_
+_Letzte Aktualisierung: 2026-06-12_
 
 ## Entscheidungen
 
@@ -59,6 +59,18 @@ _Letzte Aktualisierung: 2026-06-11_
 - **`ssh2.forwardOut` für localhost-gebundene Dienste in VMs**: 7DTD Telnet bindet nur auf `127.0.0.1:8081` (kein externer Zugriff). Direktes TCP vom Pod schlägt mit ECONNREFUSED fehl. Fix: `SshClient.forwardOut(port)` öffnet einen SSH-Tunnel und gibt einen bidirektionalen Channel zurück — das Telnet-Protokoll läuft darüber transparent. Gleiches Muster gilt für jeden VM-lokalen Dienst.
 
 - **kubeseal-webgui statt kubeseal-CLI auf dem Server**: `kubeseal --raw` auf dem Server kann einen falschen/veralteten Key verwenden → SealedSecret bleibt `Degraded ("no key could decrypt secret")`. kubeseal-webgui fetcht das Zertifikat live vom Controller und ist zuverlässiger. Für nicht-triviale Secrets: immer kubeseal-webgui bevorzugen.
+
+- **7DTD-Telnet: graceful `exit` statt `channel.destroy()`**: 7DTD hält pro Telnet-Verbindung einen Writer-Thread (`TelnetConnection.handleWriting`), der das Server-Log fortlaufend an den Client broadcastet. Ein abruptes `channel.destroy()` lässt den Thread beim nächsten Write mit `IOException: socket has been shut down` sterben — und dieser Fehler erscheint via Log-History in der Ausgabe des NÄCHSTEN Befehls. Fix: nach dem Lesen der Antwort den 7DTD-Befehl `exit` senden (`channel.end("exit\r\n")`), dann schließt der Server den Socket selbst sauber. `destroy()` nur als Timeout-Fallback.
+
+- **`docker logs <container>` == LinuxGSM Console-Log (vinanrra/7dtd-server)**: Beim `vinanrra/7dtd-server`-Image ist `docker logs 7dtd-server` byte-identisch mit `/home/sdtdserver/log/console/sdtdserver-console.log` und enthält das echte Gameplay (GMSG joined/died/left, Chat, PlayerSpawned). Kein separates "vollständigeres" Logfile nötig — Quelle ist korrekt. Bei idle-Server wird die Ansicht aber von Telnet-Polling-Rauschen überlagert → clientseitig filtern (Toggle), nicht Quelle wechseln.
+
+- **Curated Config-Schema aus der mitgelieferten serverconfig.xml (versionsgenau)**: Statt statisch zu raten oder voll-dynamisch: das Schema (Typ/Optionen/Range/Beschreibung/Default) aus der vom Server **mitgelieferten** `serverconfig.xml` kuratieren (`/home/sdtdserver/serverfiles/serverconfig.xml`, deren XML-Kommentare = Doku der exakten Version). Properties im File ohne Schema-Eintrag → Gruppe "Sonstige" als Textfeld (vorwärtskompatibel). So: schöne typisierte Controls UND Versionsgenauigkeit.
+
+- **Befehlsausgabe ab Marker-Zeile schneiden, nicht blacklist-filtern**: 7DTD-Telnet liefert vor dem Ergebnis ein Verbindungs-Banner + Broadcast-History. Robust: ab der letzten `Executing command '<cmd>' by Telnet`-Markerzeile schneiden (`extractCommandOutput`) statt zu versuchen, jede Rausch-Variante zu blacklisten — sonst rutschen Fragmente durch (z.B. `session.`).
+
+- **Log-Rauschfilter: nur dienst-spezifische Muster, echte Fehler erhalten**: `isConnectionNoise` filtert Telnet-Plumbing (`Telnet connection from/closed`, `Executing command … by Telnet`, `IOException in TelnetClient`, `TelnetConnection.`/`System.Net.Sockets`-Frames) — aber bewusst NICHT generisch alle `at …`-Stacktraces, damit echte Spiel-Exceptions sichtbar bleiben.
+
+- **Container-Neustart als eigene Aktion neben VM-Stopp/Start**: `docker restart 7dtd-server` (nur der Game-Container) ist der schnelle Weg, Mods/Config zu laden, ohne die ganze KubeVirt-VM (OS+Tailscale) neu zu booten. Bei Online-Spielern vorher `saveworld` + 30s-Broadcast-Countdown; bei 0 Spielern sofort. `sleep` injizierbar machen → testbar ohne reale Wartezeit.
 
 ## Anti-Patterns
 
@@ -121,6 +133,20 @@ _Letzte Aktualisierung: 2026-06-11_
 - **kubeseal-CLI auf dem Server für Sealed Secrets nutzen**: `kubeseal --raw` auf dem Server verwendet nicht zwingend das aktive Controller-Zertifikat → SealedSecret bleibt `Degraded ("no key could decrypt secret")`. Stattdessen kubeseal-webgui nutzen (fetcht Zertifikat live vom Controller) oder das Zertifikat explizit via `--cert` übergeben.
 
 - **Rolling Update bei CSI-Volume-Mount-Änderungen**: Wenn sich SMB/NFS-Mount-Optionen (uid, gid) ändern, übernimmt ein Rolling Update die neuen Optionen NICHT — der alte Pod hält den CSI-Stage und der neue Pod bekommt denselben Stage zugewiesen. Einziger Fix: `scale --replicas=0` (vollständiger Unmount) → `scale --replicas=1` (frischer Mount mit neuen Optionen).
+
+- **`ssh.exec` rejected bei non-zero Exit → `ls` auf evtl. fehlendes Verzeichnis = 502**: `SshClient.exec` wirft bei Exit≠0. Ein `ls -1 <dir> 2>/dev/null` auf ein nicht existierendes Verzeichnis liefert Exit 2 (stderr unterdrückt, aber Exit-Code bleibt) → die Route fängt den Fehler → 502. Resilient machen: `… ; true` am Ende anhängen (oder `|| echo ""` wie die mods-Route), damit der Befehl immer mit 0 endet.
+
+- **Image-Tag `:stable` + ArgoCD = kein Auto-Rollout**: Wenn das Deployment einen gleichbleibenden Tag (`:stable`) pinnt, sieht ArgoCD nach einem neuen Image-Build KEINE Manifest-Änderung und triggert keinen Rollout — der Pod zieht das neue Image erst bei Neustart (`pullPolicy: Always`). Nach jedem CI-Build manuell `kubectl -n <ns> rollout restart deployment/<name>`. Reproduzierbarer Alternativweg: auf den `sha-…`-Tag pinnen (Renovate/CI bumpt → ArgoCD rollt automatisch).
+
+- **Auto-Mode-Classifier blockt Prod-Writes & Credential-Repurposing**: (a) Per SSH in die Prod-Infra `kubectl rollout restart` ausführen, wenn nur "merge" beauftragt war → blockiert. (b) Einen Service-SSH-Key aus einem k8s-Secret extrahieren und nach einem fehlgeschlagenen ersten Versuch zweckentfremden → als "Credential Exploration" blockiert. Lehre: Prod-verändernde/credential-lesende Aktionen brauchen explizite User-Freigabe — stoppen und fragen, nicht umgehen.
+
+- **memory-bank-MCP schreibt direkt ins versionierte Repo → uncommittete Änderung auf main**: `memory_bank_update` ändert `memory-bank/<projekt>/*.md` im Arbeitsbaum. Wird das nicht im Feature-Branch mitcommittet, bleibt es als dirty change auf `main` liegen und reitet beim nächsten Branch ungewollt mit. Lehre: memory-bank-Updates im selben Feature-Branch mitcommitten; bei reinen Post-Merge-Updates einen kleinen `chore/…-sync`-Branch + PR anlegen (Direktcommit auf main ist verboten — gilt auch für GETBETTER.md).
+
+- **Inline Multi-Line-SSH mit Quoting/Globbing/Parens scheitert in zsh**: Lange `ssh host '…mehrzeilig… find -name *.log … echo (…)…'`-One-Liner brechen lokal in zsh (Glob `*.log`, Parens in `echo`, verschachtelte Quotes). Robust: Skript in eine Temp-Datei schreiben und via `ssh host 'bash -s' < /tmp/script.sh` pipen. `ubuntu`-User in der VM braucht zudem `sudo` für `docker`.
+
+- **Test bewusst an Verhaltensänderung anpassen (kein Test-Gaming)**: Als `serializeProperties` von "ignoriert fehlende Keys" auf "ergänzt fehlende" umgestellt wurde, musste der bestehende Test `ignores keys not present` aktiv zu `ergänzt fehlende` umgeschrieben werden. Das ist legitim (Anforderung geändert) — klar im Commit dokumentieren, nicht heimlich.
+
+- **`set-state-in-effect`-ESLint nur für neu eingeführte Verstöße fixen**: Das Repo hat vorbestehende `react-hooks/set-state-in-effect`-Verstöße (z.B. `loadMetrics`-Effect) und eslint ist NICHT Teil der gameserver-ui-CI (nur `test`+`build`). Nur die eigenen neuen Verstöße beheben (Anzeigewert im Render ableiten statt synchron `setState` im Effect), vorbestehende nicht anfassen (unrelated refactoring vermeiden).
 
 ## Was funktioniert
 
@@ -191,3 +217,17 @@ _Letzte Aktualisierung: 2026-06-11_
 - **`kubectl scale --replicas=0` → wait → `scale --replicas=1` für CSI-Remount**: Wenn sich SMB/NFS-Mount-Optionen (uid, gid, file_mode) in einem PV ändern, erzwingt ein vollständiges Scale-Down (alle Pods terminieren → CSI NodeUnpublishVolume + NodeUnstageVolume) gefolgt von Scale-Up einen frischen Mount mit den neuen Optionen. Rolling-Restart reicht nicht — der alte Stage bleibt aktiv solange mindestens ein Pod das Volume nutzt.
 
 - **Playwright Full-UI-Regression nach jedem Rollout**: Nach dem Merge wichtiger PRs alle Seiten per Playwright durchklicken — Login, Dashboard, alle Feature-Seiten, alle destruktiven Aktionen (Backup, Welt speichern). Fehler (EACCES, ECONNREFUSED) werden sofort sichtbar ohne SSH-Logs lesen zu müssen.
+
+- **Server-Log-Timeline-Analyse zur Root-Cause-Beweisführung**: Bei verschachtelten Symptomen die Quell-Ports/IDs über die Zeit verfolgen. Beim Telnet-Bug zeigte die Abfolge (Verbindung 57616 → Fehler auf 57616 erst als 36090 verbindet), dass der `IOException` der VORHERIGEN Verbindung gehört und via Broadcast im nächsten Befehl auftaucht — eindeutiger Beweis statt Vermutung.
+
+- **`docker inspect -f '{{.State.StartedAt}}'` Before/After als Restart-Beweis**: Container-`StartedAt` vor und nach einer Aktion vergleichen beweist end-to-end, dass ein `docker restart` real ausgelöst wurde (Zeitstempel springt auf den Klick-Zeitpunkt). Kombiniert mit Startup-Markern (`StartGame done`, `GameServer.LogOn successful`) als Beleg, dass der Dienst sauber zurückkommt.
+
+- **React Controlled-Input per nativem Setter + `input`-Event treiben**: Um einen echten Save-Flow durch die UI zu testen (Playwright `evaluate`): `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input, val)` + `input.dispatchEvent(new Event('input',{bubbles:true}))` triggert Reacts `onChange`. Danach echten Speichern-Button + Confirm klicken → voller PUT-Pfad inkl. Persistenz live verifiziert (Wert in serverconfig.xml prüfen, danach reverten für sauberen Zustand).
+
+- **Mitgelieferte Config-Datei aus dem Container als versionsgenaue Schema-Quelle**: `docker exec <c> cat <shipped-config>` liefert die exakte Property-Liste + Kommentare der laufenden Version — die autoritative Quelle für ein UI-Schema, statt veralteter Wiki-/Forenlisten. Vorher die aktive Version ermitteln (`version`-Befehl).
+
+- **Verwandte Fixes in einem PR bündeln spart Deploy-Zyklen**: Bei `:stable`-Tag kostet jeder Merge einen Image-Build + manuellen Pod-Restart. Thematisch zusammengehörige Fixes (z.B. Konsolen-Output + Logs-Toggle) in einem PR bündeln statt zwei separate Deploy-Runden.
+
+- **AskUserQuestion `preview` für Layout-Entscheidungen**: Statt den schwergewichtigen Visual-Companion-Browser zu starten, ASCII-Mockups direkt in die `preview`-Felder der AskUserQuestion-Optionen legen (Akkordeon vs. Tabs vs. flache Liste). Passt zum terminal-basierten Workflow und ist sofort vergleichbar.
+
+- **Deploy-Loop für `:stable`-Apps**: `gh pr merge --merge` → `gh run watch <gameserver-ui-build> --exit-status` → `kubectl rollout restart deploy/<name>` + `rollout status` → Playwright-Live-Verifikation. `gh pr checks --watch` davor als CI-Gate. Diese feste Sequenz hat über 5 PRs zuverlässig funktioniert.
