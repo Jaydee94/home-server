@@ -3,10 +3,13 @@ import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
 import { parseWorlds } from "@/lib/configModel";
 
+// `; true` am Ende: fehlt z. B. das GeneratedWorlds-Verzeichnis, liefert `ls`
+// Exit≠0 — und ssh.exec rejectet bei non-zero Exit (→ 502). Mit abschließendem
+// `true` endet der Befehl immer mit 0; leere Ausgaben sind ok (parseWorlds robust).
 const LIST_CMD =
   "sudo docker exec 7dtd-server bash -lc " +
   "'ls -1 /home/sdtdserver/serverfiles/Data/Worlds 2>/dev/null; " +
-  "ls -1 /home/sdtdserver/.local/share/7DaysToDie/GeneratedWorlds 2>/dev/null'";
+  "ls -1 /home/sdtdserver/.local/share/7DaysToDie/GeneratedWorlds 2>/dev/null; true'";
 
 export async function GET() {
   try {
