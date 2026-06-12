@@ -40,7 +40,7 @@ describe("restartServer", () => {
 
   it("warnt Spieler per Broadcast + Countdown wenn Spieler online sind", async () => {
     const lp =
-      'Total of 1 in the game\nPlayer "Hans", id=1, pos=(0,0,0), health=100, deaths=0, zombies=0, players=0, score=0, level=1, steamid=1, ip=127.0.0.1, ping=0';
+      "Total of 1 in the game\n0. id=1, Hans, pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0), remote=True, health=100, deaths=0, zombies=0, players=0, score=0, level=1, pltfmid=Steam_1, crossid=EOS_1, ip=127.0.0.1, ping=0";
     const f = fakes(lp);
     await restartServer(f.ssh, OPTS, { sleep: f.sleep, telnet: f.telnet });
 
