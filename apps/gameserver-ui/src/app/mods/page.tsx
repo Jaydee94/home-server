@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useConfirm } from "@/components/feedback/ConfirmProvider";
 
-interface ModInfo { name: string; sizeBytes: number; }
+interface ModInfo { name: string; sizeBytes: number; protected: boolean; }
 
 export default function ModsPage() {
   const [mods, setMods] = useState<ModInfo[] | null>(null);
@@ -63,7 +63,9 @@ export default function ModsPage() {
           <Table>
             <thead><tr><th>Mod-Name</th><th></th></tr></thead>
             <tbody>{mods.map((m) => (
-              <tr key={m.name}><td>{m.name}</td><td style={{ textAlign: "right" }}><Button variant="danger" disabled={busy} onClick={() => del(m.name)}>Löschen</Button></td></tr>
+              <tr key={m.name}><td>{m.name}</td><td style={{ textAlign: "right" }}>{m.protected
+                ? <span style={{ fontSize: 12, color: "var(--fg-muted)", border: "1px solid var(--border)", borderRadius: "var(--radius)", padding: "2px 8px" }}>System</span>
+                : <Button variant="danger" disabled={busy} onClick={() => del(m.name)}>Löschen</Button>}</td></tr>
             ))}</tbody>
           </Table>
         )}

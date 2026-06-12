@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeModName } from "@/lib/mods";
+import { sanitizeModName, isProtectedMod } from "@/lib/mods";
 
 describe("sanitizeModName", () => {
   it("erlaubt gültige Mod-Namen", () => {
@@ -23,5 +23,29 @@ describe("sanitizeModName", () => {
   });
   it("wirft bei führendem Punkt", () => {
     expect(() => sanitizeModName(".hidden")).toThrow();
+  });
+});
+
+describe("isProtectedMod", () => {
+  it("schützt mitgelieferte TFP-Stock-Mods", () => {
+    expect(isProtectedMod("0_TFP_Harmony")).toBe(true);
+    expect(isProtectedMod("TFP_CommandExtensions")).toBe(true);
+    expect(isProtectedMod("TFP_MapRendering")).toBe(true);
+    expect(isProtectedMod("TFP_WebServer")).toBe(true);
+    expect(isProtectedMod("Xample_MarkersMod")).toBe(true);
+  });
+  it("schützt künftige Mods mit denselben Präfixen", () => {
+    expect(isProtectedMod("TFP_NeuerStockMod")).toBe(true);
+    expect(isProtectedMod("0_TFP_Etwas")).toBe(true);
+    expect(isProtectedMod("Xample_Demo")).toBe(true);
+  });
+  it("schützt eigene/hochgeladene Mods nicht", () => {
+    expect(isProtectedMod("TitlesSystem")).toBe(false);
+    expect(isProtectedMod("MyMod")).toBe(false);
+    expect(isProtectedMod("DarknessFalls")).toBe(false);
+  });
+  it("ist case-sensitive (echte Ordnernamen sind großgeschrieben)", () => {
+    expect(isProtectedMod("tfp_lowercase")).toBe(false);
+    expect(isProtectedMod("xample_lower")).toBe(false);
   });
 });
