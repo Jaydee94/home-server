@@ -6,13 +6,14 @@ import { Tabs } from "@/components/ui/Tabs";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useConfirm } from "@/components/feedback/ConfirmProvider";
-import { serializeProperties } from "@/lib/serverconfig";
+import { serializeProperties, removeProperty } from "@/lib/serverconfig";
 import { buildConfigModel } from "@/lib/configModel";
 import { ConfigFieldControl } from "@/components/config/ConfigFieldControl";
 
 export default function ConfigPage() {
   const [xml, setXml] = useState("");
   const [edits, setEdits] = useState<Record<string, string>>({});
+  const [removals, setRemovals] = useState<Record<string, boolean>>({});
   const [worlds, setWorlds] = useState<string[] | null>(null);
   const [tab, setTab] = useState("Formular");
   const [query, setQuery] = useState("");
@@ -32,19 +33,22 @@ export default function ConfigPage() {
   const matches = (f: { name: string; label: string; description: string }) =>
     !q || f.name.toLowerCase().includes(q) || f.label.toLowerCase().includes(q) || f.description.toLowerCase().includes(q);
 
+  const removalNames = useMemo(() => Object.keys(removals).filter((n) => removals[n]), [removals]);
   const changedCount = useMemo(() => {
     const byName = new Map(groups.flatMap((g) => g.fields).map((f) => [f.name, f.current]));
-    return Object.entries(edits).filter(([n, v]) => v !== (byName.get(n) ?? "")).length;
-  }, [edits, groups]);
+    const edited = Object.entries(edits).filter(([n, v]) => v !== (byName.get(n) ?? "")).length;
+    return edited + removalNames.length;
+  }, [edits, groups, removalNames]);
 
   async function save() {
     if (changedCount === 0) { toast("error", "Keine Änderungen"); return; }
     if (!(await confirm({ title: "Ausrollen + Neustart?", body: `${changedCount} Änderung(en) werden in die serverconfig.xml geschrieben und der 7DTD-Server neu gestartet.`, danger: true }))) return;
     setSaving(true);
-    const merged = serializeProperties(xml, edits);
+    let merged = serializeProperties(xml, edits);
+    for (const name of removalNames) merged = removeProperty(merged, name);
     const res = await fetch("/api/config", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ xml: merged }) });
     setSaving(false);
-    if (res.ok) { toast("ok", "Ausgerollt — Server neu gestartet"); setXml(merged); setEdits({}); }
+    if (res.ok) { toast("ok", "Ausgerollt — Server neu gestartet"); setXml(merged); setEdits({}); setRemovals({}); }
     else toast("error", "Speichern fehlgeschlagen");
   }
 
@@ -77,9 +81,12 @@ export default function ConfigPage() {
                   <div style={{ display: "grid", gap: "var(--sp-2)", marginTop: "var(--sp-3)" }}>
                     {visible.map((f) => {
                       const value = edits[f.name] ?? f.current;
+                      const isOther = f.category === "Sonstige";
                       return (
                         <ConfigFieldControl key={f.name} field={f} value={value} worlds={worlds}
                           changed={f.name in edits && edits[f.name] !== f.current}
+                          removable={isOther} removed={!!removals[f.name]}
+                          onToggleRemove={() => setRemovals((s) => ({ ...s, [f.name]: !s[f.name] }))}
                           onChange={(v) => setEdits((s) => ({ ...s, [f.name]: v }))} />
                       );
                     })}
