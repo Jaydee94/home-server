@@ -23,8 +23,8 @@ Alle Einstellungen leben in `argocd/apps/homepage/values.yaml` (GitOps):
 
 Google-/Material-inspiriertes Dark-Theme mit Teal-Akzent:
 
-- `theme: dark` (fest), `color: teal`, `headerStyle: clean`, `iconStyle: theme`
-- **Einheitliches Raster:** alle Gruppen `style: row, columns: 4`
+- `theme: dark` (fest), `color: teal`, `headerStyle: clean`, `iconStyle: color`
+- **Angepasstes Raster:** Cluster `columns: 3`, Media `columns: 2`, NAS + Tools `columns: 4`
 - **Gleich hohe Karten:** `useEqualHeights: true` — verhindert unterschiedlich
   große Kacheln (Karten mit Widget wären sonst höher als Karten ohne)
 - Zentrierte Inhaltsspalte (kein `fullWidth`), Google-Suche + Quick Launch
@@ -82,8 +82,9 @@ Nach Änderungen: `make argocd` ausführen.
 - **Grafana intern:** Widget-URL ist `http://monitoring-grafana.monitoring.svc.cluster.local`
   — kein Umweg über den Ingress, kein Passwort-Prompt.
 - **ArgoCD intern:** Widget-URL ist `http://argocd-server.argocd.svc.cluster.local`.
-- **Icons:** selfh.st/icons — Icon-Dateinamen ohne Pfad angeben (z.B. `grafana.svg`).
-  Bei 404: auf der Site suchen und Dateinamen korrigieren.
+- **Icons:** Eingebaute Icons (z.B. `grafana.svg`, `jellyfin.svg`) ohne Pfad angeben.
+  Für alle anderen: `mdi-<name>` (Material Design Icons, immer verfügbar) bevorzugen.
+  CDN-URLs von walkxcode/dashboard-icons und selfhst/icons liefern häufig 403 — nicht verwenden.
 - **Custom-CSS greift nicht / veraltet:** ConfigMap-Änderungen lösen je nach
   Chart-Version keinen Pod-Neustart aus. Dann
   `sudo kubectl -n homepage rollout restart deploy` ausführen. Homepage muss die
