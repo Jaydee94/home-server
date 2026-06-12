@@ -33,10 +33,22 @@ export default function ModsPage() {
     const r = await fetch(`/api/mods/${encodeURIComponent(name)}`, { method: "DELETE" });
     setBusy(false); toast(r.ok ? "ok" : "error", r.ok ? `${name} gelöscht` : "Löschen fehlgeschlagen"); if (r.ok) load();
   }
+  async function applyRestart() {
+    if (!(await confirm({ title: "Mods anwenden (Neustart)?", body: "Der 7DTD-Container wird neu gestartet, um die Mods zu laden (Welt wird vorher gespeichert). Online-Spieler werden 30 s vorgewarnt.", danger: true }))) return;
+    setBusy(true);
+    toast("ok", "Server wird neugestartet (~1 Min)…");
+    const r = await fetch("/api/restart", { method: "POST" });
+    setBusy(false);
+    if (!r.ok) toast("error", "Neustart fehlgeschlagen");
+  }
 
   return (
     <main style={{ display: "grid", gap: "var(--sp-4)" }}>
-      <h1 style={{ fontSize: 20 }}>Mods</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "var(--sp-2)" }}>
+        <h1 style={{ fontSize: 20 }}>Mods</h1>
+        <Button variant="secondary" disabled={busy} onClick={applyRestart}>↻ Mods anwenden (Neustart)</Button>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--fg-muted)" }}>Hochgeladene Mods werden erst nach einem Server-Neustart geladen.</div>
       <div onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); const f = e.dataTransfer.files[0]; if (f) upload(f); }}
         onClick={() => inputRef.current?.click()}
