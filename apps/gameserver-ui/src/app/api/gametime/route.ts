@@ -12,9 +12,11 @@ export async function GET() {
     }
     const ssh = SshClient.fromEnv(status.ipAddress);
     const out = await telnetCommand(ssh, telnetOptsFromEnv(), "gettime");
-    const gt = parseGetTime(out);
-    if (!gt) return NextResponse.json({ error: "Zeit nicht lesbar" }, { status: 502 });
-    return NextResponse.json(gt);
+    // Telnet hat geantwortet, aber die Zeit ist (noch) nicht parsebar — z. B. im
+    // kurzen Fenster direkt nach einem Server-Neustart. Kein Fehler: 200 mit null,
+    // damit das Dashboard "—" zeigt statt einen 502 zu loggen. Echte Telnet-/
+    // VM-Fehler landen weiterhin im catch (502).
+    return NextResponse.json(parseGetTime(out));
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 });
   }

@@ -48,9 +48,8 @@ export default function Dashboard() {
         const { extractConfigValue } = await import("@/lib/config");
         freq = Number(extractConfigValue(d.xml ?? "", "BloodMoonFrequency") ?? "7") || 7;
       }
-      const { nextBloodMoon } = await import("@/lib/gametime");
-      const next = nextBloodMoon(gt.day, freq);
-      setHorde(next === gt.day ? "Heute Nacht!" : `Tag ${next} (in ${next - gt.day})`);
+      const { bloodMoonLabel } = await import("@/lib/gametime");
+      setHorde(bloodMoonLabel(gt, freq));
     })().catch(() => {});
   }, [running]);
   const loadMetrics = useCallback(async () => {
