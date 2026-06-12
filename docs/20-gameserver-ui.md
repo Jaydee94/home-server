@@ -16,6 +16,8 @@ Browser → Traefik (LAN/Tailnet) → Namespace gameserver-ui
 
 - **Authentifizierung:** Single-Admin, iron-session-Cookie, bcrypt-Hash aus SealedSecret `gameserver-ui-auth`
 - **VM-Steuerung:** PATCH `spec.runStrategy` (`Always` = starten, `Halted` = stoppen)
+- **Container-Neustart:** `POST /api/restart` → `saveworld` + `sudo docker restart 7dtd-server` via SSH (bei Online-Spielern 30 s Broadcast-Countdown). Startet nur den 7DTD-Container neu (nicht die VM) — lädt u. a. neue Mods.
+- **Spielversion:** `GET /api/version` → Telnet `version` → `parseVersion` (`V 2.6 (b14)`)
 - **Metriken:** VictoriaMetrics-Abfragen via `/api/metrics` — CPU-Auslastung (`kubevirt_vmi_vcpu_seconds_total`) und RAM `X.X / Y.Y GB` (`kubevirt_vmi_memory_resident_bytes` / `kubevirt_vm_resource_requests`)
 - **RBAC:** Cross-Namespace — ServiceAccount im Namespace `gameserver-ui`, Role/RoleBinding im Namespace `gameserver` (nur `get/list` auf VMI, `get/list/patch` auf VM)
 - **Image:** `ghcr.io/jaydee94/gameserver-ui` — Build via GitHub Actions (`.github/workflows/gameserver-ui.yml`), Tag `sha-<short-sha>`
@@ -134,17 +136,20 @@ ob diese beiden Mechanismen noch greifen.
 7. Logs (`/logs`): Default-Ansicht ohne Telnet-Plumbing (`Telnet connection from/closed`,
    `Executing command … by Telnet`); Toggle „Verbindungs-Logs" blendet es wieder ein.
    Spielgeschehen (`GMSG … joined/died`, `Chat (…)`) bleibt in beiden Modi sichtbar.
+8. Dashboard: Kachel „Version" zeigt die aktive Spielversion (z. B. `V 2.6 (b14)`).
+9. Dashboard „↻ Neustarten" (bzw. Mods → „Mods anwenden"): Confirm → Container startet
+   neu (~1 Min); im `/logs` erscheinen Shutdown + Startup, danach läuft der Server wieder.
 
 ## Implementierte Seiten
 
 | Seite | Pfad | Funktion |
 |---|---|---|
-| Dashboard | `/` | VM-Status, CPU/RAM-Kacheln, Horde-Night-Countdown, Starten/Stoppen |
+| Dashboard | `/` | VM-Status, CPU/RAM/Version-Kacheln, Horde-Night-Countdown, Starten/Stoppen/**Neustarten** (Container-Restart) |
 | Logs | `/logs` | Live-Logs (`docker logs 7dtd-server`, == LinuxGSM `sdtdserver-console.log`) mit Suche, Pause, Kopieren, Download; Toggle „Verbindungs-Logs" blendet Telnet-Polling-Rauschen aus (Default aus) |
 | Console | `/console` | Interaktive Telnet-Console zur VM |
 | Config | `/config` | Servereinstellungen inline bearbeiten |
 | Backups | `/backups` | Backup erstellen (mit Retention), Download, Löschen |
-| Mods | `/mods` | Mod-Liste anzeigen und verwalten |
+| Mods | `/mods` | Mod-Liste anzeigen/verwalten; „Mods anwenden (Neustart)" lädt hochgeladene Mods via Container-Restart |
 | Players | `/players` | Online-Spieler mit Session-Dauer |
 
 ## Weiterführend

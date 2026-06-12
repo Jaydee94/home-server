@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [tailscaleIp, setTailscaleIp] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [horde, setHorde] = useState<string | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const toast = useToast();
   const confirm = useConfirm();
@@ -31,6 +32,10 @@ export default function Dashboard() {
   useEffect(() => {
     fetch("/api/vm/tailscale").then((r) => (r.ok ? r.json() : null)).then((d) => setTailscaleIp(d?.tailscaleIp ?? null)).catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!running) return;
+    fetch("/api/version").then((r) => (r.ok ? r.json() : null)).then((d) => setVersion(d?.version ?? null)).catch(() => {});
+  }, [running]);
   useEffect(() => {
     if (!running) return;
     (async () => {
@@ -61,6 +66,15 @@ export default function Dashboard() {
     toast(r.ok ? "ok" : "error", r.ok ? (action === "start" ? "Server startet…" : "Server wird gestoppt") : "Aktion fehlgeschlagen");
   }
 
+  async function restart() {
+    if (!(await confirm({ title: "Server neu starten?", body: "Der 7DTD-Container wird neu gestartet (Welt wird vorher gespeichert). Online-Spieler werden 30 s vorgewarnt.", danger: true }))) return;
+    setBusy(true);
+    toast("ok", "Server wird neugestartet (~1 Min)…");
+    const r = await fetch("/api/restart", { method: "POST" });
+    setBusy(false);
+    if (!r.ok) toast("error", "Neustart fehlgeschlagen");
+  }
+
   const dot: DotKind = !status ? "idle" : running ? "ok" : status.printableStatus === "Starting" ? "warn" : "danger";
   const stateText = !status ? "Lade…" : running ? "Server läuft" : status.printableStatus === "Starting" ? "Server startet" : "Server gestoppt";
   const connect = tailscaleIp ? `${tailscaleIp}:26900` : null;
@@ -82,6 +96,7 @@ export default function Dashboard() {
           </div>
           <div style={{ display: "flex", gap: "var(--sp-2)" }}>
             <Button variant="primary" disabled={busy || running} onClick={() => act("start")}>▶ Starten</Button>
+            <Button variant="secondary" disabled={busy || !running} onClick={restart}>↻ Neustarten</Button>
             <Button variant="danger" disabled={busy || !running} onClick={() => act("stop")}>■ Stoppen</Button>
           </div>
         </div>
@@ -92,6 +107,7 @@ export default function Dashboard() {
         <StatTile label="RAM" {...ramDisplay(metrics?.memoryMb ?? null, metrics?.memoryTotalMb ?? null)} />
         <StatTile label="Status" value={running ? "Online" : "Offline"} />
         <StatTile label="Blutmond" value={horde ?? "—"} />
+        <StatTile label="Version" value={running ? (version ?? "—") : "—"} />
       </div>
 
       <Card title="Verbinden (Tailscale)">
