@@ -494,7 +494,7 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 - **Host metrics** — `prometheus-node-exporter` DaemonSet
 - **Cluster metrics** — kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS; scheduler/controller-manager/etcd scrapes are disabled (k3s runs them in a single process)
 - **Alerts** — default kube-prometheus rule set; routed to a `blackhole` receiver until Discord/Slack/Gotify is wired in `values.yaml`
-- **Grafana** — available at `http://grafana.homeserver` (LAN + Tailnet, resolved by Pi-hole); ships Node Exporter Full, VictoriaMetrics, and Kubernetes Views dashboards
+- **Grafana** — available at `http://grafana.homeserver` (LAN + Tailnet, resolved by Pi-hole); ships Node Exporter Full, VictoriaMetrics, Kubernetes Views, and KubeVirt community (grafana 11748) dashboards
 
 ## Gotchas
 
