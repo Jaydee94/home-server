@@ -131,13 +131,16 @@ ob diese beiden Mechanismen noch greifen.
 6. Konsole (`/console`): nacheinander `lp` und `gettime` senden → nur das jeweilige
    Ergebnis (`Total of N …`, `Day X, HH:MM`) sichtbar, **keine** `ERR/EXC IOException`-Zeilen.
    Gegenprobe `/logs`: keine neuen `IOException … socket has been shut down` nach Befehlen.
+7. Logs (`/logs`): Default-Ansicht ohne Telnet-Plumbing (`Telnet connection from/closed`,
+   `Executing command … by Telnet`); Toggle „Verbindungs-Logs" blendet es wieder ein.
+   Spielgeschehen (`GMSG … joined/died`, `Chat (…)`) bleibt in beiden Modi sichtbar.
 
 ## Implementierte Seiten
 
 | Seite | Pfad | Funktion |
 |---|---|---|
 | Dashboard | `/` | VM-Status, CPU/RAM-Kacheln, Horde-Night-Countdown, Starten/Stoppen |
-| Logs | `/logs` | Live-Logs mit Suche, Pause, Kopieren und Download |
+| Logs | `/logs` | Live-Logs (`docker logs 7dtd-server`, == LinuxGSM `sdtdserver-console.log`) mit Suche, Pause, Kopieren, Download; Toggle „Verbindungs-Logs" blendet Telnet-Polling-Rauschen aus (Default aus) |
 | Console | `/console` | Interaktive Telnet-Console zur VM |
 | Config | `/config` | Servereinstellungen inline bearbeiten |
 | Backups | `/backups` | Backup erstellen (mit Retention), Download, Löschen |

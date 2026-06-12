@@ -47,6 +47,26 @@ export function stripServerLog(output: string): string {
     .trim();
 }
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// 7DTD protokolliert "… INF Executing command '<cmd>' by Telnet from …" direkt vor
+// dem eigentlichen Befehlsergebnis. Alles davor (Verbindungs-Banner ohne Zeitstempel
+// wie "… to end session.", Broadcast-History älterer Verbindungen) ist Rauschen und
+// wird abgeschnitten; der letzte Marker gewinnt (unsere eigene Ausführung). Fehlt der
+// Marker, fällt die Funktion auf reines Log-Filtern zurück.
+export function extractCommandOutput(raw: string, command: string): string {
+  const marker = new RegExp(`Executing command '${escapeRegExp(command)}' by Telnet`);
+  const lines = raw.split("\n");
+  let start = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (marker.test(lines[i])) { start = i + 1; break; }
+  }
+  const body = start >= 0 ? lines.slice(start) : lines;
+  return body.filter((line) => !SERVER_LOG_LINE.test(line)).join("\n").trim();
+}
+
 export async function telnetCommand(ssh: SshClient, opts: TelnetOptions, command: string): Promise<string> {
   const { port, password, timeoutMs = 10000 } = opts;
   const { channel, close } = await ssh.forwardOut(port);
@@ -91,7 +111,7 @@ export async function telnetCommand(ssh: SshClient, opts: TelnetOptions, command
         // channel.destroy() auslöst.
         setTimeout(() => {
           if (result !== null) return;
-          result = stripServerLog(buf);
+          result = extractCommandOutput(buf, command);
           channel.end("exit\r\n");
           // Fallback, falls der Server nach `exit` nicht zeitnah schließt.
           exitTimer = setTimeout(() => { channel.destroy(); settle(() => resolve(result as string)); }, 1500);

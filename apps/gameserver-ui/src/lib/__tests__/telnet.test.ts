@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
-import { parseLp, stripServerLog, telnetCommand } from "@/lib/telnet";
+import { parseLp, stripServerLog, extractCommandOutput, telnetCommand } from "@/lib/telnet";
 import type { SshClient } from "@/lib/ssh";
 
 describe("parseLp", () => {
@@ -37,6 +37,41 @@ describe("stripServerLog", () => {
     expect(stripServerLog(raw)).toBe(
       'Total of 1 in the game\nPlayer "Hans", id=76561198000000001, pos=(100, 64, 200), health=100, level=1, ping=0',
     );
+  });
+});
+
+describe("extractCommandOutput", () => {
+  it("schneidet Banner/History vor der 'Executing command'-Markerzeile ab", () => {
+    const raw = [
+      "to end session.",
+      "2026-06-12T07:50:06 1315.406 INF Executing command 'gettime' by Telnet from 127.0.0.1:55744",
+      "Day 2, 05:53",
+    ].join("\n");
+    expect(extractCommandOutput(raw, "gettime")).toBe("Day 2, 05:53");
+  });
+
+  it("nimmt bei doppeltem Marker (History) den letzten Treffer", () => {
+    const raw = [
+      "2026-06-12T07:36:01 470.544 INF Executing command 'lp' by Telnet from 127.0.0.1:56120",
+      "Total of 5 in the game",
+      "2026-06-12T07:50:00 1309.485 INF Telnet connection closed: 127.0.0.1:56120",
+      "2026-06-12T07:50:00 1309.258 INF Executing command 'lp' by Telnet from 127.0.0.1:55732",
+      "Total of 0 in the game",
+    ].join("\n");
+    expect(extractCommandOutput(raw, "lp")).toBe("Total of 0 in the game");
+  });
+
+  it("behandelt Regex-Metazeichen im Befehl wörtlich", () => {
+    const raw = [
+      "2026-06-12T07:50:06 1315.406 INF Executing command 'say (hi).' by Telnet from 127.0.0.1:55744",
+      "ok",
+    ].join("\n");
+    expect(extractCommandOutput(raw, "say (hi).")).toBe("ok");
+  });
+
+  it("fällt ohne Marker auf reines Log-Filtern zurück", () => {
+    const raw = ["2026-06-12T07:50:06 1315.406 INF Some log", "Day 2, 05:53"].join("\n");
+    expect(extractCommandOutput(raw, "gettime")).toBe("Day 2, 05:53");
   });
 });
 

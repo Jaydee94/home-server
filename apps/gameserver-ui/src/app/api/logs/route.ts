@@ -16,7 +16,7 @@ export async function GET() {
   }
 
   const ssh = SshClient.fromEnv(status.ipAddress);
-  const vmStream = ssh.stream("sudo docker logs -f --tail=100 7dtd-server 2>&1");
+  const vmStream = ssh.stream("sudo docker logs -f --tail=500 7dtd-server 2>&1");
 
   const body = new ReadableStream({
     start(controller) {
