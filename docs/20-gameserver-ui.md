@@ -123,6 +123,23 @@ schließt den Socket selbst) und filtert Server-Logzeilen (ISO-Zeitstempel) via
 `stripServerLog()` aus der angezeigten Ausgabe. Tritt der Fehler erneut auf, prüfen
 ob diese beiden Mechanismen noch greifen.
 
+### Mod-Upload schlägt mit 502 fehl / Mods werden nicht geladen
+
+`POST /api/mods` entpackt die Zip auf der VM (`sudo unzip -o … -d /opt/7dtd/mods`)
+und 7DTD lädt aus `serverfiles/Mods`. Zwei VM-seitige Voraussetzungen müssen
+erfüllt sein (in `docs/19-gameserver.md` cloud-init verankert):
+
+1. **`unzip` installiert** — sonst `502` mit `sudo: unzip: command not found`.
+   Live nachinstallieren: `sudo apt-get install -y unzip`.
+2. **Bind-Mount `/opt/7dtd/mods → /home/sdtdserver/serverfiles/Mods`** in
+   `/opt/7dtd/docker-compose.yml` — sonst landet der Mod zwar auf dem Host, kommt
+   aber nie im Container an. Volume ergänzen, dann `cd /opt/7dtd && sudo docker
+   compose up -d` (Recreate, nicht nur `restart` — neue Mounts greifen erst beim
+   Recreate). Mod-Pfad laut vinanrra „Manual Mods": `serverfiles/Mods/<ModName>/`.
+
+Verifikation: Upload → `200`, Mod in der Liste, im Container sichtbar via
+`docker exec 7dtd-server ls /home/sdtdserver/serverfiles/Mods`.
+
 ## End-to-End-Verifikation nach Merge
 
 1. `http://gameserver.homeserver` → Redirect auf `/login`
