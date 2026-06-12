@@ -4,12 +4,16 @@ import { parseLp, stripServerLog, extractCommandOutput, telnetCommand } from "@/
 import type { SshClient } from "@/lib/ssh";
 
 describe("parseLp", () => {
-  it("parst Spielerliste aus lp-Ausgabe", () => {
-    const output = `Total of 2 in the game\nPlayer "Hans", id=76561198000000001, pos=(100, 64, 200), health=100, deaths=0, zombies=5, players=0, score=0, level=1, steamid=76561198000000001, ip=127.0.0.1, ping=0\nPlayer "Greta", id=76561198000000002, pos=(50, 64, 100), health=80, deaths=1, zombies=10, players=0, score=50, level=3, steamid=76561198000000002, ip=127.0.0.2, ping=5`;
+  it("parst Spielerliste im aktuellen 7DTD-Format (N. id=X, Name, pos=...)", () => {
+    const output = [
+      "Total of 2 in the game",
+      "0. id=171, Hans, pos=(100.0, 64.0, 200.0), rot=(0.0, 0.0, 0.0), remote=True, health=100, deaths=0, zombies=5, players=0, score=0, level=1, pltfmid=Steam_76561198000000001, crossid=EOS_abc123, ip=127.0.0.1, ping=0",
+      "1. id=172, Greta, pos=(50.0, 64.0, 100.0), rot=(0.0, 0.0, 0.0), remote=True, health=80, deaths=1, zombies=10, players=0, score=50, level=3, pltfmid=Steam_76561198000000002, crossid=EOS_def456, ip=127.0.0.2, ping=5",
+    ].join("\n");
     const players = parseLp(output);
     expect(players).toHaveLength(2);
-    expect(players[0]).toEqual({ name: "Hans", id: "76561198000000001", health: 100, level: 1, ping: 0 });
-    expect(players[1]).toEqual({ name: "Greta", id: "76561198000000002", health: 80, level: 3, ping: 5 });
+    expect(players[0]).toEqual({ name: "Hans", id: "171", health: 100, level: 1, ping: 0 });
+    expect(players[1]).toEqual({ name: "Greta", id: "172", health: 80, level: 3, ping: 5 });
   });
 
   it("gibt leeres Array zurück wenn keine Spieler online", () => {
@@ -32,10 +36,10 @@ describe("stripServerLog", () => {
     const raw = [
       "2026-06-12T07:36:01 470.544 INF Executing command 'lp' by Telnet from 127.0.0.1:56120",
       "Total of 1 in the game",
-      'Player "Hans", id=76561198000000001, pos=(100, 64, 200), health=100, level=1, ping=0',
+      "0. id=171, Hans, pos=(100.0, 64.0, 200.0), rot=(0.0, 0.0, 0.0), remote=True, health=100, deaths=0, zombies=5, players=0, score=0, level=1, pltfmid=Steam_76561198000000001, crossid=EOS_abc123, ip=127.0.0.1, ping=0",
     ].join("\n");
     expect(stripServerLog(raw)).toBe(
-      'Total of 1 in the game\nPlayer "Hans", id=76561198000000001, pos=(100, 64, 200), health=100, level=1, ping=0',
+      "Total of 1 in the game\n0. id=171, Hans, pos=(100.0, 64.0, 200.0), rot=(0.0, 0.0, 0.0), remote=True, health=100, deaths=0, zombies=5, players=0, score=0, level=1, pltfmid=Steam_76561198000000001, crossid=EOS_abc123, ip=127.0.0.1, ping=0",
     );
   });
 });

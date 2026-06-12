@@ -10,13 +10,14 @@ export interface Player {
 
 export function parseLp(output: string): Player[] {
   const players: Player[] = [];
-  const lineRe = /^Player "(.+?)", id=(\d+),.+?health=(\d+),.+?level=(\d+),.+?ping=(\d+)/;
+  // Format seit 7DTD 2.x: "N. id=X, Name, pos=..., ..., health=H, ..., level=L, ..., ping=P"
+  const lineRe = /^\d+\.\s+id=(\d+),\s*([^,]+),\s+pos=.+?health=(\d+),.+?level=(\d+),.+?ping=(\d+)/;
   for (const line of output.split("\n")) {
     const m = line.match(lineRe);
     if (m) {
       players.push({
-        name: m[1],
-        id: m[2],
+        id: m[1],
+        name: m[2].trim(),
         health: Number(m[3]),
         level: Number(m[4]),
         ping: Number(m[5]),
