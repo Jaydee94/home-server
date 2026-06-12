@@ -194,6 +194,13 @@ runcmd:
   - mkdir -p /opt/7dtd/data /opt/7dtd/config /opt/7dtd/mods
 
   # Server-Konfiguration schreiben (serverconfig.xml)
+  # ACHTUNG: Der folgende Block ist hier GEKÜRZT dargestellt. Da diese Datei als
+  # configfile gemountet wird (-> serverfiles/sdtdserver.xml), MUSS sie die
+  # VOLLSTÄNDIGE 7DTD-serverconfig enthalten (~98 Properties) — ein Minimal-Auszug
+  # bringt 7DTD beim Start zum Absturz ("double fault"). Vor dem Versiegeln daher
+  # die komplette Config einsetzen (Basis: vom Image generierte
+  # serverfiles/sdtdserver.xml; eigene Werte inkl. EACEnabled=false überlagern).
+  # Details/Seeding: Troubleshooting "Server-Config & Gameserver-UI".
   - |
     cat > /opt/7dtd/config/serverconfig.xml << 'XMLEOF'
     <?xml version="1.0"?>
@@ -239,7 +246,14 @@ runcmd:
           # Installation neu. Ein benanntes Volume überlebt Recreates.
           - serverfiles:/home/sdtdserver/serverfiles
           - /opt/7dtd/data:/home/sdtdserver/.local/share/7DaysToDie
-          - /opt/7dtd/config/serverconfig.xml:/home/sdtdserver/serverfiles/sdtdserver/serverconfig.xml
+          # serverconfig: MUSS auf serverfiles/sdtdserver.xml zeigen — das ist die
+          # Datei, die 7DTD per `-configfile=` liest UND die die Gameserver-UI
+          # (/api/config) editiert. NICHT auf einen sdtdserver/-Unterordner mappen
+          # (der wird nie gelesen → Custom-Config/EAC bleiben wirkungslos).
+          # ACHTUNG: die gemountete Datei MUSS eine VOLLSTÄNDIGE 7DTD-serverconfig
+          # sein (~98 Properties). Ein Minimal-Auszug bringt 7DTD beim Start zum
+          # Absturz ("double fault"). Seeding-Prozedur siehe Troubleshooting.
+          - /opt/7dtd/config/serverconfig.xml:/home/sdtdserver/serverfiles/sdtdserver.xml
           # Mods-Bind-Mount: Gameserver-UI entpackt Uploads nach /opt/7dtd/mods;
           # 7DTD lädt sie aus serverfiles/Mods beim Container-Neustart (vinanrra "Manual Mods").
           # ACHTUNG: dieser Mount ÜBERDECKT serverfiles/Mods komplett — die Stock-TFP-Mods
@@ -600,3 +614,48 @@ VM-seitige Voraussetzungen:
    ```
    Verifikation im Log: `[MODS] Loaded Mod: TFP_Harmony` **und** der eigene Mod
    (`docker logs 7dtd-server | grep '\[MODS\] Loaded Mod'`).
+
+### Server-Config & Gameserver-UI: Änderungen wirken nicht / EAC bleibt an
+
+**Symptom:** In der Gameserver-UI (`/config`) oder direkt in
+`/opt/7dtd/config/serverconfig.xml` gesetzte Werte (z. B. `EACEnabled=false`,
+ServerName, Multiplikatoren) haben keinen Effekt — der Server läuft mit
+Stock-Defaults (z. B. EAC an, ServerName „My Game Host").
+
+**Ursache:** Zwei verkettete Fehler:
+
+1. **Falscher Mount-Pfad.** 7DTD startet mit
+   `-configfile=/home/sdtdserver/serverfiles/sdtdserver.xml`. Wurde
+   `/opt/7dtd/config/serverconfig.xml` fälschlich nach
+   `serverfiles/sdtdserver/serverconfig.xml` (Unterordner) gemountet, liest der
+   Server die Datei nie. Prüfen:
+   ```bash
+   docker exec 7dtd-server sh -c "tr '\0' '\n' < /proc/\$(pgrep -f 7DaysToDieServer|head -1)/cmdline | grep configfile"
+   docker inspect 7dtd-server --format '{{range .Mounts}}{{.Source}} -> {{.Destination}}{{"\n"}}{{end}}'
+   ```
+   Mount-Ziel muss exakt `…/serverfiles/sdtdserver.xml` sein.
+2. **Unvollständige Config crasht.** Wird die gemountete Datei als configfile
+   genutzt, MUSS sie vollständig sein (~98 Properties). Ein Minimal-Auszug →
+   `Exiting early due to double fault` beim Start.
+
+Die Gameserver-UI (`/api/config`) liest/schreibt `/opt/7dtd/config/serverconfig.xml`
+und macht danach `docker restart`. Zeigt der Mount korrekt auf `sdtdserver.xml`
+**und** ist die Datei vollständig, landen UI-Änderungen sofort in der aktiven
+Config.
+
+**Seeding/Fix (einmalig):**
+```bash
+# 1. Vollständige Basis = die laufende Config des Servers
+docker exec 7dtd-server cat /home/sdtdserver/serverfiles/sdtdserver.xml > /tmp/base.xml
+# 2. Eigene Werte überlagern (EAC aus + ServerName etc.), Struktur vollständig lassen:
+#    z. B. python3-Merge value-genau (name="X" → value="…"), EACEnabled=false erzwingen
+#    -> Ergebnis nach /opt/7dtd/config/serverconfig.xml schreiben (≈98 Properties behalten!)
+# 3. Mount-Pfad in docker-compose.yml auf serverfiles/sdtdserver.xml korrigieren
+# 4. cd /opt/7dtd && docker compose up -d   (serverfiles ist gepinntes Volume → kein Redownload)
+```
+Verifikation (Laufzeit, nicht nur Datei): `GamePref.EACEnabled = False` und kein
+`[EAC] Starting EAC server` im aktuellen Boot:
+```bash
+S=$(docker inspect -f '{{.State.StartedAt}}' 7dtd-server)
+docker logs --since "$S" 7dtd-server | grep -iE 'GamePref.EACEnabled|\[EAC\]'
+```
