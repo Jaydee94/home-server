@@ -16,13 +16,21 @@ export function isProtectedMod(name: string): boolean {
 
 export function sanitizeModName(name: string): string {
   if (!name) throw new Error("Mod-Name darf nicht leer sein");
-  // Allowlist: nur alphanumerisch, Unterstrich, Punkt, Bindestrich; max. 64 Zeichen
-  if (!/^[A-Za-z0-9_.-]{1,64}$/.test(name)) {
+  if (name.length > 128) throw new Error("Mod-Name zu lang (max. 128 Zeichen)");
+  // Pfad-Traversal und Null-Byte blockieren
+  if (name.includes("/") || name.includes("\x00") || name.includes("\n") || name.includes("\r")) {
     throw new Error(`Ungültiger Mod-Name: ${name}`);
   }
-  // Kein führendes '-' (könnte als Flag interpretiert werden) oder '.' (hidden file)
+  if (name === "." || name === "..") throw new Error(`Ungültiger Mod-Name: ${name}`);
+  // Kein führendes '-' (Shell-Flag) oder '.' (hidden file)
   if (name.startsWith("-") || name.startsWith(".")) {
     throw new Error(`Mod-Name darf nicht mit '-' oder '.' beginnen`);
   }
   return name;
+}
+
+// Escapet einen String für die Verwendung innerhalb von bash single-quotes:
+// Das einzige Zeichen das aus single-quotes ausbricht ist ' selbst → '\'' ersetzen.
+export function escapeForShellSingleQuote(s: string): string {
+  return s.replace(/'/g, "'\\''");
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
-import { sanitizeModName, isProtectedMod } from "@/lib/mods";
+import { sanitizeModName, isProtectedMod, escapeForShellSingleQuote } from "@/lib/mods";
 
 const MODS_DIR = "/opt/7dtd/mods";
 
@@ -25,7 +25,7 @@ export async function DELETE(
       return NextResponse.json({ error: "VM läuft nicht" }, { status: 503 });
     }
     const ssh = SshClient.fromEnv(status.ipAddress);
-    await ssh.exec(`sudo rm -rf -- '${MODS_DIR}/${name}'`);
+    await ssh.exec(`sudo rm -rf -- '${MODS_DIR}/${escapeForShellSingleQuote(name)}'`);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 400 });
