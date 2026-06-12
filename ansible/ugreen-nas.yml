@@ -17,8 +17,6 @@
       tags: [paperless]
     - role: node_exporter_nas
       tags: [node-exporter]
-    - role: tinyteller
-      tags: [tinyteller]
     - role: day_pilot
       tags: [day-pilot]
     - role: jellyfin_media

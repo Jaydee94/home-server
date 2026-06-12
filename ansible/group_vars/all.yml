@@ -145,7 +145,7 @@ semaphore_projects:
         inventory: ugreen-nas
         environment: default-env
         vault_key: vault-password
-        description: "Paperless-NGX, TinyTeller, Day Pilot, Node Exporter auf dem NAS."
+        description: "Paperless-NGX, Day Pilot, Node Exporter auf dem NAS."
     schedules:
       - name: "Daily 06:00"
         template: "Deploy UGREEN NAS"

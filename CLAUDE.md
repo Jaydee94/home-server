@@ -408,7 +408,6 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Gameserver-UI | http://gameserver.homeserver | 7DTD-VM-Verwaltung (docs/20-gameserver-ui.md) |
 | Paperless-NGX | http://jays-ugreen:8000  | NAS (Docker Compose)               |
 | OpenCode      | http://jays-ugreen:4096  | NAS (Docker Compose)               |
-| TinyTeller    | http://jays-ugreen:3002  | NAS (Docker Compose)               |
 | Day Pilot     | http://jays-ugreen:3003  | NAS (Docker Compose)               |
 
 ```bash
