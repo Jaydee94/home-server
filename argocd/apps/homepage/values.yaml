@@ -76,6 +76,9 @@ homepage:
         "GitOps & CI/CD":
           style: row
           columns: 4
+        Gaming:
+          style: row
+          columns: 4
         NAS:
           style: row
           columns: 4
@@ -146,7 +149,7 @@ homepage:
           - Gameserver-UI:
               href: http://gameserver.homeserver
               description: 7DTD KubeVirt VM-Verwaltung
-              icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/7-days-to-die.svg
+              icon: mdi-zombie
       - "GitOps & CI/CD":
           - ArgoCD:
               href: http://192.168.178.127:30080
