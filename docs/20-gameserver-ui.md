@@ -162,7 +162,7 @@ Verifikation: Upload → `200`, Mod in der Liste, im Container sichtbar via
 | Seite | Pfad | Funktion |
 |---|---|---|
 | Dashboard | `/` | VM-Status, CPU/RAM/Version-Kacheln, Horde-Night-Countdown, Starten/Stoppen/**Neustarten** (Container-Restart) |
-| Logs | `/logs` | Live-Logs (`docker logs 7dtd-server`, == LinuxGSM `sdtdserver-console.log`) mit Suche, Pause, Kopieren, Download; Toggle „Verbindungs-Logs" blendet Telnet-Polling-Rauschen aus (Default aus) |
+| Logs | `/logs` | Live-Logs (`docker logs -f --since <Container-Start> --tail=2000 7dtd-server`, == LinuxGSM `sdtdserver-console.log`) — zeigt nur den **aktuellen** Server-Start (frühere Boots gefiltert via `.State.StartedAt`); mit Suche, Pause, Kopieren, Download; Toggle „Verbindungs-Logs" blendet Telnet-Polling-Rauschen aus (Default aus) |
 | Console | `/console` | Interaktive Telnet-Console zur VM |
 | Config | `/config` | Alle ~70 serverconfig.xml-Settings (V2.6) mit typgerechten Controls (Dropdown/Toggle/Slider/Stepper), gruppiert (Akkordeon) + Suche; Map-Dropdown via `/api/worlds`; „Experten (XML)" für Rohbearbeitung; veraltete/unbekannte Properties (Gruppe „Sonstige") per 🗑 entfernbar. Speichern schreibt XML + Container-Neustart |
 | Backups | `/backups` | Backup erstellen (mit Retention), Download, Löschen |
