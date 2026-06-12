@@ -64,18 +64,12 @@ homepage:
         hideInternetSearch: false
         showSearchSuggestions: true
       layout:
-        Kubernetes:
+        Cluster:
           style: row
-          columns: 4
-        Monitoring:
-          style: row
-          columns: 4
+          columns: 3
         Media:
           style: row
-          columns: 4
-        "GitOps & CI/CD":
-          style: row
-          columns: 4
+          columns: 2
         NAS:
           style: row
           columns: 4
@@ -113,16 +107,16 @@ homepage:
           showSearchSuggestions: true
 
     services:
-      - Kubernetes:
-          - Headlamp:
-              href: http://headlamp.homeserver
-              description: Kubernetes Dashboard
-              icon: headlamp.svg
-          - kubeseal-webgui:
-              href: http://kubeseal-webgui.homeserver
-              description: Sealed Secrets UI
-              icon: kubernetes.svg
-      - Monitoring:
+      - Cluster:
+          - ArgoCD:
+              href: http://192.168.178.127:30080
+              description: GitOps Controller
+              icon: argo-cd.svg
+              widget:
+                type: argocd
+                url: http://argocd-server.argocd.svc.cluster.local
+                key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
+                fields: ["apps", "synced", "healthy", "outOfSync"]
           - Grafana:
               href: http://grafana.homeserver
               description: Metriken & Dashboards
@@ -133,6 +127,22 @@ homepage:
                 url: http://monitoring-grafana.monitoring.svc.cluster.local
                 username: admin
                 password: "{{HOMEPAGE_VAR_GRAFANA_PASSWORD}}"
+          - Headlamp:
+              href: http://headlamp.homeserver
+              description: Kubernetes Dashboard
+              icon: headlamp.svg
+          - Argo Workflows:
+              href: http://argo-workflows.homeserver
+              description: Private CI
+              icon: https://raw.githubusercontent.com/argoproj/argo-workflows/main/docs/assets/logo.png
+          - Semaphore:
+              href: http://semaphore.homeserver
+              description: Ansible UI
+              icon: mdi-ansible
+          - kubeseal-webgui:
+              href: http://kubeseal-webgui.homeserver
+              description: Sealed Secrets UI
+              icon: kubernetes.svg
       - Media:
           - Jellyfin:
               href: http://jellyfin.homeserver
@@ -142,29 +152,6 @@ homepage:
               href: http://homeassistant.homeserver
               description: Home Automation
               icon: home-assistant.png
-      - Gaming:
-          - Gameserver-UI:
-              href: http://gameserver.homeserver
-              description: 7DTD KubeVirt VM-Verwaltung
-              icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/7-days-to-die.svg
-      - "GitOps & CI/CD":
-          - ArgoCD:
-              href: http://192.168.178.127:30080
-              description: GitOps Controller
-              icon: argo-cd.svg
-              widget:
-                type: argocd
-                url: http://argocd-server.argocd.svc.cluster.local
-                key: "{{HOMEPAGE_VAR_ARGOCD_TOKEN}}"
-                fields: ["apps", "synced", "healthy", "outOfSync"]
-          - Argo Workflows:
-              href: http://argo-workflows.homeserver
-              description: Private CI
-              icon: https://raw.githubusercontent.com/argoproj/argo-workflows/main/docs/assets/logo.png
-          - Semaphore:
-              href: http://semaphore.homeserver
-              description: Ansible UI
-              icon: https://cdn.jsdelivr.net/gh/selfhst/icons/svg/semaphore-ui.svg
       - NAS:
           - Paperless-NGX:
               href: http://jays-ugreen:8000
@@ -173,7 +160,7 @@ homepage:
           - OpenCode:
               href: http://jays-ugreen:4096
               description: KI-Coding-Assistent
-              icon: https://cdn.jsdelivr.net/gh/walkxcode/dashboard-icons/svg/opencode.svg
+              icon: mdi-robot
           - TinyTeller:
               href: http://jays-ugreen:3002
               description: Finanzen
@@ -181,7 +168,7 @@ homepage:
           - Day Pilot:
               href: http://jays-ugreen:3003
               description: Tagesplanung
-              icon: homer.svg
+              icon: mdi-calendar-clock
       - Tools:
           - Pi-hole:
               href: http://pihole.homeserver/admin/login
@@ -195,5 +182,9 @@ homepage:
               href: http://minio.homeserver
               description: S3 Artifact Store
               icon: minio.svg
+          - Gameserver-UI:
+              href: http://gameserver.homeserver
+              description: 7DTD KubeVirt VM-Verwaltung
+              icon: mdi-zombie
 
     bookmarks: []

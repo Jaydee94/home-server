@@ -36,5 +36,7 @@ kubeseal-webgui:
       cpu: 20m
       memory: 256Mi
 
+  enableExistingSealedSecretLoading: true
+
   serviceAccount:
     create: true
