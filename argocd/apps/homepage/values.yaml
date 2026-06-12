@@ -64,21 +64,12 @@ homepage:
         hideInternetSearch: false
         showSearchSuggestions: true
       layout:
-        Kubernetes:
+        Cluster:
           style: row
-          columns: 4
-        Monitoring:
-          style: row
-          columns: 4
+          columns: 3
         Media:
           style: row
-          columns: 4
-        "GitOps & CI/CD":
-          style: row
-          columns: 4
-        Gaming:
-          style: row
-          columns: 4
+          columns: 2
         NAS:
           style: row
           columns: 4
