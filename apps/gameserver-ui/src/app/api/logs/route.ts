@@ -1,5 +1,6 @@
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
+import { buildContainerLogsCommand } from "@/lib/logs";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function GET() {
   }
 
   const ssh = SshClient.fromEnv(status.ipAddress);
-  const vmStream = ssh.stream("sudo docker logs -f --tail=500 7dtd-server 2>&1");
+  const vmStream = ssh.stream(buildContainerLogsCommand());
 
   const body = new ReadableStream({
     start(controller) {
