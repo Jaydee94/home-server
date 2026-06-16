@@ -81,6 +81,23 @@ export class SshClient {
     });
   }
 
+  sftpPut(data: Buffer, remotePath: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const conn = new Client();
+      conn.on("ready", () => {
+        conn.sftp((err, sftp) => {
+          if (err) { conn.end(); return reject(err); }
+          const ws = sftp.createWriteStream(remotePath);
+          ws.on("error", (e: Error) => { conn.end(); reject(e); });
+          ws.on("close", () => { conn.end(); resolve(); });
+          ws.end(data);
+        });
+      });
+      conn.on("error", reject);
+      conn.connect(this.connectConfig());
+    });
+  }
+
   forwardOut(dstPort: number) {
     return new Promise<{ channel: import("stream").Duplex; close: () => void }>((resolve, reject) => {
       const conn = new Client();
