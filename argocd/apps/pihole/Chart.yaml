@@ -27,4 +27,4 @@ dependencies:
   # Pinned + reproducible; Renovate raises a PR to bump.
   - name: pihole
     repository: https://mojo2600.github.io/pihole-kubernetes/
-    version: "2.35.0"
+    version: "2.36.0"
