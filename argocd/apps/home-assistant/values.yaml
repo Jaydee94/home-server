@@ -90,7 +90,7 @@ home-assistant:
       args:
         - |
           set -eu
-          VERSION=1.0.9
+          VERSION=1.0.10
           apk add --no-cache curl tar
           rm -rf /config/custom_components/dreame_vacuum
           mkdir -p /config/custom_components
