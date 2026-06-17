@@ -6,7 +6,7 @@ pihole:
   # Pin the Pi-hole v6 image for reproducibility (chart appVersion 2026.04.1).
   image:
     repository: pihole/pihole
-    tag: "2026.05.0"
+    tag: "2026.06.0"
 
   # --- DNS services: dedicated LAN IP via MetalLB -------------------------
   # Both TCP and UDP services share 192.168.178.2 via metallb.io/allow-shared-ip.
