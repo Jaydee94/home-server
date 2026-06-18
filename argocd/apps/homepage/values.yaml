@@ -148,6 +148,46 @@ homepage:
               href: http://jellyfin.homeserver
               description: Media-Server & Live-TV
               icon: jellyfin.svg
+          - Seerr:
+              href: http://seerr.homeserver
+              description: Media-Requests
+              icon: jellyseerr.svg
+              widget:
+                type: seerr
+                url: http://seerr.media.svc.cluster.local:5055
+                key: "{{HOMEPAGE_VAR_SEERR_KEY}}"
+          - Sonarr:
+              href: http://sonarr.homeserver
+              description: Serien-Automation
+              icon: sonarr.svg
+              widget:
+                type: sonarr
+                url: http://sonarr.media.svc.cluster.local:8989
+                key: "{{HOMEPAGE_VAR_SONARR_KEY}}"
+          - Radarr:
+              href: http://radarr.homeserver
+              description: Film-Automation
+              icon: radarr.svg
+              widget:
+                type: radarr
+                url: http://radarr.media.svc.cluster.local:7878
+                key: "{{HOMEPAGE_VAR_RADARR_KEY}}"
+          - Prowlarr:
+              href: http://prowlarr.homeserver
+              description: Indexer-Manager
+              icon: prowlarr.svg
+              widget:
+                type: prowlarr
+                url: http://prowlarr.media.svc.cluster.local:9696
+                key: "{{HOMEPAGE_VAR_PROWLARR_KEY}}"
+          - SABnzbd:
+              href: http://sabnzbd.homeserver
+              description: Usenet-Downloader
+              icon: sabnzbd.svg
+              widget:
+                type: sabnzbd
+                url: http://sabnzbd.media.svc.cluster.local:8080
+                key: "{{HOMEPAGE_VAR_SABNZBD_KEY}}"
           - Home Assistant:
               href: http://homeassistant.homeserver
               description: Home Automation

@@ -1,0 +1,126 @@
+---
+# Values for the media app (Sonarr/Radarr/Prowlarr/SABnzbd/Seerr + exporter).
+# This is a self-contained local chart — there is NO upstream sub-chart.
+# Everything here is consumed by this chart's own templates/.
+
+# Container images. linuxserver.io for the *arr apps + SABnzbd.
+# NOTE: tags are "latest" for now. linuxserver version tags carry a build
+# suffix (e.g. 4.0.x-ls283) that must not be guessed; pinning + Renovate wiring
+# is a documented follow-up (see docs/21-media-stack.md). Pin once verified:
+#   https://hub.docker.com/r/linuxserver/sonarr/tags
+images:
+  sonarr: lscr.io/linuxserver/sonarr:latest
+  radarr: lscr.io/linuxserver/radarr:latest
+  prowlarr: lscr.io/linuxserver/prowlarr:latest
+  sabnzbd: lscr.io/linuxserver/sabnzbd:latest
+  seerr: ghcr.io/seerr-team/seerr:latest
+  exporter: python:3.13-alpine
+  pullPolicy: IfNotPresent
+
+# linuxserver runtime identity. With CIFS the on-NAS file ownership is decided
+# by the SMB mount uid/gid below (must match these), NOT by PUID/PGID.
+puid: "1001"
+pgid: "1001"
+timezone: Europe/Berlin
+
+# theme.park UI theme (cosmetic). Pulls a DOCKER_MOD from ghcr at container
+# start; disable to avoid the extra pull.
+theme:
+  enabled: true
+  name: nord
+
+# App config (SQLite) on the node SSD — NEVER on SMB (SQLite over CIFS corrupts).
+config:
+  storageClass: local-path
+
+# Web UI ingress. LAN-internal plain HTTP via Traefik; Pi-hole wildcard
+# (address=/homeserver/192.168.178.127) already resolves <app>.homeserver.
+ingress:
+  enabled: true
+  className: traefik
+  domain: homeserver
+
+# --- Shared SMB media mount (downloads + library on one filesystem) ----------
+# Static SMB PV/PVC on the UGREEN NAS, mounted at /data in sonarr/radarr/sabnzbd.
+# Prepare on the NAS: //jays-ugreen/media with movies/ shows/ downloads/ folders.
+smb:
+  source: "//jays-ugreen/media"
+  # Nominal capacity only (real capacity is whatever the share provides).
+  capacity: "2000Gi"
+  # cifs options. uid/gid 1001 MUST match puid/pgid so the linuxserver apps own
+  # the files they write. file/dir modes let the jellyfin mount (uid 0) read them.
+  mountOptions:
+    - vers=3.0
+    - uid=1001
+    - gid=1001
+    - file_mode=0664
+    - dir_mode=0775
+    - _netdev
+    - nofail
+  secretName: mediastack-smbcreds
+  # kubeseal-encrypted SMB creds (keys: username, password). EMPTY by default so
+  # the repo lints and no SealedSecret is rendered while empty. Reuse the NAS SMB
+  # account (same as jellyfin) but RE-SEAL for the "media" namespace:
+  #   echo -n "<smb-username>" | kubeseal --raw \
+  #     --namespace media --name mediastack-smbcreds \
+  #     --controller-name sealed-secrets-controller \
+  #     --controller-namespace sealed-secrets --from-file=/dev/stdin
+  #   echo -n "<smb-password>" | kubeseal --raw \
+  #     --namespace media --name mediastack-smbcreds \
+  #     --controller-name sealed-secrets-controller \
+  #     --controller-namespace sealed-secrets --from-file=/dev/stdin
+  encryptedUsername: ""
+  encryptedPassword: ""
+
+# --- Optional API keys for the exporter + Homepage widgets -------------------
+# The *arr apps and SABnzbd self-generate their API keys on first start; the
+# stack BOOTS without these. After first setup, read each key from the app UI,
+# seal it here so the exporter (and Homepage widgets) can scrape. All keys land
+# in ONE SealedSecret "media-api-keys"; the whole secret is skipped while empty.
+#   echo -n "<sonarr-api-key>" | kubeseal --raw \
+#     --namespace media --name media-api-keys \
+#     --controller-name sealed-secrets-controller \
+#     --controller-namespace sealed-secrets --from-file=/dev/stdin
+apiKeys:
+  sonarr: ""
+  radarr: ""
+  prowlarr: ""
+  sabnzbd: ""
+  jellyfin: ""
+
+# Existing Jellyfin (other namespace) the stack feeds. Cross-namespace ClusterIP
+# DNS; the jellyfin sub-chart Service is named "jellyfin" on port 8096.
+jellyfin:
+  url: "http://jellyfin.jellyfin.svc.cluster.local:8096"
+
+# Per-app resource requests/limits. Single node — *arr are light; SABnzbd spikes
+# on par2/unrar so it gets more headroom.
+resources:
+  arr:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  sabnzbd:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  seerr:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  exporter:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi

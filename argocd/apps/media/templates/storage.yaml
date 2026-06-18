@@ -1,0 +1,52 @@
+---
+# Static SMB PersistentVolume on the UGREEN NAS, shared by sonarr/radarr/sabnzbd
+# as /data. Downloads (/data/downloads) and the library (/data/movies,
+# /data/shows) live on the SAME mount so imports are fast server-side moves
+# (renames) instead of cross-mount copy+delete. NOTE: hardlinks do NOT work over
+# SMB/CIFS — irrelevant for a Usenet stack (no seeding), keep *arr on "move".
+# Mirrors argocd/apps/jellyfin (csi-driver-smb), but mounts with uid/gid 1001 to
+# match the linuxserver PUID/PGID (jellyfin's PV mounts the same share as uid 0).
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  # Cluster-scoped: suffix with the namespace to keep name + volumeHandle unique.
+  name: mediastack-data-{{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: media
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  capacity:
+    storage: {{ .Values.smb.capacity }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    {{- toYaml .Values.smb.mountOptions | nindent 4 }}
+  csi:
+    driver: smb.csi.k8s.io
+    readOnly: false
+    volumeHandle: mediastack-data-{{ .Release.Namespace }}
+    volumeAttributes:
+      source: {{ .Values.smb.source | quote }}
+    nodeStageSecretRef:
+      name: {{ .Values.smb.secretName }}
+      namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mediastack-data
+  labels:
+    app.kubernetes.io/name: media
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: ""
+  volumeName: mediastack-data-{{ .Release.Namespace }}
+  resources:
+    requests:
+      storage: {{ .Values.smb.capacity }}

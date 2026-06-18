@@ -1,0 +1,70 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sonarr-config
+  labels:
+    {{- include "media.labels" "sonarr" | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.config.storageClass }}
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarr
+  labels:
+    {{- include "media.labels" "sonarr" | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sonarr
+  template:
+    metadata:
+      labels:
+        {{- include "media.labels" "sonarr" | nindent 8 }}
+    spec:
+      containers:
+        - name: sonarr
+          image: {{ .Values.images.sonarr }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          env:
+            {{- include "media.lsioEnv" (dict "theme" "sonarr" "root" $) | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8989
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.resources.arr | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sonarr-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: mediastack-data
+---
+{{ include "media.svcIngress" (dict "name" "sonarr" "port" 8989 "root" $) }}

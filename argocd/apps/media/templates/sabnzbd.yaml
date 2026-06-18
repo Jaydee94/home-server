@@ -1,0 +1,73 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sabnzbd-config
+  labels:
+    {{- include "media.labels" "sabnzbd" | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.config.storageClass }}
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sabnzbd
+  labels:
+    {{- include "media.labels" "sabnzbd" | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: sabnzbd
+  template:
+    metadata:
+      labels:
+        {{- include "media.labels" "sabnzbd" | nindent 8 }}
+    spec:
+      containers:
+        - name: sabnzbd
+          image: {{ .Values.images.sabnzbd }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          # No theme.park here (matches the original); SABnzbd self-generates its
+          # config + API key on first run. NOTE: SABnzbd rejects requests whose
+          # Host header is not whitelisted ("Access denied - Hostname
+          # verification failed"). On first access (kubectl port-forward), add
+          # "sabnzbd.homeserver" under Config → Special → host_whitelist.
+          env:
+            {{- include "media.lsioEnv" (dict "theme" "" "root" $) | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.resources.sabnzbd | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: media
+              mountPath: /data
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: sabnzbd-config
+        - name: media
+          persistentVolumeClaim:
+            claimName: mediastack-data
+---
+{{ include "media.svcIngress" (dict "name" "sabnzbd" "port" 8080 "root" $) }}

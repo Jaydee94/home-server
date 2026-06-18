@@ -1,0 +1,140 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: media-api-exporter
+  labels:
+    {{- include "media.labels" "media-api-exporter" | nindent 4 }}
+data:
+  # Loaded from files/ so Helm does not parse the Python f-string braces.
+  exporter.py: |-
+    {{- .Files.Get "files/exporter.py" | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-api-exporter
+  labels:
+    {{- include "media.labels" "media-api-exporter" | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: media-api-exporter
+  template:
+    metadata:
+      labels:
+        {{- include "media.labels" "media-api-exporter" | nindent 8 }}
+    spec:
+      containers:
+        - name: exporter
+          image: {{ .Values.images.exporter }}
+          imagePullPolicy: {{ .Values.images.pullPolicy }}
+          command:
+            - python
+            - /app/exporter.py
+          env:
+            - name: SONARR_URL
+              value: http://sonarr:8989
+            - name: RADARR_URL
+              value: http://radarr:7878
+            - name: PROWLARR_URL
+              value: http://prowlarr:9696
+            - name: SABNZBD_URL
+              value: http://sabnzbd:8080
+            - name: JELLYFIN_URL
+              value: {{ .Values.jellyfin.url | quote }}
+            # API keys are OPTIONAL — the exporter reports scrape_success 0 for
+            # any app whose key is unset. Seal them into "media-api-keys" after
+            # first setup to light up the metrics.
+            - name: SONARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: media-api-keys
+                  key: sonarr-api-key
+                  optional: true
+            - name: RADARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: media-api-keys
+                  key: radarr-api-key
+                  optional: true
+            - name: PROWLARR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: media-api-keys
+                  key: prowlarr-api-key
+                  optional: true
+            - name: SABNZBD_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: media-api-keys
+                  key: sabnzbd-api-key
+                  optional: true
+            - name: JELLYFIN_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: media-api-keys
+                  key: jellyfin-api-key
+                  optional: true
+          ports:
+            - name: metrics
+              containerPort: 9108
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources.exporter | nindent 12 }}
+          volumeMounts:
+            - name: exporter
+              mountPath: /app
+              readOnly: true
+      volumes:
+        - name: exporter
+          configMap:
+            name: media-api-exporter
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-api-exporter
+  labels:
+    {{- include "media.labels" "media-api-exporter" | nindent 4 }}
+spec:
+  selector:
+    app.kubernetes.io/name: media-api-exporter
+  ports:
+    - name: metrics
+      port: 9108
+      targetPort: metrics
+---
+# Scrape config lives in the monitoring namespace (repo convention, mirrors
+# vmservicescrape-minio.yaml) and targets the exporter Service in "media".
+# The explicit namespace overrides the chart's destination (media), like the
+# CDI cross-namespace pattern in CLAUDE.md.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMServiceScrape
+metadata:
+  name: media-api-exporter
+  namespace: monitoring
+  labels:
+    {{- include "media.labels" "media-api-exporter" | nindent 4 }}
+spec:
+  namespaceSelector:
+    matchNames:
+      - {{ .Release.Namespace }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: media-api-exporter
+  endpoints:
+    - port: metrics
+      interval: 60s

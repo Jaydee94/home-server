@@ -1,0 +1,27 @@
+---
+apiVersion: v2
+name: media
+description: |
+  Usenet media automation stack for the home-server k3s cluster: Prowlarr
+  (indexer manager), SABnzbd (Usenet downloader), Sonarr (TV) and Radarr
+  (movies), plus Seerr (request UI) and a small Prometheus exporter. All apps
+  share a single SMB mount on the UGREEN NAS (//jays-ugreen/media, mounted via
+  the csi-driver-smb app) so downloads and the library live on the same mount
+  (imports are fast server-side moves; hardlinks are not available over SMB but
+  a Usenet stack does not need them). They feed the EXISTING jellyfin app
+  (namespace jellyfin); this chart ships NO Jellyfin of its own. Deployed via
+  ArgoCD. See docs/21-media-stack.md.
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - media
+  - usenet
+  - sonarr
+  - radarr
+  - prowlarr
+  - sabnzbd
+  - seerr
+home: https://wiki.servarr.com
+maintainers:
+  - name: home-server-admin
