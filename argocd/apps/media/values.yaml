@@ -69,8 +69,8 @@ smb:
   #     --namespace media --name mediastack-smbcreds \
   #     --controller-name sealed-secrets-controller \
   #     --controller-namespace sealed-secrets --from-file=/dev/stdin
-  encryptedUsername: ""
-  encryptedPassword: ""
+  encryptedUsername: "AgB/fOeBEg8GVtOSh3tcKQiV4tdqx+OyIIiFGlu+D+bjqeOpFpj93VW1NOC2171BM0lYwPh2cZD2W8rQ2VQ0qjGOjCCDJCgZyEwMc8ZRZS2EnkX1G04cdW++m08gQU1e4WD/a5fH5QepHpRydDTQN7ZqkDsSb8uJ0g7Hj/BUngkoNfpCP1ZE9ugDA/U+5cYP5IMtb49IiKxv2qsgMxC1aMhtqB82x5nb9Wv5eoJ8eXfvmrkd31i9UXWLYqpoqUfFKrrciudEB0lIYIt5VP4vZyTnW9AtYmkCEWnA3b6o4s0dMIt5pJEEa8rui4AtVNX5ZOBixTY1qzA443EyaH9CLO7pHcy40j2F4yCduYUBWeTMe1kFW9A15NJo801co316TLelcnu9FXwjMLeLfoxLXwKptz4LyWKRNOameeyMhIeakLzvIYh6XX1Pmr8cPk3DrVRceVLToCb1/La6CzBm+CcBhrsinL4b7bfzlME+sswZEpznKz1bGbDq7uSotrjtWBPLEuQQDluLvILHmtCV1pLoWmyn378KYz8pv4Lk/9ByXrIqMHRVS6ayeGKbjGne50rN2+/pdJK8aQlQvuZXEJQwkqsA2QOnlXJ7hVr6L97cr+OaF37V2jLub8sJzHfko0bgeaLWW5aZ/9MYhasWEWgtSrzUxDp2pBJrYTDrKpxeIW2oKzhtAcFaTrDBnOI54TopdV+5j/I="
+  encryptedPassword: "AgAsltEJHnP7LNOEmZtafmTOpIbMLQODmw2akGxaQJ1UFpvQnxRZIs4sWfO6Bpkxqe3w4iZ3xuqj2WDDnUUZjm8bV8LIO4VpLsgBWyAvIAR4wH70B7XQZH+F7IA4CJPqHP/6BsK3MCtJ4ITpYZGy+2PKoY26Rt3f6KdwOu61WeHuZdiRCRV3+pj/T7hCurqZB5uNXELGu548jDYuYDXY0PbAIA/h/xWVKDCRP3+f4b/M5exSlXtKxUna8+47iopQ7IutjRGy2gyz1TTmx8SA+X5ReW4amBQkgyGIsELv+W3wapoHBcDyV3A7pB/867WvQz0sfAb2I6LOadar4UbUt2+dpenamUrixA9gn9krHx/bBBChO0LqbhQb6U/bz8Mbqcf4I/OZsOb7JFWq1qPRrZKrPoO5elyib/fquv3ZvxZLqo3GuQqcWKrX13DErE2TD3IQroTmbH4njtZ+w9CNJgqEMaC2E2W4IZHoaBuY9t13NVTMY3QDk/8PbXBrr5CAjy9lNgP4uhAOoj8cQJLTaJOfhQuF3yubAm+za3S5+QyxRfiQjBOo2tx8NMZYJ4jJKoW9gvsgdfVlRT/+M0dzka3brcAnqBqtNcfuNPjOfW70UpEsC1v1iUPYJEmfpfQkX5CrlVfnemSDMjPnZ8JHJFNXnZO4ASQS0burL8QpY1oqjftK4KzIUJnMR84cuFcdmclxS7HjNVb5Et8bxQ=="
 
 # --- Optional API keys for the exporter + Homepage widgets -------------------
 # The *arr apps and SABnzbd self-generate their API keys on first start; the
