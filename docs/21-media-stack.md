@@ -172,6 +172,22 @@ In **SABnzbd → Config → Folders**:
 - *Temporary Download Folder* = `/incomplete-downloads`
 - *Completed Download Folder* = `/data/downloads/complete`
 
+> **Gotcha — Ordnerwechsel nur bei leerer Queue:** SABnzbd lehnt das Ändern des
+> Temporary/Completed-Ordners ab, solange Jobs in der Queue stehen
+> („Ordner kann nicht geändert werden, da die Warteschlange nicht leer ist" —
+> *pausiert* zählt **nicht** als leer). Vor dem Umstellen die Queue komplett
+> abarbeiten lassen **oder** löschen (Queue → Delete all, „Dateien auch löschen").
+> Beim Wechsel auf ein neues `download_dir` werden laufende Teildownloads im alten
+> Pfad verwaist → per *Status → Orphaned Jobs → Delete All* aufräumen.
+
+> **Sizing:** Die `sabnzbd-incomplete`-PVC ist `local-path` — die Größe in
+> `values.yaml` (`incomplete.size`) ist **nominal und wird nicht erzwungen**
+> (hostPath-Bind); die PVC nimmt physisch bis zum freien Node-Platz auf. Ein
+> In-place-Vergrößern geht nicht (`allowVolumeExpansion` der SC ist false) —
+> für eine echte Anpassung die (leere) PVC löschen und neu rendern lassen. Da
+> SAB-Jobs nacheinander durchlaufen (SSD → complete → Library, dann frei), bleibt
+> der SSD-Peak weit unter der Nominalgröße.
+
 ### SABnzbd Post-Processing + Cleanup-Liste
 
 **Config → Switches → Post-Processing**:
