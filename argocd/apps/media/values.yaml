@@ -106,10 +106,10 @@ resources:
   sabnzbd:
     requests:
       cpu: 200m
-      memory: 1Gi
-    limits:
-      cpu: "2"
       memory: 3Gi
+    limits:
+      cpu: "3"
+      memory: 4Gi
   seerr:
     requests:
       cpu: 50m
