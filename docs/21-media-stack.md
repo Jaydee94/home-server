@@ -150,6 +150,60 @@ Wenn das ohne Fehler durchläuft, sind Download- und Bibliotheks-Ordner im selbe
 Mount und Imports sind günstig. (Lägen sie in getrennten Mounts, würde *arr
 copy+delete machen — langsam, transient 2× Platz.)
 
+## 7. Aufräumen / Cleanup (keine RAR-Reste in complete/)
+
+Damit `complete/` nach jedem Import rückstandsfrei bleibt, müssen **drei** Dinge
+zusammenspielen — sonst sammeln sich RAR-, par2- und `_UNPACK_`-Reste an.
+
+### Folder-Architektur: Unpack auf SSD, nicht auf SMB
+
+SABnzbd entpackt **nicht** auf dem SMB-Mount (langsam, bricht bei Pod-Restarts ab
+→ steckengebliebene `_UNPACK_`-Ordner und Retry-Dubletten), sondern auf einer
+lokalen **local-path-SSD-PVC** (`sabnzbd-incomplete`, gemountet als
+`/incomplete-downloads`, siehe `values.yaml → incomplete`):
+
+```
+Download + par2-Repair + Unpack  →  /incomplete-downloads     (SSD, local-path)
+fertiges Medium                  →  /data/downloads/complete   (SMB)
+*arr-Import (same-FS move)        →  /data/movies | /data/shows (SMB)
+```
+
+In **SABnzbd → Config → Folders**:
+- *Temporary Download Folder* = `/incomplete-downloads`
+- *Completed Download Folder* = `/data/downloads/complete`
+
+### SABnzbd Post-Processing + Cleanup-Liste
+
+**Config → Switches → Post-Processing**:
+- Default-Post-Processing = **+Delete** (entpacken **und** Archive löschen).
+- *Direct Unpack* = **an**.
+
+**Config → Switches → Cleanup List**: `nfo,sfv,srr,par2,jpg,nzb,sub,idx`
+⚠️ **niemals** `mkv`/`mp4`/`avi` aufnehmen (löscht sonst die Videos). Hinweis:
+Die Cleanup-Liste entfernt nur **direkt heruntergeladene** Dateien, keine aus RAR
+entpackten — deshalb ist das *arr-Remove unten zwingend ergänzend.
+
+### Sonarr/Radarr: Completed Download Handling
+
+**Settings → Download Clients → SABnzbd**:
+- **Category** setzen: Sonarr `tv`, Radarr `movies`.
+- *Completed Download Handling → Remove* = **an** — entfernt nach dem Import die
+  ganze Job-Hülle (samt par2/nfo-Resten) aus `complete/`.
+
+### Einmaliges Aufräumen des Altbestands
+
+```sh
+# 1. SAB-Queue pausieren (UI) und aktive Downloads prüfen, damit nichts
+#    Laufendes getroffen wird.
+# 2. Steckengebliebene/verwaiste Ordner zählen:
+ssh jaydee@192.168.178.127 'sudo kubectl -n media exec deploy/sabnzbd -- \
+  sh -c "find /data/downloads/complete -iname \"*.rar\" | wc -l"'
+# 3. _UNPACK_- und Dubletten-Ordner löschen (nach Sichtprüfung):
+ssh jaydee@192.168.178.127 'sudo kubectl -n media exec deploy/sabnzbd -- \
+  sh -c "rm -rf /data/downloads/complete/_UNPACK_* "'
+# 4. Restliche bereits importierte Hüllen entfernen und SAB-History leeren (UI).
+```
+
 ## Troubleshooting
 
 - **Pods `ContainerCreating`**: SMB-Creds nicht gesealt (Schritt 2) oder Share
