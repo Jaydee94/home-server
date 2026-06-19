@@ -50,3 +50,21 @@ spec:
   resources:
     requests:
       storage: {{ .Values.smb.capacity }}
+---
+{{- if .Values.incomplete.enabled }}
+# SABnzbd temp/unpack space on the node SSD (local-path), SABnzbd-only.
+# Keeps RAR repair/unpack off the SMB mount so complete/ stays clean.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sabnzbd-incomplete
+  labels:
+    {{- include "media.labels" "sabnzbd" | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ .Values.incomplete.storageClass }}
+  resources:
+    requests:
+      storage: {{ .Values.incomplete.size }}
+{{- end }}

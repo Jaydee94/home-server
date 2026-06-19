@@ -33,6 +33,15 @@ theme:
 config:
   storageClass: local-path
 
+# SABnzbd temp/unpack folder on the node SSD (NOT on SMB). Unpacking over CIFS
+# is slow and leaves stuck _UNPACK_ folders on pod restarts; doing it on local
+# local-path storage keeps complete/ on SMB clean. SAB's "Temporary Download
+# Folder" must be pointed at /incomplete-downloads in the UI (see docs/21).
+incomplete:
+  enabled: true
+  storageClass: local-path
+  size: 100Gi
+
 # Web UI ingress. LAN-internal plain HTTP via Traefik; Pi-hole wildcard
 # (address=/homeserver/192.168.178.127) already resolves <app>.homeserver.
 ingress:
