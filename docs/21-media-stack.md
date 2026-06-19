@@ -102,8 +102,10 @@ Die *arr-Apps und SABnzbd **generieren ihre API-Keys selbst** beim ersten Start
    + Radarr (`http://radarr:7878`) mit deren API-Keys (Settings → General).
 3. **Sonarr / Radarr**: Auth-Wizard, Root-Folder setzen
    (Sonarr `/data/shows`, Radarr `/data/movies`), Download-Client SABnzbd
-   (`sabnzbd:8080`). Optional: Connect → Emby/Jellyfin-Notification auf
-   `http://jellyfin.jellyfin.svc.cluster.local:8096` (Library-Auto-Refresh).
+   (`sabnzbd:8080`). **Jellyfin-Benachrichtigung einrichten** (Pflicht für
+   sofortige Sichtbarkeit, siehe Abschnitt 8) — Settings → Connect → Emby/Jellyfin:
+   Host `jellyfin.jellyfin.svc.cluster.local`, Port `8096`, API-Key (Jellyfin →
+   Dashboard → API-Schlüssel), *On Import* + *On Upgrade* + *Update Library* an.
 4. **Seerr** (http://seerr.homeserver): Wizard → Jellyfin-Server
    `http://jellyfin.jellyfin.svc.cluster.local:8096`, Jellyfin-Login aktivieren,
    Sonarr/Radarr verknüpfen.
@@ -219,6 +221,34 @@ ssh jaydee@192.168.178.127 'sudo kubectl -n media exec deploy/sabnzbd -- \
   sh -c "rm -rf /data/downloads/complete/_UNPACK_* "'
 # 4. Restliche bereits importierte Hüllen entfernen und SAB-History leeren (UI).
 ```
+
+## 8. Jellyfin-Benachrichtigung (sofortige Sichtbarkeit)
+
+Ohne aktive Benachrichtigung erscheinen neue Importe **nicht sofort** in Jellyfin:
+„Real-Time Monitoring" greift über den SMB/CIFS-Mount **nicht** zuverlässig
+(inotify funktioniert auf CIFS nicht), also bliebe nur der geplante Library-Scan
+(Default ~alle 12 h). Deshalb in **Sonarr und Radarr** je eine
+**Connect → Emby/Jellyfin**-Notification (Implementation `MediaBrowser`):
+
+- Host `jellyfin.jellyfin.svc.cluster.local`, Port `8096`, `useSsl=false`
+- API-Key: Jellyfin → Dashboard → API-Schlüssel (derselbe, der in `media-api-keys`
+  unter `jellyfin-api-key` gesealt liegt)
+- Trigger: **On Import** + **On Upgrade**, **Update Library** = an
+  (`notify`/Send Notifications kann aus bleiben)
+
+Jeder Import stößt damit einen sofortigen Jellyfin-Refresh an → neue Medien sind
+in Sekunden da.
+
+**Pfad-Topologie (wichtig):** Jellyfin mountet `//jays-ugreen/media` unter
+`/media` (Libraries: `/media/movies`, `/media/shows`), während der Media-Stack
+denselben Share unter `/data` mountet (Radarr-Root `/data/movies`, Sonarr-Root
+`/data/shows`). Es ist **derselbe NAS-Share** — die unterschiedlichen Mount-Pfade
+pro Namespace sind unkritisch, solange beide Seiten auf dieselben `movies/`- und
+`shows/`-Ordner zeigen.
+
+> Die Connection lebt in der *arr-SQLite-Config auf dem `*-config`-PVC (wie der
+> gesamte Stack UI-konfiguriert), nicht in Git. Nach einem Config-PVC-Verlust neu
+> anlegen.
 
 ## Troubleshooting
 
