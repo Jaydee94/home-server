@@ -25,7 +25,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       # trivy-action and the trivy binary were both compromised via moved tags
       # in 2026. Pin BOTH to documented-safe, immutable references:
       #   - the action repo to v0.35.0 (only tag unaffected by the March 2026
@@ -40,7 +40,7 @@ jobs:
           scanners: misconfig,secret
           format: sarif
           output: trivy-results.sarif
-          version: v0.71.1
+          version: v0.71.2
           # Soft-launch: report findings to the Security tab, do not block PRs.
           # Harden later with exit-code "1" + severity: HIGH,CRITICAL.
           exit-code: "0"
