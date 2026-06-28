@@ -23,4 +23,4 @@ dependencies:
   # renovate: datasource=helm depName=mosquitto registryUrl=https://repo.helmforge.dev
   - name: mosquitto
     repository: https://repo.helmforge.dev
-    version: "1.3.2"
+    version: "1.4.0"
