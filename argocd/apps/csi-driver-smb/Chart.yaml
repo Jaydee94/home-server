@@ -25,4 +25,4 @@ dependencies:
   # the actual cifs mounts.
   - name: csi-driver-smb
     repository: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-smb/master/charts
-    version: "1.20.1"
+    version: "1.20.3"
