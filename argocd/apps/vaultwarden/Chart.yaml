@@ -1,0 +1,16 @@
+---
+apiVersion: v2
+name: vaultwarden
+description: On-prem Bitwarden-compatible password manager (Vaultwarden) + SMB-backed backup CronJob.
+type: application
+version: 0.1.0
+appVersion: "1.36.0"
+keywords:
+  - vaultwarden
+  - bitwarden
+  - password-manager
+home: https://github.com/dani-garcia/vaultwarden
+sources:
+  - https://github.com/dani-garcia/vaultwarden
+maintainers:
+  - name: home-server-admin

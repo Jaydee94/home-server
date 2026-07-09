@@ -27,6 +27,8 @@
       tags: [argocd, gitops]
     - role: scanner
       tags: [scanner, paperless]
+    - role: vaultwarden_tls
+      tags: [vaultwarden, vaultwarden-tls]
     - role: semaphore_secrets
       tags: [semaphore, semaphore-secrets]
 

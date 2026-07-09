@@ -29,7 +29,7 @@ check: ## Dry-run the full playbook (no changes applied).
 install: deps ## Provision the home server end-to-end.
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) $(VAULT_OPTS)
 
-.PHONY: common host-dns tailscale k3s argocd scanner semaphore semaphore-targets semaphore-bootstrap semaphore-bootstrap-local nas nas-check
+.PHONY: common host-dns tailscale k3s argocd scanner vaultwarden-cert semaphore semaphore-targets semaphore-bootstrap semaphore-bootstrap-local nas nas-check
 common: ## Run only the `common` role (base OS, firewall, packages).
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags common $(VAULT_OPTS)
 
@@ -47,6 +47,9 @@ argocd: ## Run only the `argocd` role (GitOps controller).
 
 scanner: ## Run only the `scanner` role (Fujitsu + scanbd + SMB mount).
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags scanner $(VAULT_OPTS)
+
+vaultwarden-cert: ## Issue/renew the Tailscale TLS cert for Vaultwarden and sync it into k8s.
+	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags vaultwarden $(VAULT_OPTS)
 
 semaphore: ## Bootstrap Semaphore Secret on the home-server.
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags semaphore-secrets $(VAULT_OPTS)

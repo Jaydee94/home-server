@@ -1,0 +1,68 @@
+{{- if .Values.backup.enabled -}}
+# Static SMB PersistentVolume on the UGREEN NAS for the backup CronJob.
+# Mirrors argocd/apps/media/templates/storage.yaml. NAS-side prerequisite:
+# create the //jays-ugreen/backups/vaultwarden share/folder first.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  # Cluster-scoped: suffix with the namespace to keep name + volumeHandle unique.
+  name: vaultwarden-backup-{{ .Release.Namespace }}
+  labels:
+    {{- include "vaultwarden.labels" . | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ .Values.backupSmb.capacity }}
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: ""
+  mountOptions:
+    {{- toYaml .Values.backupSmb.mountOptions | nindent 4 }}
+  csi:
+    driver: smb.csi.k8s.io
+    readOnly: false
+    volumeHandle: vaultwarden-backup-{{ .Release.Namespace }}
+    volumeAttributes:
+      source: {{ .Values.backupSmb.source | quote }}
+    nodeStageSecretRef:
+      name: {{ .Values.backupSmb.secretName }}
+      namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vaultwarden-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vaultwarden.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ""
+  volumeName: vaultwarden-backup-{{ .Release.Namespace }}
+  resources:
+    requests:
+      storage: {{ .Values.backupSmb.capacity }}
+{{- /*
+SMB credentials for the csi-driver-smb node plugin (nodeStageSecretRef).
+Skipped while empty so the repo lints and the SealedSecrets controller does
+not error-loop on undecryptable data. The backup mount only works once sealed.
+*/ -}}
+{{- if and .Values.backupSmb.encryptedUsername .Values.backupSmb.encryptedPassword }}
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: {{ .Values.backupSmb.secretName }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  encryptedData:
+    username: {{ .Values.backupSmb.encryptedUsername | quote }}
+    password: {{ .Values.backupSmb.encryptedPassword | quote }}
+  template:
+    metadata:
+      name: {{ .Values.backupSmb.secretName }}
+      namespace: {{ .Release.Namespace }}
+    type: Opaque
+{{- end }}
+{{- end }}

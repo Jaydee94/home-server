@@ -1,0 +1,156 @@
+---
+replicaCount: 1
+
+image:
+  repository: vaultwarden/server
+  pullPolicy: IfNotPresent
+  # Pinned for reproducibility. Bump to track upstream releases:
+  # https://hub.docker.com/r/vaultwarden/server/tags
+  tag: "1.36.0"
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  fsGroup: 1000
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+# Bitwarden clients (web vault, browser extension, mobile apps) require a
+# secure context (trusted HTTPS) for anything but literal localhost — a
+# self-signed cert breaks mobile apps. This repo exposes no public ports, so
+# the TLS secret below is populated by the `vaultwarden_tls` Ansible role via
+# `tailscale cert` (Let's Encrypt through Tailscale's coordination server, no
+# open ports needed) instead of cert-manager/HTTP-01. See docs/22-vaultwarden.md.
+#
+# Because the cert is only valid for the node's own tailnet name, Vaultwarden
+# is reached at that tailnet FQDN — NOT the usual <app>.homeserver pattern.
+# Set `tailnetHost` once `ansible/group_vars/all.yml: vaultwarden_tailnet_hostname`
+# is known (e.g. "homeserver.tailXXXXX.ts.net").
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  tailnetHost: "CHANGE-ME.ts.net"
+  tls:
+    secretName: vaultwarden-tls
+
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 5Gi
+  accessMode: ReadWriteOnce
+  # SQLite lives here — NEVER point this at an SMB/CIFS mount, it corrupts
+  # under concurrent access (same rule as argocd/apps/media's *arr config).
+  mountPath: /data
+
+# Vaultwarden env. DOMAIN must match the ingress host (tailnetHost above) so
+# generated links (invites, U2F/WebAuthn origins) are correct.
+env:
+  domain: "https://CHANGE-ME.ts.net"
+  websocketEnabled: true
+  # Leave true until the owner account is created, then flip to false and
+  # let ArgoCD sync — see docs/22-vaultwarden.md "Erstinbetriebnahme".
+  signupsAllowed: true
+
+extraEnv: []
+
+# Admin panel token (/admin). MUST be an Argon2 hash, not a plaintext token —
+# generate with: docker run --rm vaultwarden/server hash
+# then seal it:
+#   echo -n '$argon2id$...' | kubeseal --raw \
+#     --namespace vaultwarden --name vaultwarden-admin \
+#     --controller-name sealed-secrets-controller \
+#     --controller-namespace sealed-secrets --from-file=/dev/stdin
+adminToken:
+  enabled: true
+  secretName: vaultwarden-admin
+  encryptedToken: ""
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# ---- Backup CronJob -----------------------------------------------------
+# Daily SQLite online-backup + attachments/sends/rsa_key/config.json, tarred
+# and copied onto the UGREEN NAS (separate physical device from the node SSD
+# the live PVC lives on). See docs/22-vaultwarden.md "Backup & Restore".
+backup:
+  enabled: true
+  schedule: "0 3 * * *"
+  image: alpine:3.20
+  retentionDays: 14
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+  # Optional Gotify alert on backup failure. Off by default (YAGNI) — flip on
+  # once you want it, Gotify is already deployed (docs/11-gotify.md).
+  gotify:
+    enabled: false
+    url: "http://gotify.homeserver"
+    tokenSecretName: "vaultwarden-backup-gotify"
+
+# Static SMB PersistentVolume on the UGREEN NAS the backup CronJob writes
+# into. Mirrors argocd/apps/media's `smb:` block. Prepare the share on the
+# NAS first: create //jays-ugreen/backups/vaultwarden.
+backupSmb:
+  source: "//jays-ugreen/backups/vaultwarden"
+  capacity: "20Gi"
+  mountOptions:
+    - vers=3.0
+    - uid=1000
+    - gid=1000
+    - file_mode=0664
+    - dir_mode=0775
+    - _netdev
+    - nofail
+  secretName: vaultwarden-backup-smbcreds
+  # kubeseal-encrypted SMB creds (keys: username, password). EMPTY by default
+  # so the repo lints and no SealedSecret is rendered while empty — the
+  # backup CronJob simply has nowhere to mount until this is sealed.
+  #   echo -n "<smb-username>" | kubeseal --raw \
+  #     --namespace vaultwarden --name vaultwarden-backup-smbcreds \
+  #     --controller-name sealed-secrets-controller \
+  #     --controller-namespace sealed-secrets --from-file=/dev/stdin
+  #   echo -n "<smb-password>" | kubeseal --raw \
+  #     --namespace vaultwarden --name vaultwarden-backup-smbcreds \
+  #     --controller-name sealed-secrets-controller \
+  #     --controller-namespace sealed-secrets --from-file=/dev/stdin
+  encryptedUsername: ""
+  encryptedPassword: ""

@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# ANSIBLE MANAGED — vaultwarden_tls role
+# Renews the Tailscale-issued TLS cert for Vaultwarden and syncs it into the
+# cluster as a k8s Secret. Idempotent — safe to re-run (timer + ansible both do).
+
+set -euo pipefail
+
+TAILNET_HOSTNAME="{{ vaultwarden_tailnet_hostname }}"
+NAMESPACE="{{ vaultwarden_namespace }}"
+SECRET_NAME="{{ vaultwarden_cert_secret_name }}"
+CERT_DIR="{{ vaultwarden_cert_dir }}"
+CERT_FILE="${CERT_DIR}/vaultwarden.crt"
+KEY_FILE="${CERT_DIR}/vaultwarden.key"
+
+log() { logger -t vaultwarden-cert-renew -p user.info "$*"; echo "$*"; }
+
+log "Requesting/renewing Tailscale cert for ${TAILNET_HOSTNAME}..."
+tailscale cert --cert-file="${CERT_FILE}" --key-file="${KEY_FILE}" "${TAILNET_HOSTNAME}"
+
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n "${NAMESPACE}" create secret tls "${SECRET_NAME}" \
+  --cert="${CERT_FILE}" --key="${KEY_FILE}" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+log "${SECRET_NAME} synced in namespace ${NAMESPACE}."

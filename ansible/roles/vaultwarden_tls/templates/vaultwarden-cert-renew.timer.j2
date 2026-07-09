@@ -1,0 +1,11 @@
+# ANSIBLE MANAGED — vaultwarden_tls role
+[Unit]
+Description=Run Vaultwarden Tailscale cert renewal periodically
+
+[Timer]
+OnCalendar={{ vaultwarden_cert_renew_oncalendar }}
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

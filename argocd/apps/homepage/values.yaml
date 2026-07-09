@@ -222,5 +222,13 @@ homepage:
               href: http://gameserver.homeserver
               description: 7DTD KubeVirt VM-Verwaltung
               icon: mdi-zombie
+      - Security:
+          - Vaultwarden:
+              # Kein *.homeserver — das TLS-Zertifikat ist an den Tailnet-Hostnamen
+              # gebunden (docs/22-vaultwarden.md). Platzhalter nach dem ersten
+              # `make vaultwarden-cert`-Lauf durch den echten Tailnet-FQDN ersetzen.
+              href: https://CHANGE-ME.ts.net
+              description: Passwort-Manager (Bitwarden-kompatibel)
+              icon: vaultwarden.svg
 
     bookmarks: []

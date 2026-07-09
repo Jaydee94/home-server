@@ -1,0 +1,73 @@
+{{- if .Values.backup.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vaultwarden.fullname" . }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vaultwarden.labels" . | nindent 4 }}
+data:
+  backup.sh: |-
+    {{- .Files.Get "files/backup.sh" | nindent 4 }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "vaultwarden.fullname" . }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "vaultwarden.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  successfulJobsHistoryLimit: {{ .Values.backup.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backup.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            {{- include "vaultwarden.selectorLabels" . | nindent 12 }}
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: {{ .Values.backup.image }}
+              command: ["sh", "/scripts/backup.sh"]
+              env:
+                - name: RETENTION_DAYS
+                  value: {{ .Values.backup.retentionDays | quote }}
+                - name: GOTIFY_ENABLED
+                  value: {{ .Values.backup.gotify.enabled | quote }}
+                {{- if .Values.backup.gotify.enabled }}
+                - name: GOTIFY_URL
+                  value: {{ .Values.backup.gotify.url | quote }}
+                - name: GOTIFY_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ .Values.backup.gotify.tokenSecretName }}
+                      key: token
+                      optional: true
+                {{- end }}
+              resources:
+                {{- toYaml .Values.backup.resources | nindent 16 }}
+              volumeMounts:
+                - name: data
+                  mountPath: /data
+                  readOnly: true
+                - name: backup
+                  mountPath: /backup
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ include "vaultwarden.fullname" . }}-data
+            - name: backup
+              persistentVolumeClaim:
+                claimName: vaultwarden-backup
+            - name: scripts
+              configMap:
+                name: {{ include "vaultwarden.fullname" . }}-backup
+                defaultMode: 0555
+{{- end }}

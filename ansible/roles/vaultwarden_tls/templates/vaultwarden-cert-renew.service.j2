@@ -1,0 +1,13 @@
+# ANSIBLE MANAGED — vaultwarden_tls role
+[Unit]
+Description=Renew Vaultwarden Tailscale TLS cert and sync into k8s
+After=network-online.target tailscaled.service
+
+[Service]
+Type=oneshot
+ExecStart={{ vaultwarden_cert_script_path }}
+User=root
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ vaultwarden_cert_dir }}

@@ -411,6 +411,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Mosquitto (MQTT) | mqtt://192.168.178.4:1883 | MQTT-Broker (MetalLB); Nuki Smart Lock Pro → Home Assistant (docs/18-nuki-mqtt.md) |
 | 7 Days to Die | 100.x.x.x:26900 (Tailscale) | KubeVirt VM; Tailscale only; Node-Sharing für Kollegen (docs/19-gameserver.md) |
 | Gameserver-UI | http://gameserver.homeserver | 7DTD-VM-Verwaltung (docs/20-gameserver-ui.md) |
+| Vaultwarden (Bitwarden) | https://\<tailnet-host\> | Passwort-Manager; nur via Tailscale (kein `*.homeserver`, Zertifikat ist tailnet-gebunden) (docs/22-vaultwarden.md) |
 | Paperless-NGX | http://jays-ugreen:8000  | NAS (Docker Compose)               |
 | OpenCode      | http://jays-ugreen:4096  | NAS (Docker Compose)               |
 | Day Pilot     | http://jays-ugreen:3003  | NAS (Docker Compose)               |

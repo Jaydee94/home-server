@@ -1,0 +1,21 @@
+---
+# ============================================================
+# vaultwarden_tls role defaults
+# ============================================================
+# Bitwarden clients (web vault, browser extension, mobile apps) require a
+# trusted HTTPS certificate. This repo exposes no public ports, so instead of
+# cert-manager/Let's-Encrypt-HTTP01 this role uses `tailscale cert` (Let's
+# Encrypt via Tailscale's coordination server, no open ports) and syncs the
+# result into a k8s TLS Secret consumed by the vaultwarden chart's Ingress.
+# Full setup: docs/22-vaultwarden.md.
+# ============================================================
+
+vaultwarden_tls_enabled: true
+vaultwarden_namespace: vaultwarden
+vaultwarden_cert_secret_name: vaultwarden-tls
+vaultwarden_cert_dir: /var/lib/vaultwarden-tls
+vaultwarden_cert_script_path: /usr/local/lib/vaultwarden-tls/renew-cert.sh
+
+# Let's Encrypt certs issued via `tailscale cert` are valid ~90 days —
+# monthly renewal leaves comfortable headroom.
+vaultwarden_cert_renew_oncalendar: monthly

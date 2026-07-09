@@ -195,6 +195,20 @@ scanner_gotify_token: !vault |
           3237653831646364620a666135303263366465323436656139303161343732326261313030646564
           6437
 
+# ---- Vaultwarden TLS (vaultwarden_tls role) -----------------
+# Cluster-App: argocd/apps/vaultwarden (Helm-Chart). Bitwarden-Clients
+# verlangen zwingend HTTPS mit vertrauenswürdigem Zertifikat — dieses Repo
+# exponiert keine öffentlichen Ports, daher zieht `tailscale cert` ein
+# echtes Let's-Encrypt-Zertifikat für den Tailnet-Hostnamen (kein offener
+# Port nötig). Setup + kubeseal-Schritte: docs/22-vaultwarden.md.
+#
+# 1) Einmalig "HTTPS Certificates" aktivieren:
+#    https://login.tailscale.com/admin/dns
+# 2) Tailnet-FQDN dieses Hosts ermitteln: `tailscale status` (eigener Eintrag)
+#    oder https://login.tailscale.com/admin/machines
+vaultwarden_tls_enabled: true
+vaultwarden_tailnet_hostname: ""       # CHANGE: z.B. "homeserver.tailXXXXX.ts.net"
+
 # ---- UGREEN NAS --------------------------------------------
 vault_nas_become_password: !vault |
           $ANSIBLE_VAULT;1.1;AES256

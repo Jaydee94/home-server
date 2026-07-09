@@ -1,0 +1,84 @@
+---
+# ============================================================
+# vaultwarden_tls/tasks/main.yml
+# Issues/renews a Tailscale-backed TLS cert for Vaultwarden and syncs it into
+# the cluster as Secret `vaultwarden-tls` (consumed by the vaultwarden
+# chart's Ingress). See docs/22-vaultwarden.md.
+# ============================================================
+
+- name: Pre-flight — vaultwarden_tailnet_hostname must be set
+  ansible.builtin.fail:
+    msg: >-
+      vaultwarden_tls_enabled is true but vaultwarden_tailnet_hostname is
+      empty. Enable "HTTPS Certificates" once in the Tailscale admin console
+      (https://login.tailscale.com/admin/dns), then find this node's tailnet
+      FQDN with `tailscale status` and set vaultwarden_tailnet_hostname in
+      ansible/group_vars/all.yml. See docs/22-vaultwarden.md.
+  when:
+    - vaultwarden_tls_enabled | bool
+    - vaultwarden_tailnet_hostname | default('') | length == 0
+
+- name: Ensure the vaultwarden TLS cert directory exists
+  ansible.builtin.file:
+    path: "{{ vaultwarden_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: vaultwarden_tls_enabled | bool
+
+- name: Ensure the cert-renew script directory exists
+  ansible.builtin.file:
+    path: "{{ vaultwarden_cert_script_path | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+  when: vaultwarden_tls_enabled | bool
+
+- name: Deploy the cert-renew script
+  ansible.builtin.template:
+    src: renew-cert.sh.j2
+    dest: "{{ vaultwarden_cert_script_path }}"
+    owner: root
+    group: root
+    mode: "0750"
+  when: vaultwarden_tls_enabled | bool
+
+- name: Deploy the cert-renew systemd service
+  ansible.builtin.template:
+    src: vaultwarden-cert-renew.service.j2
+    dest: /etc/systemd/system/vaultwarden-cert-renew.service
+    owner: root
+    group: root
+    mode: "0644"
+  when: vaultwarden_tls_enabled | bool
+
+- name: Deploy the cert-renew systemd timer
+  ansible.builtin.template:
+    src: vaultwarden-cert-renew.timer.j2
+    dest: /etc/systemd/system/vaultwarden-cert-renew.timer
+    owner: root
+    group: root
+    mode: "0644"
+  when: vaultwarden_tls_enabled | bool
+  notify: Reload systemd
+
+- name: Flush handlers so the timer unit is known before enabling it
+  ansible.builtin.meta: flush_handlers
+
+- name: Enable and start the cert-renew timer
+  ansible.builtin.systemd:
+    name: vaultwarden-cert-renew.timer
+    state: "{{ 'started' if vaultwarden_tls_enabled | bool else 'stopped' }}"
+    enabled: "{{ vaultwarden_tls_enabled | bool }}"
+    daemon_reload: true
+
+# Run once immediately so the Secret exists without waiting for the next
+# scheduled OnCalendar tick — idempotent, `tailscale cert` is a no-op renewal
+# once a valid cert already exists.
+- name: Run the cert-renew script now
+  ansible.builtin.command: "{{ vaultwarden_cert_script_path }}"
+  register: vaultwarden_cert_renew_result
+  changed_when: "'synced' in vaultwarden_cert_renew_result.stdout"
+  when: vaultwarden_tls_enabled | bool
