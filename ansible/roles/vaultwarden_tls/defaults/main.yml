@@ -10,7 +10,10 @@
 # Full setup: docs/22-vaultwarden.md.
 # ============================================================
 
-vaultwarden_tls_enabled: true
+# Opt-in — false until vaultwarden_tailnet_hostname is set (same pattern as
+# scanner_gotify_enabled). A `true` default with an empty hostname would make
+# every playbook run hard-fail on the role's pre-flight check.
+vaultwarden_tls_enabled: false
 vaultwarden_namespace: vaultwarden
 vaultwarden_cert_secret_name: vaultwarden-tls
 vaultwarden_cert_dir: /var/lib/vaultwarden-tls

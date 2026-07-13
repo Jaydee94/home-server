@@ -70,9 +70,10 @@
 - name: Enable and start the cert-renew timer
   ansible.builtin.systemd:
     name: vaultwarden-cert-renew.timer
-    state: "{{ 'started' if vaultwarden_tls_enabled | bool else 'stopped' }}"
-    enabled: "{{ vaultwarden_tls_enabled | bool }}"
+    state: started
+    enabled: true
     daemon_reload: true
+  when: vaultwarden_tls_enabled | bool
 
 # Run once immediately so the Secret exists without waiting for the next
 # scheduled OnCalendar tick — idempotent, `tailscale cert` is a no-op renewal

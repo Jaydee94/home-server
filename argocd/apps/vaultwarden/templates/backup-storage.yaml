@@ -13,7 +13,7 @@ spec:
   capacity:
     storage: {{ .Values.backupSmb.capacity }}
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   persistentVolumeReclaimPolicy: Retain
   storageClassName: ""
   mountOptions:
@@ -37,7 +37,7 @@ metadata:
     {{- include "vaultwarden.labels" . | nindent 4 }}
 spec:
   accessModes:
-    - ReadWriteOnce
+    - ReadWriteMany
   storageClassName: ""
   volumeName: vaultwarden-backup-{{ .Release.Namespace }}
   resources:

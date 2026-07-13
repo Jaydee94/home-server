@@ -7,8 +7,8 @@ metadata:
   labels:
     {{- include "vaultwarden.labels" . | nindent 4 }}
 data:
-  backup.sh: |-
-    {{- .Files.Get "files/backup.sh" | nindent 4 }}
+  backup.py: |-
+    {{- .Files.Get "files/backup.py" | nindent 4 }}
 ---
 apiVersion: batch/v1
 kind: CronJob
@@ -30,10 +30,14 @@ spec:
             {{- include "vaultwarden.selectorLabels" . | nindent 12 }}
         spec:
           restartPolicy: OnFailure
+          securityContext:
+            {{- toYaml .Values.backup.podSecurityContext | nindent 12 }}
           containers:
             - name: backup
               image: {{ .Values.backup.image }}
-              command: ["sh", "/scripts/backup.sh"]
+              command: ["python3", "/scripts/backup.py"]
+              securityContext:
+                {{- toYaml .Values.backup.securityContext | nindent 16 }}
               env:
                 - name: RETENTION_DAYS
                   value: {{ .Values.backup.retentionDays | quote }}
@@ -59,6 +63,8 @@ spec:
                   mountPath: /backup
                 - name: scripts
                   mountPath: /scripts
+                - name: tmp
+                  mountPath: /tmp
           volumes:
             - name: data
               persistentVolumeClaim:
@@ -70,4 +76,6 @@ spec:
               configMap:
                 name: {{ include "vaultwarden.fullname" . }}-backup
                 defaultMode: 0555
+            - name: tmp
+              emptyDir: {}
 {{- end }}

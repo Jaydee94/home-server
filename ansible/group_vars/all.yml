@@ -206,7 +206,9 @@ scanner_gotify_token: !vault |
 #    https://login.tailscale.com/admin/dns
 # 2) Tailnet-FQDN dieses Hosts ermitteln: `tailscale status` (eigener Eintrag)
 #    oder https://login.tailscale.com/admin/machines
-vaultwarden_tls_enabled: true
+# 3) Erst danach auf true setzen — mit leerem Hostname bricht die Rolle sonst
+#    bei jedem Playbook-Lauf per Pre-flight-Check hart ab.
+vaultwarden_tls_enabled: false          # CHANGE: erst nach Schritt 1+2 auf true
 vaultwarden_tailnet_hostname: ""       # CHANGE: z.B. "homeserver.tailXXXXX.ts.net"
 
 # ---- UGREEN NAS --------------------------------------------

@@ -19,14 +19,16 @@ serviceAccount:
 podAnnotations: {}
 
 podSecurityContext:
-  fsGroup: 1000
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
 
 securityContext:
   runAsNonRoot: true
-  runAsUser: 1000
-  runAsGroup: 1000
+  runAsUser: 65532
+  runAsGroup: 65532
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
@@ -105,13 +107,33 @@ affinity: {}
 # Daily SQLite online-backup + attachments/sends/rsa_key/config.json, tarred
 # and copied onto the UGREEN NAS (separate physical device from the node SSD
 # the live PVC lives on). See docs/22-vaultwarden.md "Backup & Restore".
+#
+# Disabled by default — the CronJob has nowhere to write until backupSmb's
+# credentials are sealed (below). Flip to true once that's done, or the job
+# just fails on every scheduled run before then.
 backup:
-  enabled: true
+  enabled: false
   schedule: "0 3 * * *"
-  image: alpine:3.20
+  # python:3.13-alpine ships sqlite3/tarfile/urllib in stdlib — no runtime
+  # `apk add` needed, which is what lets the container run with
+  # readOnlyRootFilesystem: true. Same image already used by argocd/apps/media.
+  image: python:3.13-alpine
   retentionDays: 14
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 1
+  podSecurityContext:
+    fsGroup: 65532
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65532
+    runAsGroup: 65532
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
   resources:
     requests:
       cpu: 10m
@@ -132,10 +154,12 @@ backup:
 backupSmb:
   source: "//jays-ugreen/backups/vaultwarden"
   capacity: "20Gi"
+  # uid/gid match the backup CronJob's own securityContext (65532) — this PV
+  # is used exclusively by that job, no need to tie it to Vaultwarden's uid.
   mountOptions:
     - vers=3.0
-    - uid=1000
-    - gid=1000
+    - uid=65532
+    - gid=65532
     - file_mode=0664
     - dir_mode=0775
     - _netdev

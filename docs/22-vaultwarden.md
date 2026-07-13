@@ -56,9 +56,12 @@ auf `backups/` hat).
 
 ### 2.1 Tailnet-Hostname
 
-`ansible/group_vars/all.yml`:
+`ansible/group_vars/all.yml` — `vaultwarden_tls_enabled` ist standardmäßig
+`false` (sonst bricht jeder Playbook-Lauf mit leerem Hostname per
+Pre-flight-Check ab); erst nach Schritt 1.1 auf `true` setzen:
 
 ```yaml
+vaultwarden_tls_enabled: true
 vaultwarden_tailnet_hostname: "homeserver.tailXXXXX.ts.net"   # aus 1.1
 ```
 
@@ -99,8 +102,11 @@ echo -n "<smb-password>" | kubeseal --raw \
 
 Beide Ausgaben in `argocd/apps/vaultwarden/values.yaml` unter
 `backupSmb.encryptedUsername` / `backupSmb.encryptedPassword` eintragen.
-Solange leer, wird das SealedSecret übersprungen und die Backup-PV mountet
-nicht — die Vaultwarden-App selbst läuft davon unbeeinflusst weiter.
+**Danach zusätzlich `backup.enabled: true` setzen** — der CronJob ist
+standardmäßig deaktiviert, weil er ohne gesealte SMB-Creds bei jedem
+geplanten Lauf failen würde (nirgends zum Schreiben). Solange beides nicht
+gesetzt ist, wird weder das SealedSecret noch PV/PVC/CronJob gerendert — die
+Vaultwarden-App selbst läuft davon unbeeinflusst weiter.
 
 ## 3. Deployen
 
