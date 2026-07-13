@@ -15,6 +15,7 @@ sources:
 maintainers:
   - name: home-server-admin
 dependencies:
+  # Official Headlamp chart. Pinned + reproducible; Renovate raises a PR to bump.
   - name: headlamp
     repository: https://kubernetes-sigs.github.io/headlamp/
-    version: "*"
+    version: "0.43.0"

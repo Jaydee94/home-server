@@ -24,6 +24,7 @@ spec:
         - name: revision
           value: main
         - name: image
+          # renovate: datasource=docker depName=alpine
           value: alpine:3.20
         - name: cmd
           value: "ls -la && echo 'replace with real lint command'"

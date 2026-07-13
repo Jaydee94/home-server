@@ -68,7 +68,10 @@ schedule:
   timezone: Europe/Berlin
   start: "0 20 * * 3"   # Wednesday 20:00
   stop: "0 0 * * 4"     # Thursday 00:00 (= Wednesday midnight)
-  kubectlImage: "bitnami/kubectl:latest"
+  # rancher/kubectl statt bitnami/kubectl: Bitnami hat die freien Docker-Hub-
+  # Images 2025 eingestellt (Umzug nach bitnamilegacy, keine Updates mehr).
+  # renovate: datasource=docker depName=rancher/kubectl
+  kubectlImage: "rancher/kubectl:v1.36.2"
 
 sealedSecret:
   secretName: gameserver-cloudinit

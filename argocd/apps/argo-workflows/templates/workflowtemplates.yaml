@@ -20,6 +20,7 @@ spec:
       - name: revision
         value: main
       - name: image
+        # renovate: datasource=docker depName=alpine
         value: alpine:3.20
       - name: cmd
         value: "ls -la"
@@ -85,7 +86,8 @@ spec:
               repo: "{{inputs.parameters.repo}}"
               revision: "{{inputs.parameters.revision}}"
       container:
-        image: gcr.io/kaniko-project/executor:latest
+        # renovate: datasource=docker depName=gcr.io/kaniko-project/executor
+        image: gcr.io/kaniko-project/executor:v1.24.0
         args:
           - "--context=dir:///workspace/{{inputs.parameters.context}}"
           - "--dockerfile={{inputs.parameters.dockerfile}}"

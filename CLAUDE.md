@@ -535,11 +535,40 @@ The Tailscale auth key (`tailscale_auth_key`) must always be vault-encrypted. Ne
 
 ## Automatic dependency updates
 
-Helm chart versions in `argocd/apps/*/Chart.yaml` are kept current by
+All version pins in the repo are kept current by
 [Renovate](https://docs.renovatebot.com/) (config: `renovate.json` at the repo
 root). Renovate is run by the **hosted Mend Renovate GitHub App** — install it
 once from the GitHub Marketplace on `jaydee94/home-server`; no self-hosted
 workflow or PAT is required.
+
+Coverage (every pin is tracked; nothing floats on `*` or `latest`):
+
+- **Helm charts** — all `argocd/apps/*/Chart.yaml` dependencies are pinned to a
+  concrete version (`helmv3` manager).
+- **Container images in helm values** — standard `image.repository`+`tag`
+  blocks and flat `image:` strings in `values.yaml` are tracked by the default
+  `helm-values` manager (e.g. gotify, semaphore, pihole, jellyfin,
+  sealed-secrets, home-assistant init containers).
+- **Everything the default managers can't see** — flat-string images under
+  custom keys (media stack `images:` map), images in chart `templates/`
+  (busybox, kaniko, alpine, pihole-exporter), tag-only values (mosquitto), and
+  NAS container images in `ansible/roles/*/defaults/main.yml` — carries a
+  `# renovate: datasource=... depName=...` comment directly above the line,
+  consumed by the generic regex customManager in `renovate.json`. When adding
+  such a pin, add the comment; the extraction is verified with
+  `npx renovate --platform=local` (dry run).
+- **Regex customManagers** also track the home-assistant init-container
+  `VERSION=` pins and the KubeVirt/CDI release URLs in
+  `argocd/apps/kubevirt/kustomization.yaml`.
+- **GitHub Actions** — SHA-pinned `uses:` refs (with `# vX.Y.Z` comment) and
+  the Trivy binary `version:` input are tracked by the `github-actions`
+  manager.
+- Deliberately NOT tracked: `gameserver-ui` (`stable`, own image built by CI),
+  `day_pilot_tag` (`latest`, own image), `opencode` (locally built image),
+  the k3s/helm/argocd Ansible variables (empty = intentional auto-upgrade),
+  and the Ubuntu `current` cloud image URL (rolls upstream).
+
+Merge policy:
 
 - **kubeseal-webgui**: the OCI Helm chart dependency
   (`oci://ghcr.io/jaydee94/kubeseal-webgui/charts`) auto-updates. `patch` and
@@ -547,8 +576,9 @@ workflow or PAT is required.
   bumps open a PR for manual review. The version in `Chart.yaml` stays pinned and
   reproducible — Renovate raises a PR to bump it, then ArgoCD syncs the new
   version automatically after merge.
-- All other charts: Renovate opens PRs but does **not** auto-merge (no matching
-  `packageRule`). Extend `renovate.json` to opt more charts into auto-merge.
+- All other dependencies: Renovate opens PRs but does **not** auto-merge (no
+  matching `packageRule`) — merging stays a manual decision. Extend
+  `renovate.json` to opt more charts into auto-merge.
 - **Auto-merge prerequisite**: GitHub Branch Protection on `main` must mark the
   `lint` status check as *required*, so auto-merge only fires on green CI.
 

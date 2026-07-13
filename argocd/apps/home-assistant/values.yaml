@@ -39,7 +39,7 @@ home-assistant:
       args:
         - |
           set -eu
-          VERSION=3.2.4
+          VERSION=3.2.5
           apk add --no-cache curl
           mkdir -p /config/www
           curl -fsSL "https://github.com/Clooos/Bubble-Card/raw/v${VERSION}/dist/bubble-card.js" -o /config/www/bubble-card.js
@@ -71,7 +71,7 @@ home-assistant:
       args:
         - |
           set -eu
-          VERSION=1.5.9
+          VERSION=1.5.10
           apk add --no-cache curl tar
           rm -rf /config/custom_components/ai_automation_suggester
           mkdir -p /config/custom_components
