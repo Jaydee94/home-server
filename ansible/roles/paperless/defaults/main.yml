@@ -23,10 +23,14 @@ paperless_backup_schedule: "0 2 * * *"
 # Ports exposed on the host
 paperless_http_port: 8000
 
-# Images and tags
+# Images and tags (tracked by Renovate via the generic regex customManager)
+# renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
 paperless_image: ghcr.io/paperless-ngx/paperless-ngx:2.20.13
+# renovate: datasource=docker depName=postgres
 paperless_db_image: postgres:16-alpine
+# renovate: datasource=docker depName=redis
 paperless_redis_image: redis:7-alpine
+# renovate: datasource=docker depName=clusterzx/paperless-ai
 paperless_ai_image: clusterzx/paperless-ai:3.0.9
 
 # Paperless-AI settings

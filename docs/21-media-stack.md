@@ -262,10 +262,13 @@ pro Namespace sind unkritisch, solange beide Seiten auf dieselben `movies/`- und
 - **Exporter-Metriken 0**: API-Keys in `media-api-keys` nicht gesetzt
   (Schritt 5) — der Exporter meldet dann `media_exporter_scrape_success 0`.
 
-## Image-Pinning (Follow-up)
+## Image-Pinning & Renovate
 
-Die linuxserver-Images sind aktuell auf `latest` (`values.yaml → images`).
-linuxserver-Versions-Tags tragen ein Build-Suffix (z. B. `4.0.x-ls283`), das
-nicht geraten wird. Zum Pinnen: aktuelle Tags von
-https://hub.docker.com/r/linuxserver/sonarr/tags übernehmen und Renovate-Regel
-in `renovate.json` ergänzen.
+Alle Images in `values.yaml → images` sind gepinnt und werden von Renovate
+aktuell gehalten: Jede Image-Zeile trägt einen
+`# renovate: datasource=docker depName=…`-Kommentar, den der generische
+Regex-CustomManager in `renovate.json` auswertet — Renovate öffnet bei neuen
+Upstream-Tags automatisch einen PR. Bei den linuxserver-Images sind bewusst
+die reinen App-Versions-Tags gepinnt (z. B. `4.0.19`), nicht die
+`-lsNNN`-Build-Tags: die reinen Tags existieren parallel, zeigen auf dasselbe
+Image und lassen sich von Renovate sauber sortieren.

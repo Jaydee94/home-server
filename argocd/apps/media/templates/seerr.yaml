@@ -34,6 +34,7 @@ spec:
       initContainers:
         # Seerr runs as uid 1000; ensure it owns its config dir on the PVC.
         - name: fix-permissions
+          # renovate: datasource=docker depName=busybox
           image: busybox:1.37
           command:
             - /bin/sh

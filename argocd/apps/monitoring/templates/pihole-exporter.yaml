@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
         - name: pihole-exporter
-          image: ekofr/pihole-exporter:latest
+          # renovate: datasource=docker depName=ekofr/pihole-exporter
+          image: ekofr/pihole-exporter:v1.2.0
           ports:
             - containerPort: 9617
               name: metrics

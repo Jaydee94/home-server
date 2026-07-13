@@ -29,6 +29,8 @@ sources:
 maintainers:
   - name: home-server-admin
 dependencies:
+  # VictoriaMetrics k8s stack. Pinned + reproducible; Renovate raises a PR
+  # to bump. chart 0.86.0 → appVersion (VictoriaMetrics) v1.147.0.
   - name: victoria-metrics-k8s-stack
     repository: https://victoriametrics.github.io/helm-charts
-    version: "*"
+    version: "0.86.0"
