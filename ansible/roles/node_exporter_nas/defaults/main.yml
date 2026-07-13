@@ -4,5 +4,5 @@
 node_exporter_image: prom/node-exporter:v1.9.1
 node_exporter_base_dir: /opt/node-exporter
 # renovate: datasource=docker depName=gcr.io/cadvisor/cadvisor
-cadvisor_image: gcr.io/cadvisor/cadvisor:v0.51.0
+cadvisor_image: gcr.io/cadvisor/cadvisor:v0.55.1
 cadvisor_port: 18080
