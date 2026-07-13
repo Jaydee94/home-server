@@ -21,7 +21,7 @@ spec:
         value: main
       - name: image
         # renovate: datasource=docker depName=alpine
-        value: alpine:3.20
+        value: alpine:3.24
       - name: cmd
         value: "ls -la"
   templates:
