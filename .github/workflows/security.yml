@@ -27,11 +27,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # trivy-action and the trivy binary were both compromised via moved tags
-      # in 2026. Pin BOTH to documented-safe, immutable references:
-      #   - the action repo to v0.35.0 (only tag unaffected by the March 2026
-      #     force-push, protected by GitHub immutable releases)
-      #   - the trivy binary (`version`) to v0.69.3 (v0.69.4 was the malicious
-      #     release).
+      # in 2026 (March 2026 force-push; binary v0.69.4 was the malicious
+      # release). Both stay pinned to immutable references — the action to a
+      # full commit SHA, the binary to an exact `version` — and Renovate keeps
+      # both pins current from there.
       - name: Trivy filesystem scan (misconfig + secrets)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:

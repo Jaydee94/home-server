@@ -21,6 +21,19 @@
         "# renovate: depName=(?<depName>\\S+)\\s+- https://github\\.com/[^/]+/[^/]+/releases/download/(?<currentValue>v[^/]+)/[^\\s]+"
       ],
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "Generic '# renovate: datasource=... depName=...' annotations directly above a 'key: image:tag' or 'key: version' line — covers flat-string images in local charts (media stack), hardcoded images in chart templates, tag-only helm values (mosquitto), and NAS container images in Ansible role defaults.",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/argocd/apps/[^/]+/values\\.yaml$/",
+        "/argocd/apps/[^/]+/templates/[^/]+\\.yaml$/",
+        "/ansible/roles/[^/]+/defaults/main\\.yml$/"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+?)(?: versioning=(?<versioning>\\S+))?\\n\\s*[\\w.-]+: [\"']?[\\w./-]+:(?<currentValue>[a-zA-Z0-9][\\w.-]*)[\"']?",
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+?)(?: versioning=(?<versioning>\\S+))?\\n\\s*[\\w.-]+: [\"']?(?<currentValue>v?\\d[\\w.-]*)[\"']?"
+      ]
     }
   ],
   "packageRules": [

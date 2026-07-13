@@ -4,16 +4,22 @@
 # Everything here is consumed by this chart's own templates/.
 
 # Container images. linuxserver.io for the *arr apps + SABnzbd.
-# NOTE: tags are "latest" for now. linuxserver version tags carry a build
-# suffix (e.g. 4.0.x-ls283) that must not be guessed; pinning + Renovate wiring
-# is a documented follow-up (see docs/21-media-stack.md). Pin once verified:
-#   https://hub.docker.com/r/linuxserver/sonarr/tags
+# Pinned + reproducible; the `# renovate:` comments wire each image into the
+# generic regex customManager in renovate.json — Renovate raises a PR to bump.
+# linuxserver publishes plain app-version tags (e.g. 4.0.19) alongside the
+# -lsNNN build tags; the plain tags are pinned here so Renovate can sort them.
 images:
-  sonarr: lscr.io/linuxserver/sonarr:latest
-  radarr: lscr.io/linuxserver/radarr:latest
-  prowlarr: lscr.io/linuxserver/prowlarr:latest
-  sabnzbd: lscr.io/linuxserver/sabnzbd:latest
-  seerr: ghcr.io/seerr-team/seerr:latest
+  # renovate: datasource=docker depName=lscr.io/linuxserver/sonarr
+  sonarr: lscr.io/linuxserver/sonarr:4.0.19
+  # renovate: datasource=docker depName=lscr.io/linuxserver/radarr
+  radarr: lscr.io/linuxserver/radarr:6.3.0
+  # renovate: datasource=docker depName=lscr.io/linuxserver/prowlarr
+  prowlarr: lscr.io/linuxserver/prowlarr:2.4.0
+  # renovate: datasource=docker depName=lscr.io/linuxserver/sabnzbd
+  sabnzbd: lscr.io/linuxserver/sabnzbd:5.0.4
+  # renovate: datasource=docker depName=ghcr.io/seerr-team/seerr
+  seerr: ghcr.io/seerr-team/seerr:v3.1.0
+  # renovate: datasource=docker depName=python
   exporter: python:3.13-alpine
   pullPolicy: IfNotPresent
 

@@ -6,9 +6,12 @@
 jellyfin:
   image:
     pullPolicy: IfNotPresent
-    # Empty tag → chart appVersion (10.11.10). Pin here to track upstream:
-    # https://hub.docker.com/r/jellyfin/jellyfin/tags
-    tag: ""
+    # Pinned + reproducible; repository+tag together let Renovate's
+    # helm-values manager bump the Jellyfin image independently of the
+    # chart release (an empty tag would follow the chart appVersion and
+    # only update when the chart maintainer releases).
+    repository: jellyfin/jellyfin
+    tag: "10.11.11"
 
   # Dedicated MetalLB LAN IP so LAN clients WITHOUT Tailscale (e.g. a smart TV)
   # reach Jellyfin directly at http://192.168.178.3:8096 — bypassing Traefik's
