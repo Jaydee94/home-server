@@ -20,7 +20,7 @@ images:
   # renovate: datasource=docker depName=ghcr.io/seerr-team/seerr
   seerr: ghcr.io/seerr-team/seerr:v3.1.0
   # renovate: datasource=docker depName=python
-  exporter: python:3.13-alpine
+  exporter: python:3.14-alpine
   pullPolicy: IfNotPresent
 
 # linuxserver runtime identity. With CIFS the on-NAS file ownership is decided
