@@ -29,7 +29,7 @@ paperless_image: ghcr.io/paperless-ngx/paperless-ngx:2.20.15
 # renovate: datasource=docker depName=postgres
 paperless_db_image: postgres:16-alpine
 # renovate: datasource=docker depName=redis
-paperless_redis_image: redis:7-alpine
+paperless_redis_image: redis:8-alpine
 # renovate: datasource=docker depName=clusterzx/paperless-ai
 paperless_ai_image: clusterzx/paperless-ai:3.0.9
 
