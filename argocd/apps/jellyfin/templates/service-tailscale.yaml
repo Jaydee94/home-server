@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jellyfin-tailscale
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: jellyfin
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  # Bewusst OHNE loadBalancerClass: k3s Klipper ServiceLB übernimmt diesen
+  # Service und bindet hostPort 8096 auf 0.0.0.0 — also auch auf tailscale0.
+  # Dadurch erreichen Tailscale Shared Nodes (nur der Homeserver geteilt, kein
+  # Pi-hole-DNS, kein LAN-Routing) Jellyfin direkt unter
+  # http://<tailscale-ip>:8096. MetalLB ignoriert den Service, weil es nur
+  # Services mit loadBalancerClass metallb.universe.tf/metallb bedient.
+  type: LoadBalancer
+  ports:
+    - name: http
+      port: 8096
+      targetPort: 8096
+      protocol: TCP
+  selector:
+    app.kubernetes.io/name: jellyfin
+    app.kubernetes.io/instance: {{ .Release.Name }}
