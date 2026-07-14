@@ -1,7 +1,7 @@
 ---
 # Default variables for the node-exporter role
 # renovate: datasource=docker depName=prom/node-exporter
-node_exporter_image: prom/node-exporter:v1.9.1
+node_exporter_image: prom/node-exporter:v1.12.0
 node_exporter_base_dir: /opt/node-exporter
 # renovate: datasource=docker depName=gcr.io/cadvisor/cadvisor
 cadvisor_image: gcr.io/cadvisor/cadvisor:v0.55.1
