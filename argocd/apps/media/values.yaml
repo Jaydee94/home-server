@@ -18,7 +18,7 @@ images:
   # renovate: datasource=docker depName=lscr.io/linuxserver/sabnzbd
   sabnzbd: lscr.io/linuxserver/sabnzbd:5.0.4
   # renovate: datasource=docker depName=ghcr.io/seerr-team/seerr
-  seerr: ghcr.io/seerr-team/seerr:v3.1.0
+  seerr: ghcr.io/seerr-team/seerr:v3.3.0
   # renovate: datasource=docker depName=python
   exporter: python:3.13-alpine
   pullPolicy: IfNotPresent
