@@ -111,8 +111,9 @@ jellyfin:
   url: "http://jellyfin.jellyfin.svc.cluster.local:8096"
 
 # --- Recyclarr: German (DL) quality profiles, GitOps-synced -------------------
-# Nightly CronJob that syncs the official TRaSH-Guides German profiles + custom
-# formats (recyclarr config-templates) into Sonarr and Radarr. The profile
+# Daily CronJob (default 05:30, `schedule` below) that syncs the official
+# TRaSH-Guides German profiles + custom formats (recyclarr config-templates)
+# into Sonarr and Radarr. The profile
 # "UHD Bluray + WEB (GER)" is OWNED BY GIT — manual UI edits to it are reverted
 # on the next sync. Config lives in templates/recyclarr.yaml; API keys come from
 # the media-api-keys SealedSecret (apiKeys.sonarr / apiKeys.radarr above), so

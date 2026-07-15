@@ -12,3 +12,9 @@ AVD-KSV-0125
 # DS-0026: Dockerfile ohne HEALTHCHECK — False Positive, da Kubernetes Readiness/Liveness
 # Probes die Health-Checks übernehmen; ein Docker HEALTHCHECK wäre redundant und ungenutzt.
 AVD-DS-0026
+
+# KSV-01010: "ConfigMap with sensitive content" für recyclarr-config (argocd/apps/media) —
+# False Positive: die api_key-Felder enthalten nur `!env_var`-REFERENZEN
+# (z. B. `!env_var SONARR_API_KEY`), kein Secret-Material. Die echten Keys kommen zur
+# Laufzeit als Env-Vars aus dem SealedSecret media-api-keys.
+AVD-KSV-01010

@@ -25,6 +25,10 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: recyclarr-config
+  # Explicit (like the VMServiceScrape): Trivy renders the chart with the
+  # "default" namespace, so Release.Namespace would not satisfy KSV-0110.
+  # The ApplicationSet always deploys this folder into "media".
+  namespace: media
   labels:
     {{- include "media.labels" "recyclarr" | nindent 4 }}
 data:
@@ -95,6 +99,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: recyclarr
+  namespace: media
   labels:
     {{- include "media.labels" "recyclarr" | nindent 4 }}
 spec:
@@ -113,21 +118,38 @@ spec:
             {{- include "media.labels" "recyclarr" | nindent 12 }}
         spec:
           restartPolicy: Never
-          # The recyclarr image runs as 1000:1000; fsGroup makes the emptyDir
-          # app-data dir (cache/logs) writable for it.
+          # Hardening like gameserver-ui: non-root high UID, seccomp, read-only
+          # root FS. Recyclarr supports arbitrary UIDs; /config (emptyDir) is
+          # made writable via fsGroup, /tmp gets its own emptyDir.
           securityContext:
-            runAsUser: 1000
-            runAsGroup: 1000
-            fsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
           containers:
             - name: recyclarr
               image: {{ .Values.images.recyclarr }}
               imagePullPolicy: {{ .Values.images.pullPolicy }}
               args:
                 - sync
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
               env:
                 - name: TZ
                   value: {{ .Values.timezone | quote }}
+                # Keep every write inside the two emptyDir mounts (read-only
+                # root FS): app data explicitly at /config, HOME for any
+                # dotnet/tooling scratch at /tmp.
+                - name: RECYCLARR_APP_DATA
+                  value: /config
+                - name: HOME
+                  value: /tmp
                 # Keys are REQUIRED (no optional:) — fail loudly instead of
                 # syncing nothing. Seal them per docs/21 section 5.
                 - name: SONARR_API_KEY
@@ -145,12 +167,16 @@ spec:
               volumeMounts:
                 - name: app-data
                   mountPath: /config
+                - name: tmp
+                  mountPath: /tmp
                 - name: config
                   mountPath: /config/recyclarr.yml
                   subPath: recyclarr.yml
                   readOnly: true
           volumes:
             - name: app-data
+              emptyDir: {}
+            - name: tmp
               emptyDir: {}
             - name: config
               configMap:

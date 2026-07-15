@@ -309,7 +309,9 @@ TRaSH-Guide-German-Templates in beide Apps synct.
 ### Sync manuell anstoßen / prüfen
 
 ```sh
-ssh jaydee@192.168.178.127 'sudo kubectl -n media create job --from=cronjob/recyclarr recyclarr-manual'
+# --ignore-not-found macht den Aufruf wiederholbar (Job-Namen sind unique)
+ssh jaydee@192.168.178.127 'sudo kubectl -n media delete job recyclarr-manual --ignore-not-found && \
+  sudo kubectl -n media create job --from=cronjob/recyclarr recyclarr-manual'
 ssh jaydee@192.168.178.127 'sudo kubectl -n media logs -f job/recyclarr-manual'
 ```
 
