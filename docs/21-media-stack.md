@@ -12,6 +12,7 @@ Usenet-basierter Media-Automations-Stack, der das **bestehende Jellyfin**
 | Radarr | http://radarr.homeserver | 7878 | Film-Automation |
 | Seerr | http://seerr.homeserver | 5055 | Request-UI (gegen Jellyfin) |
 | media-api-exporter | (intern) | 9108 | Prometheus-Metriken (VMServiceScrape) |
+| Recyclarr | (CronJob, keine UI) | — | Synct TRaSH-Guide German-Profile nach Sonarr/Radarr (Abschnitt 9) |
 
 Alle Web-UIs laufen als **ClusterIP + Traefik-Ingress** (kein MetalLB-IP nötig);
 Pi-hole löst `*.homeserver` per Wildcard auf `192.168.178.127` auf.
@@ -250,6 +251,72 @@ pro Namespace sind unkritisch, solange beide Seiten auf dieselben `movies/`- und
 > gesamte Stack UI-konfiguriert), nicht in Git. Nach einem Config-PVC-Verlust neu
 > anlegen.
 
+## 9. Deutsch erzwingen (Recyclarr — GitOps-verwaltet)
+
+Sonarr und Radarr laden **ausschließlich deutsche bzw. German-(DL)-Releases**;
+bereits vorhandene englische Medien werden automatisch ersetzt, sobald eine
+deutsche Fassung auftaucht. Umgesetzt über einen **Recyclarr-CronJob**
+(`templates/recyclarr.yaml`, täglich 05:30), der die offiziellen
+TRaSH-Guide-German-Templates in beide Apps synct.
+
+### Funktionsweise
+
+- Recyclarr erstellt in Sonarr + Radarr das Quality-Profil
+  **„UHD Bluray + WEB (GER)"** samt German-Custom-Formats (Score-Set `german`):
+  `German DL` (deutsch+englische Tonspur) scort am höchsten, reines `German`
+  darunter, Low-Quality-German-Gruppen negativ.
+- Alle Qualitäten (2160p/1080p/720p, Bluray+WEB) liegen in **einer** gemergten
+  Gruppe („Merged QPs"): Upgrades entscheiden sich über den **Sprach-Score,
+  nicht die Auflösung** — ein deutsches 1080p schlägt ein englisches 2160p.
+- **`min_format_score: 10000`** macht englisch-only Releases ungrabbar
+  (strikte Durchsetzung, Upstream-Option „skip English Releases").
+- Upgrade-Kette: liegt ein englisches File vor (importiert bevor es eine
+  deutsche Fassung gab oder aus Altbestand), ersetzt *arr es automatisch via
+  RSS/Suche, sobald ein German-(DL)-Release verfügbar ist
+  (`upgrade until score: 35000`).
+- API-Keys bezieht der Job aus dem SealedSecret `media-api-keys`
+  (`sonarr-api-key`, `radarr-api-key` — Abschnitt 5, Pflicht).
+
+> ⚠️ **Das Profil gehört Git.** Manuelle UI-Änderungen an „UHD Bluray + WEB
+> (GER)" oder den German-Custom-Formats werden beim nächsten Sync
+> überschrieben (`reset_unmatched_scores` ist aktiv). Anpassungen ausschließlich
+> in `argocd/apps/media/templates/recyclarr.yaml`.
+
+> ⚠️ **Konsequenz der strikten Variante:** Bei brandneuen Releases ohne
+> deutsche Fassung wird **gar nichts** geladen — Seerr-Requests bleiben „in
+> Bearbeitung", bis eine deutsche Version erscheint. Wer stattdessen Englisch
+> als Zwischenlösung will: `min_format_score`-Zeilen in `recyclarr.yaml`
+> entfernen (dann greift Laden-und-später-upgraden).
+
+### Einmalige manuelle Schritte (nach dem ersten Sync)
+
+1. **Indexer-Check (Voraussetzung):** In Sonarr/Radarr *Interactive Search* auf
+   einen bekannten Titel → es müssen Releases mit `German DL`-Custom-Format
+   auftauchen. Falls nicht, in Prowlarr einen Indexer mit deutschem Content
+   ergänzen — sonst wird mit dem strikten Profil **nichts** mehr gegrabbt.
+2. **Profil zuweisen:** Sonarr → *Series → Mass Edit* → Quality Profile
+   „UHD Bluray + WEB (GER)" für alle Serien; Radarr → *Movies → Edit* analog.
+3. **Seerr-Defaults:** *Settings → Sonarr/Radarr → Quality Profile* auf das
+   German-Profil stellen, damit neue Requests es automatisch bekommen.
+4. **Bestand upgraden:** Radarr *Movies → Select All → Search Selected* bzw.
+   Sonarr *Series Mass-Search* — in Batches (Indexer-API-Limits, Bandbreite).
+   Alles mit verfügbarer deutscher Fassung wird ersetzt; der Rest bleibt liegen
+   und wird via RSS nachgezogen.
+5. **Jellyfin-Tonspur:** pro Benutzer *Einstellungen → Wiedergabe →
+   Bevorzugte Audiosprache = Deutsch* — German-DL-Files enthalten beide
+   Tonspuren, so startet automatisch die deutsche.
+
+### Sync manuell anstoßen / prüfen
+
+```sh
+ssh jaydee@192.168.178.127 'sudo kubectl -n media create job --from=cronjob/recyclarr recyclarr-manual'
+ssh jaydee@192.168.178.127 'sudo kubectl -n media logs -f job/recyclarr-manual'
+```
+
+Quellen: [TRaSH-Guides German Quality Profiles](https://trash-guides.info/Sonarr/sonarr-setup-quality-profiles-german-en/),
+[Recyclarr config-templates](https://github.com/recyclarr/config-templates)
+(`german-uhd-bluray-web`-Templates).
+
 ## Troubleshooting
 
 - **Pods `ContainerCreating`**: SMB-Creds nicht gesealt (Schritt 2) oder Share
@@ -261,6 +328,13 @@ pro Namespace sind unkritisch, solange beide Seiten auf dieselben `movies/`- und
   in dieselben Ordner schreiben, aus denen Jellyfin liest.
 - **Exporter-Metriken 0**: API-Keys in `media-api-keys` nicht gesetzt
   (Schritt 5) — der Exporter meldet dann `media_exporter_scrape_success 0`.
+- **Recyclarr-Job schlägt fehl / `CreateContainerConfigError`**: Das
+  SealedSecret `media-api-keys` fehlt oder enthält `sonarr-api-key`/
+  `radarr-api-key` nicht (Abschnitt 5) — die Keys sind für den Job Pflicht
+  (bewusst kein `optional:`). Logs: `sudo kubectl -n media logs job/<job-name>`.
+- **Sonarr/Radarr grabben nichts mehr**: Erwartetes Verhalten des strikten
+  German-Profils, wenn der Indexer keine deutschen Releases führt —
+  Abschnitt 9, Schritt 1 (Indexer-Check).
 
 ## Image-Pinning & Renovate
 
