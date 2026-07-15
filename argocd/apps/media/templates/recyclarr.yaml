@@ -1,0 +1,184 @@
+{{- /*
+Recyclarr: syncs the official TRaSH-Guides German (DL) quality profiles into
+Sonarr + Radarr on a schedule, so language enforcement is reproducible from Git
+instead of hand-clicked UI state (survives a config-PVC loss).
+
+How German enforcement works (see docs/21-media-stack.md):
+- The included german templates create the profile "UHD Bluray + WEB (GER)"
+  with score_set "german": custom formats detect German/German-DL releases in
+  the release title and score them far above everything else.
+- All qualities are merged into ONE group ("Merged QPs"), so the language score
+  decides upgrades — a German 1080p beats an English 2160p. The merged group is
+  extended below to 2160p+1080p+720p (upstream template's documented
+  alternative), per user requirement.
+- min_format_score: 10000 makes non-German releases ungrabbable (strict mode,
+  upstream's documented "skip English releases" knob). Existing English files
+  are upgraded automatically as soon as a German (DL) release is found.
+
+Template/include sources (recyclarr/config-templates, 2025-09-07):
+  sonarr/templates/german-uhd-bluray-web-v4.yml
+  radarr/templates/german-uhd-bluray-web.yml
+*/ -}}
+{{- if .Values.recyclarr.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recyclarr-config
+  # Explicit (like the VMServiceScrape): Trivy renders the chart with the
+  # "default" namespace, so Release.Namespace would not satisfy KSV-0110.
+  # The ApplicationSet always deploys this folder into "media".
+  namespace: media
+  labels:
+    {{- include "media.labels" "recyclarr" | nindent 4 }}
+data:
+  recyclarr.yml: |
+    sonarr:
+      sonarr:
+        base_url: http://sonarr:8989
+        api_key: !env_var SONARR_API_KEY
+        include:
+          - template: sonarr-quality-definition-series
+          - template: sonarr-v4-custom-formats-uhd-bluray-web-german
+          - template: sonarr-v4-quality-profile-uhd-bluray-web-german
+        quality_profiles:
+          - name: UHD Bluray + WEB (GER)
+            # Strict: skip English-only releases entirely (upstream knob).
+            min_format_score: 10000
+            # Upstream's alternative merged group: one tier spanning
+            # 2160p/1080p/720p so the German CF score outranks resolution.
+            qualities:
+              - name: Merged QPs
+                qualities:
+                  - Bluray-2160p
+                  - WEBDL-2160p
+                  - WEBRip-2160p
+                  - Bluray-1080p
+                  - WEBDL-1080p
+                  - WEBRip-1080p
+                  - Bluray-720p
+                  - WEBDL-720p
+                  - WEBRip-720p
+        custom_formats:
+          # Block DV-without-HDR-fallback (broken colors on non-DV displays;
+          # Jellyfin transcodes CPU-only). Upstream default, kept enabled.
+          - trash_ids:
+              - 9b27ab6498ec0f31a3353992e19434ca # DV (w/o HDR fallback)
+            assign_scores_to:
+              - name: UHD Bluray + WEB (GER)
+    radarr:
+      radarr:
+        base_url: http://radarr:7878
+        api_key: !env_var RADARR_API_KEY
+        include:
+          - template: radarr-quality-definition-movie
+          - template: radarr-custom-formats-uhd-bluray-web-german
+          - template: radarr-quality-profile-uhd-bluray-web-german
+        quality_profiles:
+          - name: UHD Bluray + WEB (GER)
+            min_format_score: 10000
+            qualities:
+              - name: Merged QPs
+                qualities:
+                  - Bluray-2160p
+                  - WEBDL-2160p
+                  - WEBRip-2160p
+                  - Bluray-1080p
+                  - WEBDL-1080p
+                  - WEBRip-1080p
+                  - Bluray-720p
+                  - WEBDL-720p
+                  - WEBRip-720p
+        custom_formats:
+          - trash_ids:
+              - 923b6abef9b17f937fab56cfcf89e1f1 # DV (w/o HDR fallback)
+            assign_scores_to:
+              - name: UHD Bluray + WEB (GER)
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: recyclarr
+  namespace: media
+  labels:
+    {{- include "media.labels" "recyclarr" | nindent 4 }}
+spec:
+  schedule: {{ .Values.recyclarr.schedule | quote }}
+  timeZone: {{ .Values.timezone | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 900
+      template:
+        metadata:
+          labels:
+            {{- include "media.labels" "recyclarr" | nindent 12 }}
+        spec:
+          restartPolicy: Never
+          # Hardening like gameserver-ui: non-root high UID, seccomp, read-only
+          # root FS. Recyclarr supports arbitrary UIDs; /config (emptyDir) is
+          # made writable via fsGroup, /tmp gets its own emptyDir.
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: recyclarr
+              image: {{ .Values.images.recyclarr }}
+              imagePullPolicy: {{ .Values.images.pullPolicy }}
+              args:
+                - sync
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: TZ
+                  value: {{ .Values.timezone | quote }}
+                # Keep every write inside the two emptyDir mounts (read-only
+                # root FS): app data explicitly at /config, HOME for any
+                # dotnet/tooling scratch at /tmp.
+                - name: RECYCLARR_APP_DATA
+                  value: /config
+                - name: HOME
+                  value: /tmp
+                # Keys are REQUIRED (no optional:) — fail loudly instead of
+                # syncing nothing. Seal them per docs/21 section 5.
+                - name: SONARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: media-api-keys
+                      key: sonarr-api-key
+                - name: RADARR_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: media-api-keys
+                      key: radarr-api-key
+              resources:
+                {{- toYaml .Values.resources.recyclarr | nindent 16 }}
+              volumeMounts:
+                - name: app-data
+                  mountPath: /config
+                - name: tmp
+                  mountPath: /tmp
+                - name: config
+                  mountPath: /config/recyclarr.yml
+                  subPath: recyclarr.yml
+                  readOnly: true
+          volumes:
+            - name: app-data
+              emptyDir: {}
+            - name: tmp
+              emptyDir: {}
+            - name: config
+              configMap:
+                name: recyclarr-config
+{{- end }}

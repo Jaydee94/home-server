@@ -19,6 +19,8 @@ images:
   sabnzbd: lscr.io/linuxserver/sabnzbd:5.0.4
   # renovate: datasource=docker depName=ghcr.io/seerr-team/seerr
   seerr: ghcr.io/seerr-team/seerr:v3.3.0
+  # renovate: datasource=docker depName=ghcr.io/recyclarr/recyclarr
+  recyclarr: ghcr.io/recyclarr/recyclarr:8.6.0
   # renovate: datasource=docker depName=python
   exporter: python:3.14-alpine
   pullPolicy: IfNotPresent
@@ -108,6 +110,18 @@ apiKeys:
 jellyfin:
   url: "http://jellyfin.jellyfin.svc.cluster.local:8096"
 
+# --- Recyclarr: German (DL) quality profiles, GitOps-synced -------------------
+# Daily CronJob (default 05:30, `schedule` below) that syncs the official
+# TRaSH-Guides German profiles + custom formats (recyclarr config-templates)
+# into Sonarr and Radarr. The profile
+# "UHD Bluray + WEB (GER)" is OWNED BY GIT — manual UI edits to it are reverted
+# on the next sync. Config lives in templates/recyclarr.yaml; API keys come from
+# the media-api-keys SealedSecret (apiKeys.sonarr / apiKeys.radarr above), so
+# both MUST be sealed for the job to run. See docs/21-media-stack.md.
+recyclarr:
+  enabled: true
+  schedule: "30 5 * * *"
+
 # Per-app resource requests/limits. Single node — *arr are light; SABnzbd spikes
 # on par2/unrar so it gets more headroom.
 resources:
@@ -139,3 +153,10 @@ resources:
     limits:
       cpu: 100m
       memory: 64Mi
+  recyclarr:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
