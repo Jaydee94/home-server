@@ -4,20 +4,26 @@ Sonarr + Radarr on a schedule, so language enforcement is reproducible from Git
 instead of hand-clicked UI state (survives a config-PVC loss).
 
 How German enforcement works (see docs/21-media-stack.md):
-- The included german templates create the profile "UHD Bluray + WEB (GER)"
-  with score_set "german": custom formats detect German/German-DL releases in
-  the release title and score them far above everything else.
+- The single "german-uhd-bluray-web" template (v8 config-templates) creates the
+  profile "[German] UHD Bluray + WEB" (trash_id-referenced) with the German-DL
+  custom-format score set: German-DL releases score far above English-only ones.
 - All qualities are merged into ONE group ("Merged QPs"), so the language score
-  decides upgrades — a German 1080p beats an English 2160p. The merged group is
-  extended below to 2160p+1080p+720p (upstream template's documented
-  alternative), per user requirement.
-- min_format_score: 10000 makes non-German releases ungrabbable (strict mode,
-  upstream's documented "skip English releases" knob). Existing English files
-  are upgraded automatically as soon as a German (DL) release is found.
+  decides upgrades — a German 1080p beats an English 2160p.
+- min_format_score: 10000 makes non-German releases ungrabbable (strict mode).
+  Existing English files are upgraded automatically once a German (DL) release
+  is found by RSS or manual search.
+- DV (w/o HDR fallback) is blocked via assign_scores_to on the profile
+  trash_id — new IDs as of the current TRaSH database.
 
-Template/include sources (recyclarr/config-templates, 2025-09-07):
-  sonarr/templates/german-uhd-bluray-web-v4.yml
-  radarr/templates/german-uhd-bluray-web.yml
+Template source (recyclarr/config-templates):
+  sonarr/templates/german-uhd-bluray-web.yml  (trash_id 3b0fa37fddaaefc931b75f2889d4b4f5)
+  radarr/templates/german-uhd-bluray-web.yml  (trash_id 27cc3d153c0a799fd139ef1ff4c4cc42)
+
+Migration from v7 → v8 (Recyclarr 8.0, 2026-02-20):
+  - Three partial includes replaced by one full template include per service.
+  - Profile referenced by trash_id instead of name ("UHD Bluray + WEB (GER)"
+    → "[German] UHD Bluray + WEB").
+  - DV trash_ids updated to current values in TRaSH database.
 */ -}}
 {{- if .Values.recyclarr.enabled }}
 ---
@@ -37,16 +43,15 @@ data:
       sonarr:
         base_url: http://sonarr:8989
         api_key: !env_var SONARR_API_KEY
-        include:
-          - template: sonarr-quality-definition-series
-          - template: sonarr-v4-custom-formats-uhd-bluray-web-german
-          - template: sonarr-v4-quality-profile-uhd-bluray-web-german
+        quality_definition:
+          type: series
         quality_profiles:
-          - name: UHD Bluray + WEB (GER)
-            # Strict: skip English-only releases entirely (upstream knob).
+          - trash_id: 3b0fa37fddaaefc931b75f2889d4b4f5  # [German] UHD Bluray + WEB
+            # Strict: skip English-only releases entirely.
             min_format_score: 10000
-            # Upstream's alternative merged group: one tier spanning
-            # 2160p/1080p/720p so the German CF score outranks resolution.
+            reset_unmatched_scores:
+              enabled: true
+            # One merged tier so language score outranks resolution.
             qualities:
               - name: Merged QPs
                 qualities:
@@ -60,23 +65,22 @@ data:
                   - WEBDL-720p
                   - WEBRip-720p
         custom_formats:
-          # Block DV-without-HDR-fallback (broken colors on non-DV displays;
-          # Jellyfin transcodes CPU-only). Upstream default, kept enabled.
+          # Block DV-without-HDR-fallback (broken colors on non-DV displays).
           - trash_ids:
-              - 9b27ab6498ec0f31a3353992e19434ca # DV (w/o HDR fallback)
+              - d776a1ea912a117d66d83b880ff2055d  # DV (w/o HDR fallback)
             assign_scores_to:
-              - name: UHD Bluray + WEB (GER)
+              - trash_id: 3b0fa37fddaaefc931b75f2889d4b4f5  # [German] UHD Bluray + WEB
     radarr:
       radarr:
         base_url: http://radarr:7878
         api_key: !env_var RADARR_API_KEY
-        include:
-          - template: radarr-quality-definition-movie
-          - template: radarr-custom-formats-uhd-bluray-web-german
-          - template: radarr-quality-profile-uhd-bluray-web-german
+        quality_definition:
+          type: movie
         quality_profiles:
-          - name: UHD Bluray + WEB (GER)
+          - trash_id: 27cc3d153c0a799fd139ef1ff4c4cc42  # [German] UHD Bluray + WEB
             min_format_score: 10000
+            reset_unmatched_scores:
+              enabled: true
             qualities:
               - name: Merged QPs
                 qualities:
@@ -91,9 +95,9 @@ data:
                   - WEBRip-720p
         custom_formats:
           - trash_ids:
-              - 923b6abef9b17f937fab56cfcf89e1f1 # DV (w/o HDR fallback)
+              - 7fc2751eef7e6bdc70b74136e5e35c76  # DV (w/o HDR fallback)
             assign_scores_to:
-              - name: UHD Bluray + WEB (GER)
+              - trash_id: 27cc3d153c0a799fd139ef1ff4c4cc42  # [German] UHD Bluray + WEB
 ---
 apiVersion: batch/v1
 kind: CronJob
