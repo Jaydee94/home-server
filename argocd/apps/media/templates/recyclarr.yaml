@@ -144,9 +144,11 @@ spec:
                 - name: TZ
                   value: {{ .Values.timezone | quote }}
                 # Keep every write inside the two emptyDir mounts (read-only
-                # root FS): app data explicitly at /config, HOME for any
+                # root FS): config dir at /config, HOME for any
                 # dotnet/tooling scratch at /tmp.
-                - name: RECYCLARR_APP_DATA
+                # RECYCLARR_APP_DATA was removed in v8.0.0; use
+                # RECYCLARR_CONFIG_DIR instead (data defaults to config dir).
+                - name: RECYCLARR_CONFIG_DIR
                   value: /config
                 - name: HOME
                   value: /tmp
