@@ -67,7 +67,7 @@ data:
         custom_formats:
           # Block DV-without-HDR-fallback (broken colors on non-DV displays).
           - trash_ids:
-              - d776a1ea912a117d66d83b880ff2055d  # DV (w/o HDR fallback)
+              - 9b27ab6498ec0f31a3353992e19434ca  # DV (w/o HDR fallback)
             assign_scores_to:
               - trash_id: 3b0fa37fddaaefc931b75f2889d4b4f5  # [German] UHD Bluray + WEB
     radarr:
@@ -95,7 +95,7 @@ data:
                   - WEBRip-720p
         custom_formats:
           - trash_ids:
-              - 7fc2751eef7e6bdc70b74136e5e35c76  # DV (w/o HDR fallback)
+              - 923b6abef9b17f937fab56cfcf89e1f1  # DV (w/o HDR fallback)
             assign_scores_to:
               - trash_id: 27cc3d153c0a799fd139ef1ff4c4cc42  # [German] UHD Bluray + WEB
 ---
