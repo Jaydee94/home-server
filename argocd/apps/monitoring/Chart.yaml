@@ -33,4 +33,4 @@ dependencies:
   # to bump. chart 0.86.0 → appVersion (VictoriaMetrics) v1.147.0.
   - name: victoria-metrics-k8s-stack
     repository: https://victoriametrics.github.io/helm-charts
-    version: "0.86.0"
+    version: "0.86.2"
