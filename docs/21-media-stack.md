@@ -319,6 +319,47 @@ Quellen: [TRaSH-Guides German Quality Profiles](https://trash-guides.info/Sonarr
 [Recyclarr config-templates](https://github.com/recyclarr/config-templates)
 (`german-uhd-bluray-web`-Templates).
 
+## 10. Spiele über Usenet (manuell)
+
+Der Stack hat kein *arr-Äquivalent für Spiele (die offizielle *arr-Familie bietet
+keins). Spiele laufen deshalb bewusst **minimal** über den bereits vorhandenen
+Usenet-Unterbau — **SABnzbd** (Download) + **Prowlarr** (Indexer/Suche), manuell
+gegriffen. Es wird **keine** neue App deployt.
+
+> **Kein Media-Playback:** Spiele sind **nicht** in Jellyfin abspielbar. „Integration"
+> heißt hier nur Download + Ablage auf dem NAS. Zugriff auf die Spiele erfolgt per
+> SMB direkt am Share (`//jays-ugreen/media/games`).
+
+**Ziel-Workflow:**
+`Prowlarr (Games-Indexer, Suche) → Grab → SABnzbd (Kategorie games) → entpackt → /data/games (NAS)`
+
+1. **SABnzbd — Kategorie `games`** (UI, lebt auf dem Config-PVC, nicht in Git):
+   *Config → Categories → Add* → Name `games`, **Folder/Path** absolut auf
+   `/data/games` setzen (überschreibt den Default unter
+   `/data/downloads/complete/…`). Kein Script, kein *arr-Import nötig.
+   ⚠️ **`.nfo` nicht wegwerfen**: Die globale Cleanup-Liste (Abschnitt „SABnzbd
+   Post-Processing") löscht u. a. `nfo` — Games-`.nfo` enthalten oft
+   Install-/Crack-Hinweise. Für die `games`-Kategorie das Cleanup entsprechend
+   entschärfen (Kategorie ohne aggressives nfo-Cleanup).
+
+2. **Prowlarr — Games-Indexer** (UI, Config-PVC): Games-fähigen **Newznab**-Indexer
+   hinzufügen. Den Indexer **taggen** und den Tag **nicht** an Sonarr/Radarr syncen
+   (Apps-Sync filtert nach Tag) — so bleibt er ausschließlich für die manuelle
+   Games-Suche. SABnzbd ist als Download-Client bereits eingetragen (Abschnitt 4.2);
+   beim Grab die Kategorie `games` verwenden.
+
+3. **Nutzung:** In Prowlarr → *Search* das Spiel suchen → **Grab**. SABnzbd lädt und
+   entpackt nach `/data/games`. Der Ordner wird beim ersten Completed-Job automatisch
+   angelegt (Mount: `dir_mode=0775`, `uid/gid=1001`) — kein NAS-Vorabschritt nötig.
+
+4. **Homepage:** Eine Kachel **Games** in der Gruppe *Media* verlinkt auf SABnzbd
+   (`argocd/apps/homepage/values.yaml`) — dort landen/entpacken die Downloads.
+
+> **Storage-Hinweis (große Spiele):** SABnzbd entpackt **komplett** im SSD-Temp
+> (`sabnzbd-incomplete`, nominal 100 Gi, siehe „Folder-Architektur: Unpack auf SSD").
+> Moderne Spiele (100+ GB) können das sprengen — bei Bedarf `incomplete.size` in
+> `argocd/apps/media/values.yaml` erhöhen.
+
 ## Troubleshooting
 
 - **Pods `ContainerCreating`**: SMB-Creds nicht gesealt (Schritt 2) oder Share

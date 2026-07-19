@@ -188,6 +188,10 @@ homepage:
                 type: sabnzbd
                 url: http://sabnzbd.media.svc.cluster.local:8080
                 key: "{{HOMEPAGE_VAR_SABNZBD_KEY}}"
+          - Games:
+              href: http://sabnzbd.homeserver
+              description: Spiele-Downloads via Usenet
+              icon: mdi-gamepad-variant
           - Home Assistant:
               href: http://homeassistant.homeserver
               description: Home Automation
