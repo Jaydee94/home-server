@@ -11,6 +11,7 @@ Usenet-basierter Media-Automations-Stack, der das **bestehende Jellyfin**
 | Sonarr | http://sonarr.homeserver | 8989 | Serien-Automation |
 | Radarr | http://radarr.homeserver | 7878 | Film-Automation |
 | Seerr | http://seerr.homeserver | 5055 | Request-UI (gegen Jellyfin) |
+| Questarr | http://questarr.homeserver | 5000 | Game-Manager (Usenet, Abschnitt 10) |
 | media-api-exporter | (intern) | 9108 | Prometheus-Metriken (VMServiceScrape) |
 | Recyclarr | (CronJob, keine UI) | — | Synct TRaSH-Guide German-Profile nach Sonarr/Radarr (Abschnitt 9) |
 
@@ -319,41 +320,51 @@ Quellen: [TRaSH-Guides German Quality Profiles](https://trash-guides.info/Sonarr
 [Recyclarr config-templates](https://github.com/recyclarr/config-templates)
 (`german-uhd-bluray-web`-Templates).
 
-## 10. Spiele über Usenet (manuell)
+## 10. Spiele über Usenet (Questarr)
 
-Der Stack hat kein *arr-Äquivalent für Spiele (die offizielle *arr-Familie bietet
-keins). Spiele laufen deshalb bewusst **minimal** über den bereits vorhandenen
-Usenet-Unterbau — **SABnzbd** (Download) + **Prowlarr** (Indexer/Suche), manuell
-gegriffen. Es wird **keine** neue App deployt.
+Die offizielle *arr-Familie hat kein Games-Äquivalent. Als *arr-artige Automation
+für Spiele läuft **[Questarr](https://github.com/Doezer/Questarr)** mit im
+`media`-Chart (Namespace `media`, `templates/questarr.yaml`) — es teilt sich den
+`mediastack-data`-SMB-Mount und spricht Prowlarr/SABnzbd intern per Cluster-DNS an.
+UI unter `http://questarr.homeserver` (Traefik-Ingress wie die *arr-Apps).
 
-> **Kein Media-Playback:** Spiele sind **nicht** in Jellyfin abspielbar. „Integration"
-> heißt hier nur Download + Ablage auf dem NAS. Zugriff auf die Spiele erfolgt per
-> SMB direkt am Share (`//jays-ugreen/media/games`).
+> **Kein Media-Playback:** Spiele sind **nicht** in Jellyfin abspielbar.
+> „Integration" heißt hier Discovery + Auto-Download + Ablage auf dem NAS. Zugriff
+> auf die Spiele per SMB direkt am Share (`//jays-ugreen/media/games`).
 
 **Ziel-Workflow:**
-`Prowlarr (Games-Indexer, Suche) → Grab → SABnzbd (Kategorie games) → entpackt → /data/games (NAS)`
+`Questarr (Discovery/Suche) → Grab → SABnzbd → entpackt → Questarr-Import (Move) → /data/games (NAS)`
 
-1. **SABnzbd — Kategorie `games`** (UI, lebt auf dem Config-PVC, nicht in Git):
-   *Config → Categories → Add* → Name `games`, **Folder/Path** absolut auf
-   `/data/games` setzen (überschreibt den Default unter
-   `/data/downloads/complete/…`). Kein Script, kein *arr-Import nötig.
+### Deployment (GitOps)
+- `argocd/apps/media/templates/questarr.yaml`: Deployment + Service + Ingress
+  (Helper `media.svcIngress`) + `questarr-config`-PVC (local-path, SQLite auf SSD).
+- Image gepinnt in `values.yaml → images.questarr` (`ghcr.io/doezer/questarr`,
+  Renovate-getrackt). Questarr ehrt **PUID/PGID** (`1001`, via `media.lsioEnv`),
+  damit der `/data`-Mount (uid 1001) für atomare Import-Moves beschreibbar ist.
+  `entrypoint.sh` chownt nur `/app`+`/app/data`, **nie** `/data`.
+- Mounts: `questarr-config` → `/app/data` (SQLite, SSD), `mediastack-data` →
+  `/data` (RWX-Share, geteilt mit sonarr/radarr/sabnzbd).
+
+### Erstkonfiguration (UI, Config-PVC — nicht in Git)
+1. **Indexer:** Questarr → *Settings → Indexers* → **Prowlarr-Sync** aktivieren
+   (`http://prowlarr:9696` + Prowlarr-API-Key) — zieht alle Games-fähigen
+   Newznab-Indexer auf einmal. Games-Indexer in Prowlarr taggen und den Tag
+   **nicht** an Sonarr/Radarr syncen (Apps-Sync filtert nach Tag).
+2. **Downloader:** Questarr → *Settings → Download Clients* → **SABnzbd**
+   (`http://sabnzbd:8080` + SABnzbd-API-Key), Kategorie `games`. In SABnzbd die
+   Kategorie `games` anlegen (Zielordner unter `/data/downloads/…`).
    ⚠️ **`.nfo` nicht wegwerfen**: Die globale Cleanup-Liste (Abschnitt „SABnzbd
    Post-Processing") löscht u. a. `nfo` — Games-`.nfo` enthalten oft
-   Install-/Crack-Hinweise. Für die `games`-Kategorie das Cleanup entsprechend
-   entschärfen (Kategorie ohne aggressives nfo-Cleanup).
+   Install-/Crack-Hinweise; für `games` das Cleanup entschärfen.
+3. **Library:** Root/Library-Folder auf `/data/games` setzen — der Import ist dann
+   ein serverseitiger **Move** im selben Mount (kein cross-mount copy). Der Ordner
+   wird beim ersten Import automatisch angelegt (`dir_mode=0775`, `uid/gid=1001`).
+4. **Discovery** (optional): IGDB/Steam-Wishlist in Questarr verknüpfen für
+   Auto-Suche gewünschter Titel.
 
-2. **Prowlarr — Games-Indexer** (UI, Config-PVC): Games-fähigen **Newznab**-Indexer
-   hinzufügen. Den Indexer **taggen** und den Tag **nicht** an Sonarr/Radarr syncen
-   (Apps-Sync filtert nach Tag) — so bleibt er ausschließlich für die manuelle
-   Games-Suche. SABnzbd ist als Download-Client bereits eingetragen (Abschnitt 4.2);
-   beim Grab die Kategorie `games` verwenden.
-
-3. **Nutzung:** In Prowlarr → *Search* das Spiel suchen → **Grab**. SABnzbd lädt und
-   entpackt nach `/data/games`. Der Ordner wird beim ersten Completed-Job automatisch
-   angelegt (Mount: `dir_mode=0775`, `uid/gid=1001`) — kein NAS-Vorabschritt nötig.
-
-4. **Homepage:** Eine Kachel **Games** in der Gruppe *Media* verlinkt auf SABnzbd
-   (`argocd/apps/homepage/values.yaml`) — dort landen/entpacken die Downloads.
+### Homepage
+Kachel **Questarr** in der Gruppe *Media* (`argocd/apps/homepage/values.yaml`)
+verlinkt auf `http://questarr.homeserver`.
 
 > **Storage-Hinweis (große Spiele):** SABnzbd entpackt **komplett** im SSD-Temp
 > (`sabnzbd-incomplete`, nominal 100 Gi, siehe „Folder-Architektur: Unpack auf SSD").
