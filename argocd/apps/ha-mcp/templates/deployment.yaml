@@ -1,0 +1,112 @@
+{{- /*
+Guard the whole Deployment on real secrets being present. Placeholder
+"REPLACE_ME" values (the values.yaml default before kubeseal-webgui has been
+run) would otherwise unseal to garbage and leave the pod stuck in
+CreateContainerConfigError/CrashLoopBackOff. Service/Ingress stay ungated —
+a service with no backing pods is harmless (502), and once real secrets are
+added ArgoCD picks the Deployment up automatically without flipping any
+extra flag.
+*/}}
+{{- if and .Values.haMcpSecret.enabled (ne .Values.haMcpSecret.encryptedToken "REPLACE_ME") (ne .Values.haMcpSecret.encryptedSecretPath "REPLACE_ME") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ha-mcp.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ha-mcp.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "ha-mcp.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "ha-mcp.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ha-mcp.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Image default CMD runs stdio mode — override to the HTTP-mode
+          # entrypoint so ha-mcp is reachable over the network.
+          args:
+            - ha-mcp-web
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: HOMEASSISTANT_URL
+              value: {{ .Values.homeassistant.url | quote }}
+            - name: MCP_PORT
+              value: {{ .Values.service.targetPort | quote }}
+            - name: HOMEASSISTANT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.haMcpSecret.secretName }}
+                  key: token
+            - name: MCP_SECRET_PATH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.haMcpSecret.secretName }}
+                  key: secret-path
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          # No dedicated unauthenticated /health route is documented for this
+          # image, so probe the port itself rather than the secret-gated path.
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 3
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          # readOnlyRootFilesystem needs somewhere writable — the Dockerfile
+          # sets HOME=/home/mcpuser explicitly (works around a Path.home()
+          # bug when unset), so mount both that and /tmp as emptyDir.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/mcpuser
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: home
+          emptyDir: {}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

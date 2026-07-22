@@ -1,0 +1,100 @@
+---
+replicaCount: 1
+
+image:
+  repository: ghcr.io/homeassistant-ai/ha-mcp
+  pullPolicy: IfNotPresent
+  # Renovate tracks this via the default helm-values manager.
+  # Tag list: https://github.com/homeassistant-ai/ha-mcp/pkgs/container/ha-mcp
+  # Verify the exact tag string (e.g. "7.14.2" vs "v7.14.2") before the first
+  # deploy — see docs/22-ha-mcp.md.
+  tag: "7.14.2"
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Home Assistant's cluster-internal Service. Verify the exact name with
+# `kubectl -n home-assistant get svc` before the first deploy — this assumes
+# the pajikos chart's fullname helper resolves to "home-assistant" because the
+# release name and chart name both are "home-assistant" (see docs/22-ha-mcp.md).
+homeassistant:
+  url: "http://home-assistant.home-assistant.svc.cluster.local:8123"
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  # Matches securityContext.runAsUser/runAsGroup below so the emptyDir
+  # volumes mounted for the read-only root filesystem are writable.
+  fsGroup: 10001
+
+securityContext:
+  runAsNonRoot: true
+  # The image doesn't pin a fixed UID/GID (Dockerfile uses `useradd -r`), but
+  # Kubernetes' runAsUser/runAsGroup override whatever the image bakes in —
+  # standard practice, and required here to keep both above the 10000
+  # threshold Trivy (KSV-0020/KSV-0021) checks for.
+  runAsUser: 10001
+  runAsGroup: 10001
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 80
+  # ha-mcp's HTTP-mode port — set explicitly via MCP_PORT in
+  # templates/deployment.yaml (not left to whatever the image defaults to).
+  # NOT 9584 (in-process component) or 9583 (HA add-on) — those are
+  # different deployment modes.
+  targetPort: 8086
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  hosts:
+    - host: ha-mcp.homeserver
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# HOMEASSISTANT_TOKEN (long-lived access token) and MCP_SECRET_PATH (the
+# secret URL path that gates access, pinned instead of left to auto-generate
+# so the deployment stays GitOps-reproducible) are injected from the
+# SealedSecret rendered by templates/sealedsecret.yaml.
+# See docs/22-ha-mcp.md for the kubeseal-webgui workflow that fills these in.
+haMcpSecret:
+  enabled: true
+  secretName: ha-mcp-secrets
+  # Generated with (run once per field):
+  #   echo -n "<plaintext-value>" \
+  #     | kubeseal --raw --namespace ha-mcp --name ha-mcp-secrets \
+  #         --from-file=/dev/stdin
+  encryptedToken: "REPLACE_ME"
+  encryptedSecretPath: "REPLACE_ME"
+
+extraEnv: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}

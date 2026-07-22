@@ -1,6 +1,10 @@
 ---
-# Allow ingress to HA port 8123 only from Traefik (kube-system namespace).
-# Prevents other cluster pods from spoofing X-Forwarded-For headers.
+# Allow ingress to HA port 8123 from any pod in the kube-system namespace
+# (Traefik lives there — this is a namespace-level allow, not scoped to the
+# Traefik pod specifically) and from the ha-mcp namespace (ha-mcp's own
+# NetworkPolicy already restricts who can reach *it*, so this stays a
+# narrow, deliberate exception — see docs/22-ha-mcp.md). Prevents other
+# cluster pods from spoofing X-Forwarded-For headers.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -15,6 +19,13 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8123
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ha-mcp
       ports:
         - protocol: TCP
           port: 8123
