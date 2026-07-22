@@ -27,12 +27,23 @@ serviceAccount:
 
 podAnnotations: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+  # Matches securityContext.runAsUser/runAsGroup below so the emptyDir
+  # volumes mounted for the read-only root filesystem are writable.
+  fsGroup: 10001
 
 securityContext:
   runAsNonRoot: true
+  # The image doesn't pin a fixed UID/GID (Dockerfile uses `useradd -r`), but
+  # Kubernetes' runAsUser/runAsGroup override whatever the image bakes in —
+  # standard practice, and required here to keep both above the 10000
+  # threshold Trivy (KSV-0020/KSV-0021) checks for.
+  runAsUser: 10001
+  runAsGroup: 10001
   allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
   capabilities:
     drop:
       - ALL
@@ -40,8 +51,10 @@ securityContext:
 service:
   type: ClusterIP
   port: 80
-  # ha-mcp's HTTP-mode default (MCP_PORT). NOT 9584 (in-process component) or
-  # 9583 (HA add-on) — those are different deployment modes.
+  # ha-mcp's HTTP-mode port — set explicitly via MCP_PORT in
+  # templates/deployment.yaml (not left to whatever the image defaults to).
+  # NOT 9584 (in-process component) or 9583 (HA add-on) — those are
+  # different deployment modes.
   targetPort: 8086
 
 ingress:

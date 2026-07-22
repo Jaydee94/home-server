@@ -112,6 +112,12 @@ haMcpSecret:
 
 Nach Commit + Push synct ArgoCD das SealedSecret und der `ha-mcp`-Pod startet.
 
+> **Solange `encryptedToken`/`encryptedSecretPath` noch `REPLACE_ME` sind,
+> rendert `templates/deployment.yaml` bewusst gar kein Deployment** (Guard
+> gegen `CreateContainerConfigError`/`CrashLoopBackOff` mit kaputten
+> Platzhalter-Secrets). Service/Ingress existieren trotzdem — sie zeigen bis
+> dahin nur auf ein leeres Backend.
+
 ## 4. NetworkPolicy: Home Assistant für ha-mcp öffnen
 
 `argocd/apps/home-assistant/templates/networkpolicy.yaml` erlaubte bisher
@@ -186,8 +192,8 @@ Ergebnis in <http://homeassistant.homeserver> unter den Dashboards prüfen.
 
 ## Rotation
 
-1. Neuen Secret-Pfad (`openssl rand -hex 32`) und/oder neuen Long-Lived
-   Access Token in HA erzeugen.
+1. Neuen Secret-Pfad (`echo "/private_$(openssl rand -hex 32)"`) und/oder
+   neuen Long-Lived Access Token in HA erzeugen.
 2. Alten HA-Token widerrufen (Profil → Sicherheit → Langlebige Zugriffstoken).
 3. Neue Werte über kubeseal-webgui versiegeln, `encryptedToken`/
    `encryptedSecretPath` in `values.yaml` ersetzen, committen, pushen.
@@ -199,9 +205,10 @@ Ergebnis in <http://homeassistant.homeserver> unter den Dashboards prüfen.
 
 | Symptom | Ursache / Fix |
 |---|---|
-| Pod `CrashLoopBackOff` | `encryptedToken`/`encryptedSecretPath` in `values.yaml` sind noch `REPLACE_ME` → Secrets über kubeseal-webgui versiegeln. |
+| `kubectl -n ha-mcp get deploy` zeigt kein Deployment | `encryptedToken`/`encryptedSecretPath` in `values.yaml` sind noch `REPLACE_ME` — das Deployment ist absichtlich gegated (`templates/deployment.yaml`) und rendert erst, sobald echte kubeseal-Werte eingetragen sind. Secrets über kubeseal-webgui versiegeln, committen, pushen. |
 | `curl` auf den korrekten Pfad liefert 403/404 | Der bei `MCP_SECRET_PATH` gepinnte Pfad wird von diesem Image/Modus evtl. nicht 1:1 übernommen — Pod-Logs prüfen und tatsächlich verwendeten Pfad übernehmen (siehe Abschnitt 2). |
 | Home Assistant nicht erreichbar (Timeout in den Pod-Logs) | NetworkPolicy-Anpassung aus Abschnitt 4 fehlt, oder der Service-DNS-Name von Home Assistant weicht von `home-assistant.home-assistant.svc.cluster.local` ab → `kubectl -n home-assistant get svc` prüfen und `homeassistant.url` in `values.yaml` korrigieren. |
 | Claude Code zeigt keine/alte Tools nach einer Settings-Änderung | Tool-Liste ist gecacht — Verbindung in der Claude-Code-Session neu aufbauen. |
-| Dashboard-Erstellung schlägt fehl oder no-opt | Read Only Mode ist (noch) aktiv → in den ha-mcp-Server-Settings deaktivieren (siehe "Sicherheitshinweise"). |
+| Dashboard-Erstellung schlägt fehl oder no-op | Read Only Mode ist (noch) aktiv → in den ha-mcp-Server-Settings deaktivieren (siehe "Sicherheitshinweise"). |
 | Falscher Port angenommen (9584/9583) | Das sind die Ports der In-Process- bzw. HA-Add-on-Variante — der Docker/HTTP-Modus hier nutzt `MCP_PORT` = `8086`. |
+| Pod startet nicht / Permission-Fehler beim Schreiben | `securityContext.runAsUser`/`runAsGroup` sind hart auf `10001` gesetzt (Trivy-Anforderung), das Image pinnt aber keine feste UID → tatsächliche Image-UID mit `kubectl -n ha-mcp exec deploy/ha-mcp -- id` prüfen, falls der Container Schreibrechte außerhalb von `/tmp`/`/home/mcpuser` braucht. |

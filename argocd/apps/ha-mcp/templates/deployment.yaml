@@ -1,3 +1,13 @@
+{{- /*
+Guard the whole Deployment on real secrets being present. Placeholder
+"REPLACE_ME" values (the values.yaml default before kubeseal-webgui has been
+run) would otherwise unseal to garbage and leave the pod stuck in
+CreateContainerConfigError/CrashLoopBackOff. Service/Ingress stay ungated —
+a service with no backing pods is harmless (502), and once real secrets are
+added ArgoCD picks the Deployment up automatically without flipping any
+extra flag.
+*/}}
+{{- if and .Values.haMcpSecret.enabled (ne .Values.haMcpSecret.encryptedToken "REPLACE_ME") (ne .Values.haMcpSecret.encryptedSecretPath "REPLACE_ME") }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -41,6 +51,8 @@ spec:
           env:
             - name: HOMEASSISTANT_URL
               value: {{ .Values.homeassistant.url | quote }}
+            - name: MCP_PORT
+              value: {{ .Values.service.targetPort | quote }}
             - name: HOMEASSISTANT_TOKEN
               valueFrom:
                 secretKeyRef:
@@ -72,6 +84,19 @@ spec:
             failureThreshold: 3
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          # readOnlyRootFilesystem needs somewhere writable — the Dockerfile
+          # sets HOME=/home/mcpuser explicitly (works around a Path.home()
+          # bug when unset), so mount both that and /tmp as emptyDir.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: home
+              mountPath: /home/mcpuser
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: home
+          emptyDir: {}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -84,3 +109,4 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+{{- end }}
