@@ -14,7 +14,7 @@ images:
   # renovate: datasource=docker depName=lscr.io/linuxserver/radarr
   radarr: lscr.io/linuxserver/radarr:6.3.0
   # renovate: datasource=docker depName=lscr.io/linuxserver/prowlarr
-  prowlarr: lscr.io/linuxserver/prowlarr:2.4.0
+  prowlarr: lscr.io/linuxserver/prowlarr:2.5.2
   # renovate: datasource=docker depName=lscr.io/linuxserver/sabnzbd
   sabnzbd: lscr.io/linuxserver/sabnzbd:5.0.4
   # renovate: datasource=docker depName=ghcr.io/seerr-team/seerr
