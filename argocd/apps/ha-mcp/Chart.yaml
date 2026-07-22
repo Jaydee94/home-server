@@ -1,0 +1,20 @@
+---
+apiVersion: v2
+name: ha-mcp
+description: >-
+  Unofficial Home Assistant MCP server (homeassistant-ai/ha-mcp) — exposes
+  Home Assistant over the Model Context Protocol so Claude Code can query
+  devices/sensors and manage dashboards, automations, and scripts.
+type: application
+version: 0.1.0
+appVersion: "7.14.2"
+keywords:
+  - ha-mcp
+  - mcp
+  - home-assistant
+  - claude
+home: https://github.com/homeassistant-ai/ha-mcp
+sources:
+  - https://github.com/homeassistant-ai/ha-mcp
+maintainers:
+  - name: home-server-admin
