@@ -65,13 +65,14 @@ data:
                   - WEBDL-720p
                   - WEBRip-720p
           # 1080p-capped variant for series whose 4K files don't play through Jellyfin.
-          # Uses the same German custom-format scoring as the UHD profile but caps at
-          # 1080p — 4K qualities are simply absent from the merged group.
-          - trash_id: 3b0fa37fddaaefc931b75f2889d4b4f5
-            name: "[German] HD Bluray + WEB"
+          # Name-only (no trash_id) to avoid Recyclarr skipping the section on
+          # duplicate trash_ids. German DL scores (German=10000, DL=11000, etc.)
+          # were set via Sonarr API and are preserved because reset_unmatched_scores
+          # is disabled — only the DV block below is actively managed here.
+          - name: "[German] HD Bluray + WEB"
             min_format_score: 10000
             reset_unmatched_scores:
-              enabled: true
+              enabled: false
             qualities:
               - name: Merged QPs
                 qualities:
