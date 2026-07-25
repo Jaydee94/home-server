@@ -64,12 +64,30 @@ data:
                   - Bluray-720p
                   - WEBDL-720p
                   - WEBRip-720p
+          # 1080p-capped variant for series whose 4K files don't play through Jellyfin.
+          # Uses the same German custom-format scoring as the UHD profile but caps at
+          # 1080p — 4K qualities are simply absent from the merged group.
+          - trash_id: 3b0fa37fddaaefc931b75f2889d4b4f5
+            name: "[German] HD Bluray + WEB"
+            min_format_score: 10000
+            reset_unmatched_scores:
+              enabled: true
+            qualities:
+              - name: Merged QPs
+                qualities:
+                  - Bluray-1080p
+                  - WEBDL-1080p
+                  - WEBRip-1080p
+                  - Bluray-720p
+                  - WEBDL-720p
+                  - WEBRip-720p
         custom_formats:
           # Block DV-without-HDR-fallback (broken colors on non-DV displays).
           - trash_ids:
               - 9b27ab6498ec0f31a3353992e19434ca  # DV (w/o HDR fallback)
             assign_scores_to:
               - trash_id: 3b0fa37fddaaefc931b75f2889d4b4f5  # [German] UHD Bluray + WEB
+              - name: "[German] HD Bluray + WEB"             # 1080p-capped variant
     radarr:
       radarr:
         base_url: http://radarr:7878
