@@ -25,7 +25,7 @@ paperless_http_port: 8000
 
 # Images and tags (tracked by Renovate via the generic regex customManager)
 # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
-paperless_image: ghcr.io/paperless-ngx/paperless-ngx:3.0.2
+paperless_image: ghcr.io/paperless-ngx/paperless-ngx:3.0.3
 # renovate: datasource=docker depName=postgres
 paperless_db_image: postgres:18-alpine
 # renovate: datasource=docker depName=redis
