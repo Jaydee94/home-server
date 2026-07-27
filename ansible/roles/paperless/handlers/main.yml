@@ -3,7 +3,7 @@
 - name: Restart paperless compose
   become: true
   ansible.builtin.shell: |
-    docker compose restart
+    docker compose pull && docker compose up -d
   args:
     chdir: "{{ paperless_base_dir }}"
   changed_when: true
