@@ -47,6 +47,7 @@ spec:
           - CreateNamespace=true
           - ServerSideApply=true
           - SkipDryRunOnMissingResource=true
+          - RespectIgnoreDifferences=true
       # Kubernetes adds volumeMode: Filesystem and persistentVolumeClaimRetentionPolicy
       # as defaults to StatefulSet — ignore these immutable/defaulted fields to prevent
       # drift loops. KubeVirt VM runStrategy is managed by scheduled CronJobs, not ArgoCD.
@@ -57,8 +58,25 @@ spec:
           kind: StatefulSet
           jqPathExpressions:
             - .spec.volumeClaimTemplates[]?.spec.volumeMode
+            # Kubernetes injects apiVersion/kind/status into VCT entries at admission;
+            # these fields are absent in Helm templates — ignore to prevent drift loops.
+            - .spec.volumeClaimTemplates[]?.status
+            - .spec.volumeClaimTemplates[]?.apiVersion
+            - .spec.volumeClaimTemplates[]?.kind
+            # kubectl rollout restart sets this annotation via its own field-manager;
+            # ArgoCD SSA cannot remove it — ignore to prevent drift loops.
+            - .spec.template.metadata.annotations["kubectl.kubernetes.io/restartedAt"]
           jsonPointers:
             - /spec/persistentVolumeClaimRetentionPolicy
+            # Helm checksum annotations are computed from ConfigMap content at render time.
+            # ArgoCD SSA cannot overwrite them (field-manager conflict from original helm install).
+            # Checksums diverge when a sub-chart version bumps without re-deploying via helm.
+            # Ignore to stop drift loops; ConfigMap changes still sync, only auto-restart is lost.
+            - /spec/template/metadata/annotations/checksum~1config
+            - /spec/template/metadata/annotations/checksum~1acl
+            - /spec/template/metadata/annotations/checksum~1secret
+            - /spec/template/metadata/annotations/checksum~1init-script
+            - /spec/template/metadata/annotations/checksum~1hass-configuration
         - group: kubevirt.io
           kind: VirtualMachine
           jsonPointers:
@@ -66,8 +84,14 @@ spec:
             - /spec/template/metadata/annotations
             - /spec/template/spec/domain/machine
             - /spec/template/spec/domain/firmware
+            # Kubernetes normalises memory quantities (e.g. 8.5Gi → 8704Mi) at admission;
+            # ignore to prevent spurious drift when both values are numerically equal.
+            - /spec/template/spec/domain/resources
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           jsonPointers:
             - /spec/conversion
             - /status
+            # CDI/KubeVirt operators continuously reconcile CRD versions (generation > 28000);
+            # ArgoCD cannot win against the operator — ignore to stop the drift loop.
+            - /spec/versions

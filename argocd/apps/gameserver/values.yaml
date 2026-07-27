@@ -30,7 +30,7 @@ vm:
   memory:
     # guest: RAM visible to the VM OS; requests: pod scheduling budget (guest + QEMU overhead)
     guest: 8Gi
-    requests: 8.5Gi
+    requests: 8704Mi
 
 # ---- OS Disk (DataVolume via CDI) ----
 dataVolume:
