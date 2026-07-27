@@ -18,7 +18,7 @@ fullnameOverride: ""
 # the pajikos chart's fullname helper resolves to "home-assistant" because the
 # release name and chart name both are "home-assistant" (see docs/22-ha-mcp.md).
 homeassistant:
-  url: "http://home-assistant.home-assistant.svc.cluster.local:8123"
+  url: "http://home-assistant.home-assistant.svc.cluster.local:8080"
 
 serviceAccount:
   create: true
