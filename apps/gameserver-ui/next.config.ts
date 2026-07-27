@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   experimental: {
     // Standard-Limit von 10 MB reicht für große Mod-ZIPs nicht — auf 500 MB erhöhen.
     proxyClientMaxBodySize: "500mb",
+    // TypeScript 7 entfernt die Compiler API — CLI-Modus nutzen bis Next.js native Unterstützung liefert.
+    useTypeScriptCli: true,
   },
 };
 
