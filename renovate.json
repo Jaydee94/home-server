@@ -43,6 +43,13 @@
       "matchDatasources": ["docker"],
       "matchPackageNames": ["/kubeseal-webgui/"],
       "automerge": false
+    },
+    {
+      "description": "Postgres major version upgrades require a manual pg_upgrade of the data directory — never auto-merge them.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ],
   "platformAutomerge": true
