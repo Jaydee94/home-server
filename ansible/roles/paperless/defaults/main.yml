@@ -27,7 +27,7 @@ paperless_http_port: 8000
 # renovate: datasource=docker depName=ghcr.io/paperless-ngx/paperless-ngx
 paperless_image: ghcr.io/paperless-ngx/paperless-ngx:3.0.4
 # renovate: datasource=docker depName=postgres
-paperless_db_image: postgres:18-alpine
+paperless_db_image: postgres:16-alpine
 # renovate: datasource=docker depName=redis
 paperless_redis_image: redis:8-alpine
 # renovate: datasource=docker depName=clusterzx/paperless-ai
