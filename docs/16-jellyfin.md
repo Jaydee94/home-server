@@ -198,9 +198,9 @@ Host-Gruppe `render` aus (`getent group render`).
 
 **Pod-Konfiguration (`argocd/apps/jellyfin/values.yaml`):** `/dev/dri` wird per
 `hostPath`-Volume in den Pod gemountet; `podSecurityContext.supplementalGroups`
-muss die reale GID der `render`-Gruppe enthalten (Platzhalter im Repo ersetzen –
-siehe Kommentar in der Datei), damit der Container ohne `privileged: true` auf
-`/dev/dri/renderD128` zugreifen darf.
+ist bewusst leer (`[]`) im Repo und muss um die reale GID der `render`-Gruppe
+ergänzt werden (siehe Kommentar in der Datei), damit der Container ohne
+`privileged: true` auf `/dev/dri/renderD128` zugreifen darf.
 
 > **Fallback:** Zeigen die Jellyfin-Logs trotz korrekter GID weiterhin
 > `Permission denied` auf `/dev/dri/renderD128`, unter `jellyfin:` in
@@ -215,8 +215,15 @@ Dashboard → **Wiedergabe** → Transcoding:
 4. „Hardware-Encodierung aktivieren" anhaken
 5. **AV1 nicht aktivieren** – die UHD 630 (Gen9.5) hat kein AV1-Hardware-Decode
 
-**Verifikation:** `sudo kubectl -n jellyfin exec deploy/jellyfin -- vainfo`
-zeigt die verfügbaren VAAPI-Profile im Pod. Läuft ein Transcode aktiv,
+**Verifikation:** Das `jellyfin/jellyfin`-Image hat kein globales `vainfo` im
+PATH; das gebündelte `jellyfin-ffmpeg` bringt aber sein eigenes mit:
+
+```bash
+sudo kubectl -n jellyfin exec deploy/jellyfin -- \
+  /usr/lib/jellyfin-ffmpeg/vainfo --display drm
+```
+
+Das zeigt die verfügbaren VAAPI-Profile im Pod. Läuft ein Transcode aktiv,
 markiert das Jellyfin-Dashboard (Wiedergabe) die Session mit einem
 „HW"-Badge statt reinem Software-Transcode.
 
@@ -232,7 +239,7 @@ markiert das Jellyfin-Dashboard (Wiedergabe) die Session mit einem
   prüfen, ob die Session ein „HW"-Badge zeigt. Fehlt es, läuft
   Software-Transcoding statt Quick Sync (siehe
   [Hardware-Transcoding](#hardware-transcoding-intel-quick-sync--vaapi)) –
-  z. B. weil die `render`-GID in `values.yaml` noch der Platzhalter ist, oder
+  z. B. weil `supplementalGroups` in `values.yaml` noch leer ist, oder
   der Client-Codec/Container nicht von der iGPU unterstützt wird. Alternativ
   Client-Qualität auf „Direct Play"/Original stellen oder Bitrate begrenzen;
   auch mit Hardware-Transcoding verträgt der Node nur wenige parallele

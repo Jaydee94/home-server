@@ -62,7 +62,8 @@
 # Used to confirm hardware transcoding is usable for Jellyfin — see
 # docs/16-jellyfin.md and argocd/apps/jellyfin/values.yaml.
 - name: Query VAAPI capabilities (Intel Quick Sync diagnostics)
-  ansible.builtin.command: vainfo
+  # --display drm: headless server, no X11/Wayland session to connect to.
+  ansible.builtin.command: vainfo --display drm
   register: common_vainfo
   changed_when: false
   failed_when: false
@@ -80,7 +81,7 @@
 - name: Display render group GID
   ansible.builtin.debug:
     msg: >-
-      {{ 'render group: ' + common_render_group.stdout
+      {{ 'render group GID: ' + common_render_group.stdout.split(':')[2]
          if common_render_group.rc == 0
          else 'No "render" group found on this host.' }}
 

@@ -79,12 +79,13 @@ jellyfin:
       mountPath: /dev/dri
   podSecurityContext:
     # GID of the host's "render" group, so the container can open
-    # /dev/dri/renderD128 without running privileged. The Ansible run for
-    # common (see ansible/roles/common/tasks/main.yml) prints the actual GID
-    # via `getent group render` — REPLACE the placeholder below with that
-    # value before this takes effect. See docs/16-jellyfin.md.
-    supplementalGroups:
-      - 0 # PLACEHOLDER — replace with the host's real `render` group GID
+    # /dev/dri/renderD128 without running privileged. Left EMPTY on purpose —
+    # GID 0 (root) would work but grants far more than /dev/dri and is not a
+    # safe placeholder. The Ansible run for common (see
+    # ansible/roles/common/tasks/main.yml) prints the actual GID via
+    # `getent group render`; hardware transcoding stays inactive (falls back
+    # to CPU) until that value is added here. See docs/16-jellyfin.md.
+    supplementalGroups: []
 
   # Direct Play is still strongly preferred (see docs/16-jellyfin.md); the
   # high CPU limit absorbs audio transcodes, subtitle burn-in, and the
