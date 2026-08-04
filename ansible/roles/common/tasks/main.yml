@@ -53,7 +53,37 @@
       - ufw
       - unattended-upgrades
       - update-notifier-common   # provides /var/run/reboot-required
+      - intel-media-va-driver-non-free  # VAAPI/Quick Sync driver for Intel iGPUs (Jellyfin hw transcoding)
+      - vainfo                          # VAAPI diagnostics
     state: "{{ 'latest' if auto_upgrade | bool else 'present' }}"
+
+# ---- Intel Quick Sync (VAAPI) diagnostics --------------------
+# Non-blocking: hosts without an Intel iGPU simply show no VAAPI profiles.
+# Used to confirm hardware transcoding is usable for Jellyfin — see
+# docs/16-jellyfin.md and argocd/apps/jellyfin/values.yaml.
+- name: Query VAAPI capabilities (Intel Quick Sync diagnostics)
+  # --display drm: headless server, no X11/Wayland session to connect to.
+  ansible.builtin.command: vainfo --display drm
+  register: common_vainfo
+  changed_when: false
+  failed_when: false
+
+- name: Display VAAPI capabilities
+  ansible.builtin.debug:
+    var: common_vainfo.stdout_lines
+
+- name: Look up the host's "render" group GID (needed for Jellyfin's podSecurityContext.supplementalGroups)
+  ansible.builtin.command: getent group render
+  register: common_render_group
+  changed_when: false
+  failed_when: false
+
+- name: Display render group GID
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'render group GID: ' + common_render_group.stdout.split(':')[2]
+         if common_render_group.rc == 0
+         else 'No "render" group found on this host.' }}
 
 # ---- Unattended upgrades (background security patches) -----
 - name: Enable unattended-upgrades (security patches between Ansible runs)

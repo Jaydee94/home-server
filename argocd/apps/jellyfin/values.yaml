@@ -64,9 +64,50 @@ jellyfin:
       enabled: true
       type: emptyDir
 
-  # CPU-only transcoding (no GPU passthrough). Direct Play is strongly
-  # preferred (see docs/16-jellyfin.md); the high CPU limit only absorbs the
-  # occasional transcode without letting a transcode storm starve the node.
+  # Intel Quick Sync (VAAPI) hardware transcoding — the node's i5-9500T has a
+  # UHD 630 iGPU. Passes the host's DRM render node into the pod so ffmpeg can
+  # hw-decode/encode H.264/HEVC instead of falling back to slow CPU transcode
+  # (which routinely can't keep up with 4K in real time). The jellyfin/jellyfin
+  # image already bundles the userspace VAAPI drivers (see
+  # https://jellyfin.org/docs/general/post-install/transcoding/hardware-acceleration/intel/) —
+  # the intel-media-va-driver-non-free package from ansible/roles/common is only
+  # for the host-side `vainfo` capability check, not required at runtime.
+  # Must be enabled in the Jellyfin admin UI — see docs/16-jellyfin.md.
+  volumes:
+    - name: dri
+      hostPath:
+        path: /dev/dri
+  volumeMounts:
+    - name: dri
+      mountPath: /dev/dri
+  podSecurityContext:
+    # GID of the host's "render" group (confirmed via `getent group render`
+    # during the ansible/roles/common run — see
+    # ansible/roles/common/tasks/main.yml). Kept for clarity/defense-in-depth,
+    # but NOT sufficient by itself: this cluster's containerd runs with
+    # device_ownership_from_security_context=false, so a plain hostPath mount
+    # doesn't grant a device-cgroup rule for /dev/dri/renderD128 — confirmed
+    # live (unprivileged test pod got EPERM opening the render node even with
+    # this GID applied). See `securityContext.privileged` below.
+    supplementalGroups: [991]
+  securityContext:
+    # Confirmed live on this node: without this, opening
+    # /dev/dri/renderD128 fails with EPERM (device-cgroup denial) even
+    # with the correct supplementalGroups GID above — Docker's
+    # `--device` flag adds a cgroup rule automatically, but a plain
+    # Kubernetes hostPath volume does not, and this cluster's containerd
+    # has device_ownership_from_security_context=false. The
+    # "correct" k8s-native fix would be the Intel GPU device plugin
+    # (https://github.com/intel/intel-device-plugins-for-kubernetes) or
+    # flipping that containerd setting, but for a single-node homelab
+    # running one trusted media-server container, privileged is the
+    # pragmatic choice — the pod already runs the container as root.
+    privileged: true
+
+  # Direct Play is still strongly preferred (see docs/16-jellyfin.md); the
+  # high CPU limit absorbs audio transcodes, subtitle burn-in, and the
+  # occasional client that can't use hardware transcoding, without letting a
+  # transcode storm starve the node.
   resources:
     requests:
       cpu: 100m
