@@ -64,9 +64,32 @@ jellyfin:
       enabled: true
       type: emptyDir
 
-  # CPU-only transcoding (no GPU passthrough). Direct Play is strongly
-  # preferred (see docs/16-jellyfin.md); the high CPU limit only absorbs the
-  # occasional transcode without letting a transcode storm starve the node.
+  # Intel Quick Sync (VAAPI) hardware transcoding — the node's i5-9500T has a
+  # UHD 630 iGPU. Passes the host's DRM render node into the pod so ffmpeg can
+  # hw-decode/encode H.264/HEVC instead of falling back to slow CPU transcode
+  # (which routinely can't keep up with 4K in real time). Requires the driver
+  # packages installed by ansible/roles/common (intel-media-va-driver-non-free)
+  # and must be enabled in the Jellyfin admin UI — see docs/16-jellyfin.md.
+  volumes:
+    - name: dri
+      hostPath:
+        path: /dev/dri
+  volumeMounts:
+    - name: dri
+      mountPath: /dev/dri
+  podSecurityContext:
+    # GID of the host's "render" group, so the container can open
+    # /dev/dri/renderD128 without running privileged. The Ansible run for
+    # common (see ansible/roles/common/tasks/main.yml) prints the actual GID
+    # via `getent group render` — REPLACE the placeholder below with that
+    # value before this takes effect. See docs/16-jellyfin.md.
+    supplementalGroups:
+      - 0 # PLACEHOLDER — replace with the host's real `render` group GID
+
+  # Direct Play is still strongly preferred (see docs/16-jellyfin.md); the
+  # high CPU limit absorbs audio transcodes, subtitle burn-in, and the
+  # occasional client that can't use hardware transcoding, without letting a
+  # transcode storm starve the node.
   resources:
     requests:
       cpu: 100m

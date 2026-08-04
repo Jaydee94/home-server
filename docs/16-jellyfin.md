@@ -2,8 +2,10 @@
 
 Jellyfin läuft als ArgoCD-App im k3s-Cluster, streamt die Medienbibliothek vom
 UGREEN-NAS (per SMB3) und bindet frei empfangbare deutsche öffentlich-rechtliche
-TV-Sender über Live-TV (M3U + XMLTV) ein. Transcoding erfolgt **CPU-only**
-(kein GPU-Passthrough) – darum ist Direct Play der Normalfall.
+TV-Sender über Live-TV (M3U + XMLTV) ein. Transcoding nutzt Intel Quick Sync
+(VAAPI-Hardwarebeschleunigung der iGPU, siehe
+[Hardware-Transcoding](#hardware-transcoding-intel-quick-sync--vaapi)) – Direct
+Play bleibt trotzdem der Normalfall, weil es am wenigsten Last erzeugt.
 
 | | |
 |---|---|
@@ -181,6 +183,43 @@ sondern einmalig in der UI konfiguriert (Dashboard → **Live TV**).
 > **Hinweis (Quellen sind volatil):** öffentliche Stream-URLs ändern sich häufig.
 > Die oben genannten Repos zur Einrichtungszeit auf aktuelle Listen prüfen.
 
+## Hardware-Transcoding (Intel Quick Sync / VAAPI)
+
+Der Node hat eine Intel UHD 630 iGPU (i5-9500T), die H.264/HEVC (8- und
+10-bit) per Quick Sync hardwarebeschleunigt de-/encodieren kann. Das entlastet
+die CPU massiv gegenüber Software-Transcoding – wichtig für 4K, wo
+Software-Transcoding das CPU-Limit (4 Kerne, siehe unten) regelmäßig sprengt
+und zu Ruckeln/Puffern führt.
+
+**Voraussetzung (automatisch via Ansible):** Die Rolle `common`
+(`ansible/roles/common/tasks/main.yml`) installiert `intel-media-va-driver-non-free`
++ `vainfo` und gibt bei jedem Lauf die VAAPI-Fähigkeiten sowie die GID der
+Host-Gruppe `render` aus (`getent group render`).
+
+**Pod-Konfiguration (`argocd/apps/jellyfin/values.yaml`):** `/dev/dri` wird per
+`hostPath`-Volume in den Pod gemountet; `podSecurityContext.supplementalGroups`
+muss die reale GID der `render`-Gruppe enthalten (Platzhalter im Repo ersetzen –
+siehe Kommentar in der Datei), damit der Container ohne `privileged: true` auf
+`/dev/dri/renderD128` zugreifen darf.
+
+> **Fallback:** Zeigen die Jellyfin-Logs trotz korrekter GID weiterhin
+> `Permission denied` auf `/dev/dri/renderD128`, unter `jellyfin:` in
+> `values.yaml` ersatzweise `securityContext: {privileged: true}` setzen.
+
+**Aktivierung in der Jellyfin-UI** (Config-DB, nicht GitOps-verwaltet):
+Dashboard → **Wiedergabe** → Transcoding:
+
+1. Hardwarebeschleunigung: **Intel QuickSync (QSV)**
+2. VA-API-Gerät: `/dev/dri/renderD128`
+3. Hardware-Decodierung aktivieren für **H264** und **HEVC**
+4. „Hardware-Encodierung aktivieren" anhaken
+5. **AV1 nicht aktivieren** – die UHD 630 (Gen9.5) hat kein AV1-Hardware-Decode
+
+**Verifikation:** `sudo kubectl -n jellyfin exec deploy/jellyfin -- vainfo`
+zeigt die verfügbaren VAAPI-Profile im Pod. Läuft ein Transcode aktiv,
+markiert das Jellyfin-Dashboard (Wiedergabe) die Session mit einem
+„HW"-Badge statt reinem Software-Transcode.
+
 ## Troubleshooting
 
 - **Pod `Pending`, PVC `jellyfin-media` nicht `Bound`** → Credentials fehlen oder
@@ -189,9 +228,15 @@ sondern einmalig in der UI konfiguriert (Dashboard → **Live TV**).
   Node-Plugins: `sudo kubectl -n csi-driver-smb logs -l app=csi-smb-node -c smb`.
 - **`/media` leer** → Sharename/Pfad in `smb.source` prüfen; am Host gegentesten:
   `smbclient -L //jays-ugreen -U <user>`.
-- **Hohe CPU-Last / Ruckeln** → ein Client transkodiert. Client-Qualität auf
-  „Direct Play"/Original stellen oder Bitrate begrenzen; CPU-only verträgt nur
-  wenige parallele Transcodes (Limit: 4 Kerne).
+- **Hohe CPU-Last / Ruckeln (v. a. bei 4K)** → im Dashboard → Wiedergabe
+  prüfen, ob die Session ein „HW"-Badge zeigt. Fehlt es, läuft
+  Software-Transcoding statt Quick Sync (siehe
+  [Hardware-Transcoding](#hardware-transcoding-intel-quick-sync--vaapi)) –
+  z. B. weil die `render`-GID in `values.yaml` noch der Platzhalter ist, oder
+  der Client-Codec/Container nicht von der iGPU unterstützt wird. Alternativ
+  Client-Qualität auf „Direct Play"/Original stellen oder Bitrate begrenzen;
+  auch mit Hardware-Transcoding verträgt der Node nur wenige parallele
+  Sessions (CPU-Limit: 4 Kerne für Audio/Untertitel/Deinterlacing).
 - **Live-TV: kein Ton bei einzelnen ZDF-Sendern** → manche ZDF-`m3u8` haben
   getrennte Audio-/Video-Spuren, die Jellyfins LiveTV-Pipeline nicht sauber
   mischt (jellyfin/jellyfin#7267). Betroffene Sender aus der M3U-Liste entfernen.
