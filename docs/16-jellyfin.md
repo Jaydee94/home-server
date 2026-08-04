@@ -191,20 +191,31 @@ die CPU massiv gegenüber Software-Transcoding – wichtig für 4K, wo
 Software-Transcoding das CPU-Limit (4 Kerne, siehe unten) regelmäßig sprengt
 und zu Ruckeln/Puffern führt.
 
-**Voraussetzung (automatisch via Ansible):** Die Rolle `common`
+**Voraussetzung (automatisch via Ansible, nur Diagnose):** Die Rolle `common`
 (`ansible/roles/common/tasks/main.yml`) installiert `intel-media-va-driver-non-free`
 + `vainfo` und gibt bei jedem Lauf die VAAPI-Fähigkeiten sowie die GID der
-Host-Gruppe `render` aus (`getent group render`).
+Host-Gruppe `render` aus (`getent group render`). Das Jellyfin-Image bringt
+seine eigenen VAAPI-Userspace-Treiber bereits mit ([offizielle Doku](https://jellyfin.org/docs/general/post-install/transcoding/hardware-acceleration/intel/));
+die Host-Pakete dienen nur dazu, die Hardware-Fähigkeit vorab zu bestätigen.
 
 **Pod-Konfiguration (`argocd/apps/jellyfin/values.yaml`):** `/dev/dri` wird per
-`hostPath`-Volume in den Pod gemountet; `podSecurityContext.supplementalGroups`
-ist bewusst leer (`[]`) im Repo und muss um die reale GID der `render`-Gruppe
-ergänzt werden (siehe Kommentar in der Datei), damit der Container ohne
-`privileged: true` auf `/dev/dri/renderD128` zugreifen darf.
+`hostPath`-Volume in den Pod gemountet, `podSecurityContext.supplementalGroups`
+enthält die reale GID der `render`-Gruppe (aktuell `991`, per `getent group
+render` auf dem Node bestätigt) **und** `securityContext.privileged: true` ist
+gesetzt.
 
-> **Fallback:** Zeigen die Jellyfin-Logs trotz korrekter GID weiterhin
-> `Permission denied` auf `/dev/dri/renderD128`, unter `jellyfin:` in
-> `values.yaml` ersatzweise `securityContext: {privileged: true}` setzen.
+> **Warum `privileged: true` nötig ist (live verifiziert):** Auf diesem
+> k3s/containerd-Setup gilt `device_ownership_from_security_context=false`
+> (Standard). Ein reiner `hostPath`-Mount von `/dev/dri` gewährt – anders als
+> Dockers `--device`-Flag – **keine** Device-Cgroup-Freigabe; ein Testpod mit
+> korrekter `supplementalGroups`-GID aber ohne `privileged` scheiterte beim
+> Öffnen von `/dev/dri/renderD128` mit `EPERM`. `privileged: true` umgeht das.
+> Sauberer (aber aufwändiger) wäre der
+> [Intel GPU Device Plugin](https://github.com/intel/intel-device-plugins-for-kubernetes)
+> oder das Umschalten von `device_ownership_from_security_context` in der
+> containerd-Config des Node – für einen Single-Node-Homelab mit einem
+> einzelnen vertrauenswürdigen Media-Server-Container ist `privileged: true`
+> hier der pragmatische Weg (der Container läuft ohnehin schon als root).
 
 **Aktivierung in der Jellyfin-UI** (Config-DB, nicht GitOps-verwaltet):
 Dashboard → **Wiedergabe** → Transcoding:
@@ -239,7 +250,8 @@ markiert das Jellyfin-Dashboard (Wiedergabe) die Session mit einem
   prüfen, ob die Session ein „HW"-Badge zeigt. Fehlt es, läuft
   Software-Transcoding statt Quick Sync (siehe
   [Hardware-Transcoding](#hardware-transcoding-intel-quick-sync--vaapi)) –
-  z. B. weil `supplementalGroups` in `values.yaml` noch leer ist, oder
+  z. B. weil `privileged`/`supplementalGroups` in `values.yaml` fehlen (Pod-Logs
+  zeigen dann `EPERM`/`Permission denied` auf `/dev/dri/renderD128`), oder
   der Client-Codec/Container nicht von der iGPU unterstützt wird. Alternativ
   Client-Qualität auf „Direct Play"/Original stellen oder Bitrate begrenzen;
   auch mit Hardware-Transcoding verträgt der Node nur wenige parallele
