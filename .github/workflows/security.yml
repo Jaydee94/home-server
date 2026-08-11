@@ -48,3 +48,74 @@ jobs:
         uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
         with:
           sarif_file: trivy-results.sarif
+
+  discover-images:
+    name: discover deployed images
+    runs-on: ubuntu-latest
+    outputs:
+      images: ${{ steps.collect.outputs.images }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+      - name: Install PyYAML
+        run: pip install pyyaml
+      - name: Render every chart under argocd/apps
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/rendered
+          for chart_dir in argocd/apps/*/; do
+            [ -f "${chart_dir}Chart.yaml" ] || continue
+            name="$(basename "${chart_dir%/}")"
+            if grep -q '^dependencies:' "${chart_dir}Chart.yaml"; then
+              # No Chart.lock is committed (gitignored) — `update` resolves
+              # dependencies straight from Chart.yaml, unlike `build` which
+              # requires a pre-existing lock file.
+              helm dependency update "$chart_dir" || true
+            fi
+            helm template "$name" "$chart_dir" > "/tmp/rendered/${name}.yaml" 2>/dev/null || true
+          done
+      - name: Extract unique container images from rendered manifests
+        id: collect
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/discover_images.py /tmp/rendered > /tmp/images.txt
+          cat /tmp/images.txt
+          json="$(python3 -c 'import json,sys; print(json.dumps([l.strip() for l in open("/tmp/images.txt") if l.strip()]))')"
+          echo "images=$json" >> "$GITHUB_OUTPUT"
+
+  trivy-image:
+    name: trivy (image vulnerabilities)
+    needs: discover-images
+    if: needs.discover-images.outputs.images != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ${{ fromJson(needs.discover-images.outputs.images) }}
+    steps:
+      - uses: actions/checkout@v7
+      # Same pinning rationale as the fs scan above (immutable action SHA +
+      # exact trivy binary version).
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ matrix.image }}
+          format: sarif
+          output: trivy-image-results.sarif
+          version: v0.73.0
+          # Soft-launch, same as the fs scan: report to the Security tab,
+          # don't block PRs yet. Harden later alongside the fs scan.
+          exit-code: "0"
+      - name: Upload Trivy SARIF to the Security tab
+        if: always()
+        uses: github/codeql-action/upload-sarif@5595ccaf912efad79be6eef63a5619ff05969be3 # v4.37.6
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-image-${{ strategy.job-index }}
