@@ -1,0 +1,24 @@
+---
+# Namespace isolation: allow ingress from pods in this namespace, from
+# Traefik (kube-system), and from the monitoring namespace (vmagent scrapes
+# argo-workflows via the VMPodScrape/VMServiceScrape in
+# argocd/apps/monitoring/templates/vm{pod,service}scrape-argo-workflows*.yaml).
+# Everything else is blocked. See docs/23-network-policies.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: argo-workflows-namespace-isolation
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring

@@ -1,0 +1,28 @@
+---
+# Namespace isolation: allow ingress from pods in this namespace, from
+# Traefik (kube-system), from monitoring (vmagent scrapes media-api-exporter,
+# see templates/media-api-exporter.yaml), and from homepage (dashboard
+# widgets call seerr/sonarr/radarr/prowlarr/sabnzbd directly via
+# <svc>.media.svc.cluster.local, see argocd/apps/homepage/values.yaml).
+# Everything else is blocked. See docs/23-network-policies.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: media-namespace-isolation
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: homepage
