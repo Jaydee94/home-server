@@ -12,16 +12,9 @@
     mode: '0644'
 
 - name: Start node-exporter
-  ansible.builtin.shell: |
-    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-      docker compose up -d --force-recreate --remove-orphans
-    elif command -v docker-compose >/dev/null 2>&1; then
-      docker-compose up -d --force-recreate --remove-orphans
-    else
-      echo "No docker compose found"
-      exit 1
-    fi
-  args:
-    chdir: "{{ node_exporter_base_dir }}"
+  community.docker.docker_compose_v2:
+    project_src: "{{ node_exporter_base_dir }}"
+    state: present
+    recreate: always
+    remove_orphans: true
   register: compose_up
-  changed_when: false

@@ -49,6 +49,3 @@ paperless_db_gid: 70
 
 # Compose file name
 paperless_compose_file: docker-compose.yml
-
-# Whether to attempt to use the community.docker.docker_compose module
-paperless_use_module: true
