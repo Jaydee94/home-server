@@ -6,8 +6,8 @@ an optional Paperless-AI sidecar, and a daily document-exporter backup.
 
 The role provisions the Docker host (on Debian/Ubuntu and RHEL-family
 systems), creates a dedicated unprivileged system user, renders the
-Compose stack from templates, and brings it up with
-`docker compose up -d`.
+Compose stack from templates, and brings it up via the
+`community.docker.docker_compose_v2` module.
 
 ## What gets deployed
 
@@ -16,7 +16,7 @@ The rendered `docker-compose.yml` defines:
 - **`db`** — Postgres (default `postgres:16-alpine`), data persisted in
   `{{ paperless_db_dir }}` on the host (owned by UID/GID `70:70`, the
   default for the alpine image).
-- **`broker`** — Redis (default `redis:7-alpine`), used as Paperless's
+- **`broker`** — Redis (default `redis:8-alpine`), used as Paperless's
   task broker. Ephemeral.
 - **`paperless`** — Paperless-ngx, with host volumes for data, media,
   consume, and export directories, and `paperless_http_port` on the host
@@ -78,9 +78,9 @@ shown verbatim.
 
 | Variable                | Default                                            |
 | ----------------------- | -------------------------------------------------- |
-| `paperless_image`       | `ghcr.io/paperless-ngx/paperless-ngx:2.20.13`      |
+| `paperless_image`       | `ghcr.io/paperless-ngx/paperless-ngx:3.0.5`        |
 | `paperless_db_image`    | `postgres:16-alpine`                               |
-| `paperless_redis_image` | `redis:7-alpine`                                   |
+| `paperless_redis_image` | `redis:8-alpine`                                   |
 | `paperless_ai_image`    | `clusterzx/paperless-ai:3.0.9`                     |
 
 ### Database
@@ -113,21 +113,23 @@ shown verbatim.
 These are read by `env.j2` and used by Paperless-ngx to create the first
 superuser on a fresh installation. None of them have a corresponding
 entry in `defaults/main.yml`; set them in `host_vars` or a vaulted file.
-If unset, the template falls back to `admin` / `admin` /
-`admin@example.com`.
+`paperless_admin_password` is **required** — a pre-flight `assert` fails
+the run if it's unset, so the deployment can no longer silently fall back
+to the `admin` / `admin` default. `paperless_admin_user` and
+`paperless_admin_email` still fall back to `admin` /
+`admin@example.com` if unset.
 
-| Variable                    | Fallback              |
-| --------------------------- | --------------------- |
-| `paperless_admin_user`      | `admin`               |
-| `paperless_admin_password`  | `admin`               |
-| `paperless_admin_email`     | `admin@example.com`   |
+| Variable                    | Fallback                   |
+| --------------------------- | --------------------------- |
+| `paperless_admin_user`      | `admin`                    |
+| `paperless_admin_password`  | *(required, no fallback)*  |
+| `paperless_admin_email`     | `admin@example.com`        |
 
 ### Compose internals
 
 | Variable                  | Default               | Purpose                                          |
 | ------------------------- | --------------------- | ------------------------------------------------ |
 | `paperless_compose_file`  | `docker-compose.yml`  | Filename of the rendered Compose file            |
-| `paperless_use_module`    | `true`                | Reserved. The role currently always uses `docker compose` via shell; this variable is unused. |
 
 ## Backup and restore
 

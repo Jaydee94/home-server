@@ -7,8 +7,11 @@
     that:
       - paperless_db_password | length > 0
       - paperless_secret_key | length > 0
+      - paperless_admin_password | default('') | length > 0
     fail_msg: >-
-      paperless_db_password and paperless_secret_key must be set via vault.
+      paperless_db_password, paperless_secret_key and paperless_admin_password
+      must be set via vault. Without paperless_admin_password, the initial
+      superuser silently falls back to admin/admin.
       See ansible/host_vars/ugreen-nas/vault.yml.example for instructions.
 
 - name: Gather facts (ensure we know package manager)
@@ -181,30 +184,11 @@
     mode: '0644'
   notify: Restart paperless compose
 
-- name: Ensure docker compose v2 plugin or docker-compose available
-  ansible.builtin.shell: |
-    if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-      echo "docker compose available"
-    elif command -v docker-compose >/dev/null 2>&1; then
-      echo "docker-compose available"
-    else
-      echo "none"
-    fi
-  register: compose_check
-  changed_when: false
-
-- name: Fallback to docker compose CLI when module disabled
-  ansible.builtin.shell: |
-    set -o pipefail
-    if docker compose ps | grep -q paperless; then
-      echo "Paperless stack already running, skipping compose up."
-    else
-      if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-        docker compose up -d
-      else
-        docker-compose up -d
-      fi
-    fi
-  args:
-    chdir: "{{ paperless_base_dir }}"
-  changed_when: false
+- name: Deploy paperless docker-compose stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ paperless_base_dir }}"
+    files:
+      - "{{ paperless_compose_file }}"
+    state: present
+    pull: missing
+  register: _paperless_compose
