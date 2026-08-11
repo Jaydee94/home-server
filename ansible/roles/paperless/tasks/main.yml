@@ -191,4 +191,3 @@
       - "{{ paperless_compose_file }}"
     state: present
     pull: missing
-  register: _paperless_compose

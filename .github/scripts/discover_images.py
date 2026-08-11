@@ -11,16 +11,29 @@ import argparse
 import glob
 import os
 import re
+import sys
 
 import yaml
 
 IMAGE_REF_RE = re.compile(r"^[\w.\-]+(/[\w.\-]+)*(:[\w.\-]+)?(@sha256:[0-9a-f]{64})?$")
 
+# Some charts (e.g. csi-driver-smb) ship a Windows-node variant of an image
+# alongside the Linux one, tagged like "v1.20.3-windows-hp". Trivy can't
+# resolve those on a Linux runner (no linux/amd64 child in the manifest
+# index) and hard-fails instead of just reporting 0 vulnerabilities — and
+# this cluster is Linux-only anyway, so skip them.
+WINDOWS_VARIANT_RE = re.compile(r"-windows(-|$)", re.IGNORECASE)
+
 
 def walk(node, images):
     if isinstance(node, dict):
         for key, value in node.items():
-            if key == "image" and isinstance(value, str) and IMAGE_REF_RE.match(value):
+            if (
+                key == "image"
+                and isinstance(value, str)
+                and IMAGE_REF_RE.match(value)
+                and not WINDOWS_VARIANT_RE.search(value)
+            ):
                 images.add(value)
             else:
                 walk(value, images)
@@ -40,7 +53,8 @@ def main():
             try:
                 for doc in yaml.safe_load_all(handle):
                     walk(doc, images)
-            except yaml.YAMLError:
+            except yaml.YAMLError as exc:
+                print(f"WARNING: failed to parse {path}: {exc}", file=sys.stderr)
                 continue
 
     for image in sorted(images):

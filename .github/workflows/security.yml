@@ -73,9 +73,14 @@ jobs:
               # No Chart.lock is committed (gitignored) — `update` resolves
               # dependencies straight from Chart.yaml, unlike `build` which
               # requires a pre-existing lock file.
-              helm dependency update "$chart_dir" || true
+              if ! helm dependency update "$chart_dir"; then
+                echo "::warning::helm dependency update failed for ${chart_dir} — its images may be missing from this scan"
+              fi
             fi
-            helm template "$name" "$chart_dir" > "/tmp/rendered/${name}.yaml" 2>/dev/null || true
+            if ! helm template "$name" "$chart_dir" > "/tmp/rendered/${name}.yaml" 2>/tmp/rendered/"${name}.stderr"; then
+              echo "::warning::helm template failed for ${chart_dir} — its images may be missing from this scan"
+              cat "/tmp/rendered/${name}.stderr" >&2
+            fi
           done
       - name: Extract unique container images from rendered manifests
         id: collect

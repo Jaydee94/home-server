@@ -51,4 +51,3 @@
     project_src: "{{ day_pilot_base_dir }}"
     state: present
     pull: missing
-  register: _day_pilot_compose
