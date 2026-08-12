@@ -2,8 +2,7 @@
 # Handlers for day-pilot
 - name: Restart day-pilot compose
   become: true
-  ansible.builtin.shell: |
-    docker compose restart
-  args:
-    chdir: "{{ day_pilot_base_dir }}"
-  changed_when: true
+  community.docker.docker_compose_v2:
+    project_src: "{{ day_pilot_base_dir }}"
+    state: restarted
+    pull: never

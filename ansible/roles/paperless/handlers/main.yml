@@ -2,8 +2,9 @@
 # Handlers for paperless
 - name: Restart paperless compose
   become: true
-  ansible.builtin.shell: |
-    docker compose pull && docker compose up -d
-  args:
-    chdir: "{{ paperless_base_dir }}"
-  changed_when: true
+  community.docker.docker_compose_v2:
+    project_src: "{{ paperless_base_dir }}"
+    files:
+      - "{{ paperless_compose_file }}"
+    state: restarted
+    pull: always

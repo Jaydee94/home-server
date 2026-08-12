@@ -1,0 +1,23 @@
+---
+# Namespace isolation: allow ingress from pods in this namespace and from
+# Traefik (kube-system); block everything else. Homepage's own widget calls
+# into other namespaces (media, monitoring, argocd) are outbound/egress from
+# here, so this policy doesn't need to allow anything for them — the
+# receiving namespace's own policy is what needs to allow "from homepage"
+# (see argocd/apps/media and argocd/apps/monitoring). See
+# docs/23-network-policies.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: homepage-namespace-isolation
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
