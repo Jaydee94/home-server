@@ -39,7 +39,7 @@ jobs:
           scanners: misconfig,secret
           format: sarif
           output: trivy-results.sarif
-          version: v0.73.0
+          version: v0.74.0
           # Soft-launch: report findings to the Security tab, do not block PRs.
           # Harden later with exit-code "1" + severity: HIGH,CRITICAL.
           exit-code: "0"
@@ -114,7 +114,7 @@ jobs:
           image-ref: ${{ matrix.image }}
           format: sarif
           output: trivy-image-results.sarif
-          version: v0.73.0
+          version: v0.74.0
           # Soft-launch, same as the fs scan: report to the Security tab,
           # don't block PRs yet. Harden later alongside the fs scan.
           exit-code: "0"
