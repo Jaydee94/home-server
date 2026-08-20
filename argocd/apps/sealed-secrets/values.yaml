@@ -9,7 +9,7 @@ sealed-secrets:
   image:
     registry: docker.io
     repository: bitnami/sealed-secrets-controller
-    tag: "0.39.0"
+    tag: "0.39.1"
     pullPolicy: IfNotPresent
 
   resources:
