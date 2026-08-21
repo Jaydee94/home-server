@@ -18,4 +18,4 @@ dependencies:
   # Official Headlamp chart. Pinned + reproducible; Renovate raises a PR to bump.
   - name: headlamp
     repository: https://kubernetes-sigs.github.io/headlamp/
-    version: "0.44.0"
+    version: "0.45.0"
