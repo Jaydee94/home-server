@@ -55,7 +55,7 @@ home-assistant:
       args:
         - |
           set -eu
-          VERSION=6.9.0
+          VERSION=6.10.0
           apk add --no-cache curl
           mkdir -p /config/www/hourly-weather
           curl -fsSL "https://github.com/decompil3d/lovelace-hourly-weather/releases/download/${VERSION}/hourly-weather.js" -o /config/www/hourly-weather/hourly-weather.js
