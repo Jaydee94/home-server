@@ -22,11 +22,11 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/ssh2": "^1.15.5",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^5.0.0",
     "eslint": "^10.0.0",
     "eslint-config-next": "16.3.4",
     "typescript": "^7.0.0",
-    "vitest": "^4.1.8"
+    "vitest": "^5.0.0"
   },
   "allowScripts": {
     "cpu-features@0.0.10": true,
