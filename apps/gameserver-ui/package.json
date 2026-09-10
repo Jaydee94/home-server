@@ -13,8 +13,8 @@
     "@kubernetes/client-node": "^2.0.0",
     "iron-session": "^9.0.0",
     "next": "16.3.4",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "ssh2": "^1.17.0"
   },
   "devDependencies": {
