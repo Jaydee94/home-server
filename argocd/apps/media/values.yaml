@@ -10,7 +10,7 @@
 # -lsNNN build tags; the plain tags are pinned here so Renovate can sort them.
 images:
   # renovate: datasource=docker depName=lscr.io/linuxserver/sonarr
-  sonarr: lscr.io/linuxserver/sonarr:4.0.19
+  sonarr: lscr.io/linuxserver/sonarr:4.0.20
   # renovate: datasource=docker depName=lscr.io/linuxserver/radarr
   radarr: lscr.io/linuxserver/radarr:6.3.0
   # renovate: datasource=docker depName=lscr.io/linuxserver/prowlarr
