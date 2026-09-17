@@ -12,7 +12,7 @@ images:
   # renovate: datasource=docker depName=lscr.io/linuxserver/sonarr
   sonarr: lscr.io/linuxserver/sonarr:4.0.19
   # renovate: datasource=docker depName=lscr.io/linuxserver/radarr
-  radarr: lscr.io/linuxserver/radarr:6.3.0
+  radarr: lscr.io/linuxserver/radarr:6.4.4
   # renovate: datasource=docker depName=lscr.io/linuxserver/prowlarr
   prowlarr: lscr.io/linuxserver/prowlarr:2.5.2
   # renovate: datasource=docker depName=lscr.io/linuxserver/sabnzbd
