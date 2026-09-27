@@ -71,7 +71,7 @@ home-assistant:
       args:
         - |
           set -eu
-          VERSION=1.6.0
+          VERSION=1.6.1
           apk add --no-cache curl tar
           rm -rf /config/custom_components/ai_automation_suggester
           mkdir -p /config/custom_components
