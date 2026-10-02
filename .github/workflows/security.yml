@@ -107,7 +107,12 @@ jobs:
       - uses: actions/checkout@v7
       # Same pinning rationale as the fs scan above (immutable action SHA +
       # exact trivy binary version).
+      # A scan error (as opposed to findings) — typically an image that can no
+      # longer be pulled from its registry — must not turn the soft-launch scan
+      # red. Surface it as a warning instead so it stays visible.
       - name: Trivy image scan
+        id: scan
+        continue-on-error: true
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           scan-type: image
@@ -118,8 +123,13 @@ jobs:
           # Soft-launch, same as the fs scan: report to the Security tab,
           # don't block PRs yet. Harden later alongside the fs scan.
           exit-code: "0"
+      - name: Warn on scan error
+        if: steps.scan.outcome == 'failure'
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: echo "::warning::Trivy could not scan ${IMAGE} (image unpullable or scanner error) — no results uploaded"
       - name: Upload Trivy SARIF to the Security tab
-        if: always()
+        if: always() && hashFiles('trivy-image-results.sarif') != ''
         uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           sarif_file: trivy-image-results.sarif
