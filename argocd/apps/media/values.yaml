@@ -22,7 +22,7 @@ images:
   # renovate: datasource=docker depName=ghcr.io/recyclarr/recyclarr
   recyclarr: ghcr.io/recyclarr/recyclarr:8.7.3
   # renovate: datasource=docker depName=python
-  exporter: python:3.14-alpine
+  exporter: python:3.15-alpine
   pullPolicy: IfNotPresent
 
 # linuxserver runtime identity. With CIFS the on-NAS file ownership is decided
