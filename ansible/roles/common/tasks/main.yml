@@ -55,6 +55,7 @@
       - update-notifier-common   # provides /var/run/reboot-required
       - intel-media-va-driver-non-free  # VAAPI/Quick Sync driver for Intel iGPUs (Jellyfin hw transcoding)
       - vainfo                          # VAAPI diagnostics
+      - ethtool                         # NIC ring-buffer / offload tuning (e1000e hang fix)
     state: "{{ 'latest' if auto_upgrade | bool else 'present' }}"
 
 # ---- Intel Quick Sync (VAAPI) diagnostics --------------------
@@ -194,6 +195,39 @@
     - {key: "fs.inotify.max_user_instances", value: "512"}
     - {key: "vm.swappiness", value: "0"}
   notify: Reload sysctl
+
+# ---- NIC Tuning (e1000e TX-Ring / TSO-Fix) ------------------
+# The Intel e1000e NIC (eno1) triggers "Hardware Unit Hang" kernel panics under
+# high pod-network load when the TX ring is at its default size of 256.
+# Maximising the ring (4096) and disabling TSO/GSO prevents descriptor stalls.
+# A oneshot service re-applies settings after every reboot.
+- name: Deploy NIC tuning systemd service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/nic-tuning.service
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=NIC ring-buffer and offload tuning for {{ network_interface }} (e1000e hang fix)
+      After=network.target
+      Wants=network.target
+
+      [Service]
+      Type=oneshot
+      RemainAfterExit=true
+      ExecStart=/usr/sbin/ethtool -G {{ network_interface }} tx {{ nic_tx_ring_size }} rx {{ nic_rx_ring_size }}
+      ExecStart=/usr/sbin/ethtool -K {{ network_interface }} tso off gso off
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Enable and start NIC tuning service
+  ansible.builtin.systemd:
+    name: nic-tuning.service
+    enabled: true
+    state: started
+    daemon_reload: true
 
 # ---- UFW Firewall -------------------------------------------
 # NOTE: we never call `state: reset` — that would wipe SSH access mid-playbook.

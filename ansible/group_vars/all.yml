@@ -211,6 +211,11 @@ vault_nas_become_password: !vault |
 # (or update it after the first run).
 network_configure_static_ip: false
 network_interface: "eno1"              # CHANGE: run `ip link show` on the server
+# TX/RX ring-buffer size for the NIC tuning service (nic-tuning.service).
+# The e1000e Intel NIC defaults to 256 which causes "Hardware Unit Hang" panics
+# under k3s pod-network load. Max for this NIC is 4096.
+nic_tx_ring_size: 4096
+nic_rx_ring_size: 4096
 network_static_ip: "192.168.178.127"
 network_prefix_length: 24              # 24 = /24 = 255.255.255.0
 network_gateway: "192.168.178.1"
