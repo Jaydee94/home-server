@@ -1,0 +1,28 @@
+---
+- name: Create Portainer base directory
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - "{{ portainer_base_dir }}"
+    - "{{ portainer_data_dir }}"
+
+- name: Deploy docker-compose.yml
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ portainer_base_dir }}/{{ portainer_compose_file }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart portainer compose
+
+- name: Deploy Portainer docker-compose stack
+  community.docker.docker_compose_v2:
+    project_src: "{{ portainer_base_dir }}"
+    files:
+      - "{{ portainer_compose_file }}"
+    state: present
+    pull: missing

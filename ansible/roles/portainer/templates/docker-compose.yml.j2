@@ -1,0 +1,23 @@
+---
+services:
+  portainer:
+    image: "{{ portainer_image }}:{{ portainer_image_tag }}"
+    container_name: portainer
+    restart: unless-stopped
+    ports:
+      - "{{ portainer_http_port }}:9000"
+      - "{{ portainer_https_port }}:9443"
+      - "{{ portainer_agent_port }}:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - data:/data
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+
+volumes:
+  data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: "{{ portainer_data_dir }}"
