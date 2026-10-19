@@ -13,6 +13,8 @@
   hosts: ugreen_nas
   become: true
   roles:
+    - role: portainer
+      tags: [portainer]
     - role: paperless
       tags: [paperless]
     - role: node_exporter_nas

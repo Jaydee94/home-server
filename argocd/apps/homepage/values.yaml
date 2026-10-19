@@ -193,6 +193,15 @@ homepage:
               description: Home Automation
               icon: home-assistant.png
       - NAS:
+          - Portainer:
+              href: http://jays-ugreen:9000
+              description: Docker GitOps (NAS)
+              icon: portainer.svg
+              widget:
+                type: portainer
+                url: http://jays-ugreen:9000
+                env: 2
+                key: "{{HOMEPAGE_VAR_PORTAINER_TOKEN}}"
           - Paperless-NGX:
               href: http://jays-ugreen:8000
               description: Dokumenten-Management
