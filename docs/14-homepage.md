@@ -67,6 +67,34 @@ unter `HOMEPAGE_VAR_GRAFANA_PASSWORD` ersetzen, committen + auf `main` mergen.
    ```
 3. `HOMEPAGE_VAR_ARGOCD_TOKEN` in der SealedSecret-Datei ersetzen, committen + mergen.
 
+### Portainer-Token erneuern
+
+Portainer CE läuft auf dem UGREEN NAS (`http://jays-ugreen:9000`). API-Tokens sind langlebig, können aber bei Bedarf rotiert werden:
+
+```bash
+# 1. JWT holen (Portainer Admin-Passwort aus Vault: vault_portainer_admin_password)
+JWT=$(curl -s -X POST http://192.168.178.118:9000/api/auth \
+  -H "Content-Type: application/json" \
+  -d '{"Username":"admin","Password":"<PASSWORT>"}' | \
+  python3 -c "import json,sys; print(json.load(sys.stdin)['jwt'])")
+
+# 2. Neuen Token erstellen (auf dem Server, damit raw key nie lokal erscheint)
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+  "curl -s -X POST http://192.168.178.118:9000/api/users/1/tokens \
+    -H 'Authorization: Bearer $JWT' \
+    -H 'Content-Type: application/json' \
+    -d '{\"description\":\"homepage-widget\",\"password\":\"<PASSWORT>\"}' | \
+    python3 -c \"import json,sys; print(json.load(sys.stdin)['rawAPIKey'])\" | \
+    tr -d '\n' | \
+    sudo kubeseal --raw --namespace homepage --name homepage-credentials \
+      --controller-name sealed-secrets-controller \
+      --controller-namespace sealed-secrets \
+      --from-file=/dev/stdin"
+```
+
+Encrypted-String in `argocd/apps/homepage/templates/sealedsecret-credentials.yaml`
+unter `HOMEPAGE_VAR_PORTAINER_TOKEN` ersetzen, committen + auf `main` mergen.
+
 ## ArgoCD readonly-User
 
 Konfiguriert in `ansible/roles/argocd/templates/argocd-values.yaml.j2`.

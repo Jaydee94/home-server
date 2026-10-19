@@ -55,7 +55,8 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
 │  │  │  │    semaphore, argo-workflows + minio,        │   │   │   │
 │  │  │  │    headlamp, gotify, homepage, paperless-ai, │   │   │   │
-│  │  │  │    home-assistant, jellyfin, mosquitto,      │   │   │   │
+│  │  │  │    home-assistant, ha-mcp, jellyfin,          │   │   │   │
+│  │  │  │    mosquitto, media (Sonarr/Radarr/…),       │   │   │   │
 │  │  │  │    kubevirt, gameserver, gameserver-ui,      │   │   │   │
 │  │  │  │    csi-driver-smb, example-whoami            │   │   │   │
 │  │  │  └─────────────────────────────────────────────┘   │   │   │
@@ -92,7 +93,9 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │       ├── homepage/                                                │
 │       ├── paperless-ai/                                            │
 │       ├── home-assistant/                                           │
+│       ├── ha-mcp/                                                   │
 │       ├── jellyfin/                                                 │
+│       ├── media/                                                    │
 │       ├── mosquitto/                                                │
 │       ├── kubevirt/                                                 │
 │       ├── gameserver/                                               │
