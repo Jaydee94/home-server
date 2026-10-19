@@ -5,6 +5,7 @@ ansible_become_password: "{{ vault_nas_become_password }}"
 portainer_base_dir: /opt/portainer
 portainer_http_port: 9000
 portainer_https_port: 9443
+portainer_agent_port: 8002
 
 # ---- Paperless-NGX ------------------------------------------
 paperless_base_dir: /opt/paperless
