@@ -210,10 +210,6 @@ homepage:
               href: http://jays-ugreen:4096
               description: KI-Coding-Assistent
               icon: mdi-robot
-          - Day Pilot:
-              href: http://jays-ugreen:3003
-              description: Tagesplanung
-              icon: mdi-calendar-clock
       - Tools:
           - Pi-hole:
               href: http://pihole.homeserver/admin/login

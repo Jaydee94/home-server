@@ -48,7 +48,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Home Assistant / HA-MCP | http://homeassistant.homeserver · http://ha-mcp.homeserver/\<secret\> |
 | Mosquitto | mqtt://192.168.178.4:1883 |
 | Gameserver-UI / 7DTD | http://gameserver.homeserver · 100.x.x.x:26900 (Tailscale) |
-| Paperless / OpenCode / DayPilot | http://jays-ugreen:{8000,4096,3003} |
+| Paperless / OpenCode / Portainer | http://jays-ugreen:{8000,4096,9000} |
 
 ## Secrets
 
