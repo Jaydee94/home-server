@@ -34,10 +34,11 @@ spec:
           # renovate: datasource=docker depName=druggeri/alertmanager_gotify_bridge
           image: druggeri/alertmanager_gotify_bridge:2.3.2
           args:
-            - "--gotify.endpoint=http://gotify.gotify.svc.cluster.local/message"
-            - "--listen.address=:8080"
+            - "--gotify_endpoint=http://gotify.gotify.svc.cluster.local/message"
+            - "--port=8080"
             - "--title_annotation=summary"
             - "--message_annotation=description"
+            - "--extended_details"
           env:
             - name: GOTIFY_TOKEN
               valueFrom:
@@ -52,7 +53,7 @@ spec:
               containerPort: 8080
           livenessProbe:
             httpGet:
-              path: /
+              path: /metrics
               port: 8080
             initialDelaySeconds: 5
             periodSeconds: 30
