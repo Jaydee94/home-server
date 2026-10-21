@@ -1,0 +1,12 @@
+# The namespace with the restricted Pod Security Standard (every pod of the Remedy chart passes it).
+# The ApplicationSet (argocd/bootstrap/root-applicationset.yaml) also sets CreateNamespace=true, so both
+# create this namespace. Whether Argo CD accepts the two side by side is not proven: the first sync answers it.
+# If it refuses, delete this file and label the namespace by hand:
+#   kubectl label namespace remedy pod-security.kubernetes.io/enforce=restricted
+# See docs/24-remedy.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: remedy
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

@@ -6,7 +6,10 @@
 # local, see argocd/apps/homepage/values.yaml), and from gameserver-ui (reads
 # VictoriaMetrics directly via vmsingle-monitoring-victoria-metrics-k8s-stack.
 # monitoring.svc.cluster.local:8428, see
-# argocd/apps/gameserver-ui/values.yaml). Everything else is blocked.
+# argocd/apps/gameserver-ui/values.yaml), and from remedy (the control plane
+# reads the Alertmanager via vmalertmanager-monitoring-victoria-metrics-k8s-stack.
+# monitoring.svc:9093, see argocd/apps/remedy/values.yaml). Everything else is
+# blocked.
 # See docs/23-network-policies.md.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -29,3 +32,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: gameserver-ui
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: remedy

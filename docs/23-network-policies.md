@@ -56,7 +56,7 @@ spec:
 | `kubeseal-webgui` | – | nur Traefik |
 | `media` | `monitoring`, `homepage` | vmagent scraped `media-api-exporter`; Homepage-Widgets rufen Seerr/Sonarr/Radarr/Prowlarr/SABnzbd direkt per ClusterIP-DNS auf |
 | `minio` | `monitoring`, `argo-workflows` | vmagent scraped MinIO; Argo Workflows nutzt MinIO als S3-Artifact-Repository (`minio.minio.svc.cluster.local:9000`) |
-| `monitoring` | `homepage`, `gameserver-ui` | Homepage-Grafana-Widget; gameserver-ui fragt VictoriaMetrics direkt ab (`vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428`) |
+| `monitoring` | `homepage`, `gameserver-ui`, `remedy` | Homepage-Grafana-Widget; gameserver-ui fragt VictoriaMetrics direkt ab (`vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428`); Remedy liest den Alertmanager (`vmalertmanager-monitoring-victoria-metrics-k8s-stack.monitoring.svc:9093`) |
 | `semaphore` | – | nur Traefik |
 
 Alle Cross-Namespace-Abhängigkeiten wurden vorher per

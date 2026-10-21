@@ -61,6 +61,7 @@ Verweis aus CLAUDE.md — hier die vollständige Liste.
 - **Portainer HTTPS-Port 9443 durch UGOS belegt**: Die UGREEN NAS-Weboberfläche (UGOS) hört auf `0.0.0.0:9443` — `docker compose up` schlägt mit "failed to bind host port 0.0.0.0:9443/tcp: address already in use" fehl. `portainer_https_port` ist deshalb auf `9444` gesetzt. Nie auf 9443 zurückstellen.
 - **Portainer — Admin-Passwort im Vault**: `vault_portainer_admin_password` in `group_vars/all.yml`. Für Token-Rotation: `make vault-edit`. Vollständige Rotation: `docs/14-homepage.md` → "Portainer-Token erneuern".
 - **Portainer — kubeseal läuft auf dem Server (192.168.178.127)**: Lokaler kubeconfig zeigt auf kind-Cluster. Alle `kubeseal --raw`-Aufrufe müssen via SSH auf dem Server ausgeführt werden (Controller: `sealed-secrets-controller` im Namespace `sealed-secrets`).
+- **NAS-cAdvisor wird nicht gescraped (gemessen 2026-10-21)**: Die Antwort von `http://192.168.178.118:18080/metrics` ist ca. 19,3 MB groß (10.633 Zeilen) und überschreitet das Scrape-Limit von vmagent (`promscrape.maxScrapeSize`, 16 MiB). `up{job="ugreen-nas-cadvisor"}` ist 0, `container_last_seen` für `instance="ugreen-nas"` fehlt. Das `VMStaticScrape` hat kein Feld dafür; das Limit ist ein vmagent-Flag (`vmagent.spec.extraArgs` in `argocd/apps/monitoring/values.yaml`).
 
 ## Paperless / UGREEN NAS
 
@@ -71,6 +72,7 @@ Verweis aus CLAUDE.md — hier die vollständige Liste.
 ## NetworkPolicies
 
 - **Namespace-Isolation seit `docs/23-network-policies.md`**: Ein Teil der App-Namespaces (u. a. `media`, `minio`, `monitoring`, `argo-workflows`, `homepage`) erlaubt Ingress nur noch aus dem eigenen Namespace + Traefik (`kube-system`) + explizit gelisteten Cross-Namespace-Callern. Eine **neue** App, die per `<svc>.<namespace>.svc.cluster.local` in einen dieser Namespaces hineinruft, bricht sonst **stillschweigend** (Connection Timeout, keine Fehlermeldung) — die `networkpolicy.yaml` der Ziel-App muss um einen `namespaceSelector`-Eintrag für den neuen Caller ergänzt werden. Vollständige Liste der abgedeckten/bewusst ausgenommenen Namespaces: `docs/23-network-policies.md`.
+- **Alertmanager hinter einer Policy: headless Service, Pod-Label**: Der Alertmanager (`vmalertmanager-monitoring-victoria-metrics-k8s-stack`, Port 9093) ist ein *headless* Service mit genau einem Pod (`app.kubernetes.io/name=vmalertmanager`). Eine Egress-Regel eines anderen Namespaces (z. B. Remedy, `docs/24-remedy.md`) selektiert deshalb die Pods per Label, nicht den Service; zusätzlich muss `monitoring-namespace-isolation` den Quell-Namespace erlauben.
 - **Bewusst NICHT abgesichert**: `pihole`, `mosquitto`, `jellyfin` (dedizierte MetalLB-IPs — Traffic kommt nicht mit einer per `podSelector`/`namespaceSelector` matchbaren Quelle an), `metallb`, `sealed-secrets`, `kubevirt`, `gameserver`, `csi-driver-smb` (Webhook-/Controller-/Gossip-Kommunikation, hohes Risiko einer falsch geschnittenen Policy). Nicht "nachbessern" ohne Testfenster — siehe Begründung in `docs/23-network-policies.md`.
 
 ## Secrets / SealedSecrets — Admin-Passwörter
