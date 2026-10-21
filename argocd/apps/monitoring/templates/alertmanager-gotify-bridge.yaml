@@ -32,7 +32,7 @@ spec:
       containers:
         - name: bridge
           # renovate: datasource=docker depName=druggeri/alertmanager_gotify_bridge
-          image: druggeri/alertmanager_gotify_bridge:latest
+          image: druggeri/alertmanager_gotify_bridge:2.3.2
           args:
             - "--gotify.endpoint=http://gotify.gotify.svc.cluster.local/message"
             - "--listen.address=:8080"
