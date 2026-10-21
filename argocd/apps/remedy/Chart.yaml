@@ -1,0 +1,24 @@
+---
+apiVersion: v2
+name: remedy
+description: Remedy, an AI operator for this home lab, installed from a release of its OCI chart.
+type: application
+# The wrapper's own version. Not the release: the release is the dependency below.
+version: 0.1.0
+keywords:
+  - remedy
+  - operator
+home: https://github.com/Jaydee94/remedy
+sources:
+  - https://github.com/Jaydee94/remedy
+maintainers:
+  - name: home-server-admin
+dependencies:
+  - name: remedy
+    repository: oci://ghcr.io/jaydee94/charts
+    # Exact release of the Remedy chart (no ~ or ^). 0.9.0 is the release that contains the chart values
+    # networkPolicy.hosts and networkPolicy.alertmanager (cycle 6a); it is NOT PUBLISHED YET. Until the
+    # Remedy pull request #157 is released, `helm dependency build` fails on this file. Check the version
+    # again before merging: `helm show chart oci://ghcr.io/jaydee94/charts/remedy --version <X.Y.Z>`.
+    # A bump of this version and of runner.cli in values.yaml are one pull request.
+    version: "0.9.0"

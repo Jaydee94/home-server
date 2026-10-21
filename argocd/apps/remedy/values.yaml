@@ -1,0 +1,60 @@
+---
+# Values passed through to the Remedy chart (the dependency in Chart.yaml).
+# All keys live under `remedy:` because that is the dependency name.
+# Runbook: docs/24-remedy.md here, docs/runbook/homelab-deploy.md in the Remedy repository.
+remedy:
+  # SealedSecret remedy-secrets with admin-password, runner-token and master-key. It is created by hand,
+  # see docs/24-remedy.md (the pods wait for it).
+  existingSecret:
+    name: remedy-secrets
+
+  runner:
+    # Pinned: the CLI runs with --restricted, which ignores user settings. "sonnet" is the value of the
+    # example in docs/runbook/homelab-deploy.md of the Remedy repository (deploy/cli-pin.yaml has no model).
+    model: sonnet
+    # Copied from deploy/cli-pin.yaml of the Remedy release that Chart.yaml depends on (checked against
+    # version 2.1.292). No image contains the CLI; the init container installs it and checks the SHA-256.
+    # The server is amd64 (measured 2026-10-21); arm64 stays as the pin file has it.
+    cli:
+      version: "2.1.292"
+      urlTemplate: "https://downloads.claude.ai/claude-code-releases/{version}/{platform}/claude"
+      archive: none
+      member: ""
+      platforms:
+        amd64: {name: "linux-x64", sha256: "a967e7b1d8b4e47ee421d5433027880347952b0c0857abf880e2c942a4ec93b3"}
+        arm64: {name: "linux-arm64", sha256: "24caa9e6ff13bf227049a2626f1c816fc895023050f0ec3b12dbf14d897367e0"}
+
+  # Plain HTTP on the LAN and over Tailscale, like the other services. Enter the NAS key only through
+  # `kubectl -n remedy port-forward svc/remedy-server 8080:8080`, never over this address.
+  ingress:
+    enabled: true
+    className: traefik
+    host: remedy.homeserver
+    annotations: {}
+
+  cluster:
+    enabled: true        # the read identity
+    write:
+      enabled: false     # no actions on the cluster: no write token, no CronJob, no PostSync hook
+    argoNamespace: argocd
+
+  networkPolicy:
+    enabled: true
+    public:
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system   # Traefik
+    # The address behind kubernetes.default.svc, measured on the server (2026-10-21).
+    apiServer:
+      cidrs: ["192.168.178.127/32"]
+      port: 6443
+    # Where the control plane may open SSH connections: the UGREEN NAS (single address, never a range).
+    hosts:
+      - {cidr: 192.168.178.118/32, port: 22}
+    # The Alertmanager of the monitoring app (headless service, one pod). The namespace monitoring admits
+    # the namespace remedy in argocd/apps/monitoring/templates/networkpolicy.yaml.
+    alertmanager:
+      namespace: monitoring
+      podSelector: {app.kubernetes.io/name: vmalertmanager}
+      port: 9093
