@@ -1,0 +1,78 @@
+---
+# Translates Alertmanager webhook payloads into Gotify push notifications.
+# Source: https://github.com/DRuggeri/alertmanager_gotify_bridge
+#
+# Prerequisites (one-time setup):
+#   1. Open http://gotify.homeserver → Apps → Create a new app (e.g. "AlertManager").
+#   2. Copy the generated token.
+#   3. Seal it:
+#        echo -n "<TOKEN>" | kubeseal --raw \
+#          --namespace monitoring --name alertmanager-gotify-bridge \
+#          --from-file=/dev/stdin
+#   4. Paste the result into sealedsecret-alertmanager-gotify-bridge.yaml.
+#   5. Commit & push — ArgoCD will sync and the bridge will start.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alertmanager-gotify-bridge
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager-gotify-bridge
+  template:
+    metadata:
+      labels:
+        app: alertmanager-gotify-bridge
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: bridge
+          # renovate: datasource=docker depName=druggeri/alertmanager_gotify_bridge
+          image: druggeri/alertmanager_gotify_bridge:latest
+          args:
+            - "--gotify.endpoint=http://gotify.gotify.svc.cluster.local/message"
+            - "--listen.address=:8080"
+            - "--title_annotation=summary"
+            - "--message_annotation=description"
+          env:
+            - name: GOTIFY_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: alertmanager-gotify-bridge
+                  key: token
+                  # optional: pod starts without the secret; alerts are dropped
+                  # until the secret exists. See instructions at top of file.
+                  optional: true
+          ports:
+            - name: webhook
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: alertmanager-gotify-bridge
+  namespace: monitoring
+spec:
+  selector:
+    app: alertmanager-gotify-bridge
+  ports:
+    - name: webhook
+      port: 8080
+      targetPort: 8080

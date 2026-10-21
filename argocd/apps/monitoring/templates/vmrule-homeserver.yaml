@@ -1,0 +1,293 @@
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMRule
+metadata:
+  name: homeserver-custom-rules
+  namespace: monitoring
+spec:
+  groups:
+
+    # ── Node / Host ─────────────────────────────────────────────────────────
+    - name: homeserver.node
+      rules:
+        - alert: NodeExporterDown
+          expr: up{job="node-exporter"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Node exporter down on {{ $labels.instance }}"
+            description: >-
+              node-exporter on {{ $labels.instance }} has been unreachable for
+              >2 min. Host metrics (CPU, RAM, disk) are no longer collected.
+
+        - alert: HostHighCPU
+          expr: >-
+            (1 - avg by(instance)(rate(node_cpu_seconds_total{mode="idle"}[5m]))) * 100 > 90
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU on {{ $labels.instance }}: {{ $value | printf \"%.0f\" }}%"
+            description: >-
+              CPU usage on {{ $labels.instance }} has been above 90% for 10 min.
+
+        - alert: HostMemoryCritical
+          expr: >-
+            (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Memory critical on {{ $labels.instance }}: {{ $value | printf \"%.0f\" }}%"
+            description: >-
+              Available RAM on {{ $labels.instance }} is below 10% ({{ $value | printf "%.1f" }}% used).
+
+        - alert: HostDiskAlmostFull
+          expr: >-
+            (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+                 / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}) * 100 > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              Disk {{ $labels.mountpoint }} on {{ $labels.instance }} is
+              {{ $value | printf "%.0f" }}% full
+            description: >-
+              Filesystem {{ $labels.mountpoint }} ({{ $labels.device }}) on
+              {{ $labels.instance }} is above 80% capacity.
+
+        - alert: HostDiskCritical
+          expr: >-
+            (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs"}
+                 / node_filesystem_size_bytes{fstype!~"tmpfs|overlay|squashfs"}) * 100 > 90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              Disk {{ $labels.mountpoint }} on {{ $labels.instance }} is
+              {{ $value | printf "%.0f" }}% full — act now
+            description: >-
+              Less than 10% free on {{ $labels.mountpoint }} ({{ $labels.device }})
+              of {{ $labels.instance }}.
+
+    # ── Kubernetes ──────────────────────────────────────────────────────────
+    - name: homeserver.kubernetes
+      rules:
+        - alert: PodCrashLooping
+          expr: >-
+            increase(kube_pod_container_status_restarts_total[15m]) > 3
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping
+              ({{ $value | printf "%.0f" }} restarts in 15 min)
+            description: >-
+              Container {{ $labels.container }} in pod
+              {{ $labels.namespace }}/{{ $labels.pod }} restarted
+              {{ $value | printf "%.0f" }} times in the last 15 min.
+
+        - alert: PodOOMKilled
+          expr: >-
+            kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
+          for: 0m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled"
+            description: >-
+              Container {{ $labels.container }} was killed by the OOM killer.
+              Consider raising its memory limit.
+
+        - alert: DeploymentReplicasMissing
+          expr: >-
+            kube_deployment_status_replicas_available
+              < kube_deployment_spec_replicas
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              {{ $labels.namespace }}/{{ $labels.deployment }} has fewer
+              replicas than desired
+            description: >-
+              Deployment {{ $labels.namespace }}/{{ $labels.deployment }}
+              has {{ $value }} available replicas but wants
+              {{ $value }} (desired).
+
+        - alert: PVCAlmostFull
+          expr: >-
+            (1 - kubelet_volume_stats_available_bytes
+                 / kubelet_volume_stats_capacity_bytes) * 100 > 80
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}
+              is {{ $value | printf "%.0f" }}% full
+            description: >-
+              The PersistentVolumeClaim
+              {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}
+              has less than 20% free space remaining.
+
+        - alert: PVCCritical
+          expr: >-
+            (1 - kubelet_volume_stats_available_bytes
+                 / kubelet_volume_stats_capacity_bytes) * 100 > 90
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}
+              is {{ $value | printf "%.0f" }}% full — act now
+            description: >-
+              PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}
+              has less than 10% free space.
+
+    # ── ArgoCD ──────────────────────────────────────────────────────────────
+    - name: homeserver.argocd
+      rules:
+        - alert: ArgoCDAppDegraded
+          expr: argocd_app_info{health_status="Degraded"} == 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} is degraded"
+            description: >-
+              ArgoCD application {{ $labels.name }} (project: {{ $labels.project }})
+              has been in Degraded health for >5 min.
+
+        - alert: ArgoCDAppOutOfSync
+          expr: argocd_app_info{sync_status="OutOfSync"} == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} out of sync for 30+ min"
+            description: >-
+              ArgoCD application {{ $labels.name }} has an OutOfSync status.
+              Check http://192.168.178.127:30080.
+
+        - alert: ArgoCDAppSyncFailed
+          expr: argocd_app_info{operation_state="Failed"} == 1
+          for: 0m
+          labels:
+            severity: critical
+          annotations:
+            summary: "ArgoCD app {{ $labels.name }} sync failed"
+            description: >-
+              The last sync of ArgoCD application {{ $labels.name }} failed.
+
+    # ── NAS ─────────────────────────────────────────────────────────────────
+    - name: homeserver.nas
+      rules:
+        - alert: NASNodeExporterDown
+          expr: up{job="ugreen-nas-node-exporter"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "UGREEN NAS node-exporter unreachable"
+            description: >-
+              The node-exporter on the UGREEN NAS (192.168.178.118:9100) has
+              been down for >5 min. NAS host metrics are missing.
+
+        - alert: NASCAdvisorDown
+          expr: up{job="ugreen-nas-cadvisor"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "UGREEN NAS cAdvisor unreachable"
+            description: >-
+              cAdvisor on the UGREEN NAS (192.168.178.118:18080) is down.
+              Docker container metrics are missing.
+
+    # ── Pi-hole ──────────────────────────────────────────────────────────────
+    - name: homeserver.pihole
+      rules:
+        - alert: PiholeDown
+          expr: pihole_status == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pi-hole is DISABLED"
+            description: >-
+              Pi-hole ad-blocking is disabled. DNS queries are no longer
+              being filtered.
+
+        - alert: PiholeExporterDown
+          expr: absent(pihole_status)
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Pi-hole exporter is down — no metrics"
+            description: >-
+              The pihole-exporter has stopped reporting. Pi-hole health
+              is unknown.
+
+    # ── Traefik ──────────────────────────────────────────────────────────────
+    - name: homeserver.traefik
+      rules:
+        - alert: TraefikHighErrorRate
+          expr: >-
+            sum by(router) (
+              rate(traefik_router_requests_total{code=~"5.."}[5m])
+            )
+            /
+            sum by(router) (
+              rate(traefik_router_requests_total[5m])
+            ) > 0.05
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Traefik router {{ $labels.router }} has >5% 5xx errors"
+            description: >-
+              More than 5% of requests through Traefik router
+              {{ $labels.router }} are returning 5xx status codes.
+
+    # ── Media & Home-Automation ──────────────────────────────────────────────
+    - name: homeserver.services
+      rules:
+        - alert: MediaAPIExporterDown
+          expr: up{job="media-api-exporter"} == 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Media API exporter is down"
+            description: >-
+              The media-api-exporter (Sonarr/Radarr/Prowlarr metrics bridge)
+              is unreachable. Media-stack health data is missing.
+
+        - alert: MosquittoDown
+          expr: up{namespace="mosquitto"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Mosquitto MQTT broker is down"
+            description: >-
+              The Mosquitto MQTT broker is unreachable. Home Assistant
+              MQTT-based devices will stop reporting.
+
+        - alert: MinIODown
+          expr: up{namespace="minio"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "MinIO object storage is down"
+            description: >-
+              MinIO is unreachable. Argo Workflows artifact storage and any
+              S3-backed services will fail.
