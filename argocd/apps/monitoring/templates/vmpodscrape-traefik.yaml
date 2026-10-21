@@ -1,0 +1,19 @@
+---
+# Traefik exposes Prometheus metrics on containerPort 9100 (--metrics.prometheus=true
+# --entryPoints.metrics.address=:9100 is already set in the k3s Traefik deployment).
+# There is no separate metrics Service, so we use a VMPodScrape.
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: traefik
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: traefik
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
