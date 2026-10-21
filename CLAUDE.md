@@ -48,7 +48,8 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Home Assistant / HA-MCP | http://homeassistant.homeserver · http://ha-mcp.homeserver/\<secret\> |
 | Mosquitto | mqtt://192.168.178.4:1883 |
 | Gameserver-UI / 7DTD | http://gameserver.homeserver · 100.x.x.x:26900 (Tailscale) |
-| Paperless / OpenCode / Portainer | http://jays-ugreen:{8000,4096,9000} |
+| Portainer (NAS GitOps) | http://jays-ugreen:9000 |
+| Paperless / OpenCode | http://jays-ugreen:{8000,4096} |
 
 ## Secrets
 
@@ -69,7 +70,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 
 ## Gotchas
 
-→ **[docs/gotchas.md](docs/gotchas.md)** — MetalLB, Pi-hole, KubeVirt, Scanner, Semaphore, Media-Stack, HA-MCP, Tooling
+→ **[docs/gotchas.md](docs/gotchas.md)** — MetalLB, Pi-hole, KubeVirt, Scanner, Semaphore, Media-Stack, HA-MCP, UGREEN NAS / Portainer, Tooling
 
 ## Networking
 
