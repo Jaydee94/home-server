@@ -16,10 +16,14 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "Node exporter down on {{ $labels.instance }}"
+            summary: >-
+              Node exporter down on
+              {{`{{ $labels.instance }}`}}
             description: >-
-              node-exporter on {{ $labels.instance }} has been unreachable for
-              >2 min. Host metrics (CPU, RAM, disk) are no longer collected.
+              node-exporter on
+              {{`{{ $labels.instance }}`}}
+              has been unreachable for >2 min.
+              Host metrics (CPU, RAM, disk) are no longer collected.
 
         - alert: HostHighCPU
           expr: >-
@@ -28,9 +32,14 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "High CPU on {{ $labels.instance }}: {{ $value | printf \"%.0f\" }}%"
+            summary: >-
+              High CPU on
+              {{`{{ $labels.instance }}`}}:
+              {{`{{ $value | printf "%.0f" }}`}}%
             description: >-
-              CPU usage on {{ $labels.instance }} has been above 90% for 10 min.
+              CPU usage on
+              {{`{{ $labels.instance }}`}}
+              has been above 90% for 10 min.
 
         - alert: HostMemoryCritical
           expr: >-
@@ -39,9 +48,14 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "Memory critical on {{ $labels.instance }}: {{ $value | printf \"%.0f\" }}%"
+            summary: >-
+              Memory critical on
+              {{`{{ $labels.instance }}`}}:
+              {{`{{ $value | printf "%.0f" }}`}}%
             description: >-
-              Available RAM on {{ $labels.instance }} is below 10% ({{ $value | printf "%.1f" }}% used).
+              Available RAM on
+              {{`{{ $labels.instance }}`}}
+              is below 10%.
 
         - alert: HostDiskAlmostFull
           expr: >-
@@ -52,11 +66,19 @@ spec:
             severity: warning
           annotations:
             summary: >-
-              Disk {{ $labels.mountpoint }} on {{ $labels.instance }} is
-              {{ $value | printf "%.0f" }}% full
+              Disk
+              {{`{{ $labels.mountpoint }}`}}
+              on
+              {{`{{ $labels.instance }}`}}
+              is
+              {{`{{ $value | printf "%.0f" }}`}}%
+              full
             description: >-
-              Filesystem {{ $labels.mountpoint }} ({{ $labels.device }}) on
-              {{ $labels.instance }} is above 80% capacity.
+              Filesystem
+              {{`{{ $labels.mountpoint }}`}}
+              ({{`{{ $labels.device }}`}}) on
+              {{`{{ $labels.instance }}`}}
+              is above 80% capacity.
 
         - alert: HostDiskCritical
           expr: >-
@@ -67,11 +89,18 @@ spec:
             severity: critical
           annotations:
             summary: >-
-              Disk {{ $labels.mountpoint }} on {{ $labels.instance }} is
-              {{ $value | printf "%.0f" }}% full — act now
+              Disk
+              {{`{{ $labels.mountpoint }}`}}
+              on
+              {{`{{ $labels.instance }}`}}
+              is
+              {{`{{ $value | printf "%.0f" }}`}}%
+              full — act now
             description: >-
-              Less than 10% free on {{ $labels.mountpoint }} ({{ $labels.device }})
-              of {{ $labels.instance }}.
+              Less than 10% free on
+              {{`{{ $labels.mountpoint }}`}}
+              ({{`{{ $labels.device }}`}}) of
+              {{`{{ $labels.instance }}`}}.
 
     # ── Kubernetes ──────────────────────────────────────────────────────────
     - name: homeserver.kubernetes
@@ -84,12 +113,19 @@ spec:
             severity: warning
           annotations:
             summary: >-
-              Pod {{ $labels.namespace }}/{{ $labels.pod }} is crash-looping
-              ({{ $value | printf "%.0f" }} restarts in 15 min)
+              Pod
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.pod }}`}}
+              is crash-looping
+              ({{`{{ $value | printf "%.0f" }}`}}
+              restarts in 15 min)
             description: >-
-              Container {{ $labels.container }} in pod
-              {{ $labels.namespace }}/{{ $labels.pod }} restarted
-              {{ $value | printf "%.0f" }} times in the last 15 min.
+              Container
+              {{`{{ $labels.container }}`}}
+              in pod
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.pod }}`}}
+              restarted
+              {{`{{ $value | printf "%.0f" }}`}}
+              times in the last 15 min.
 
         - alert: PodOOMKilled
           expr: >-
@@ -98,9 +134,14 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} was OOMKilled"
+            summary: >-
+              Pod
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.pod }}`}}
+              was OOMKilled
             description: >-
-              Container {{ $labels.container }} was killed by the OOM killer.
+              Container
+              {{`{{ $labels.container }}`}}
+              was killed by the OOM killer.
               Consider raising its memory limit.
 
         - alert: DeploymentReplicasMissing
@@ -112,12 +153,12 @@ spec:
             severity: critical
           annotations:
             summary: >-
-              {{ $labels.namespace }}/{{ $labels.deployment }} has fewer
-              replicas than desired
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.deployment }}`}}
+              has fewer replicas than desired
             description: >-
-              Deployment {{ $labels.namespace }}/{{ $labels.deployment }}
-              has {{ $value }} available replicas but wants
-              {{ $value }} (desired).
+              Deployment
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.deployment }}`}}
+              has fewer available replicas than specified.
 
         - alert: PVCAlmostFull
           expr: >-
@@ -128,11 +169,14 @@ spec:
             severity: warning
           annotations:
             summary: >-
-              PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}
-              is {{ $value | printf "%.0f" }}% full
+              PVC
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.persistentvolumeclaim }}`}}
+              is
+              {{`{{ $value | printf "%.0f" }}`}}%
+              full
             description: >-
-              The PersistentVolumeClaim
-              {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}
+              PVC
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.persistentvolumeclaim }}`}}
               has less than 20% free space remaining.
 
         - alert: PVCCritical
@@ -144,10 +188,14 @@ spec:
             severity: critical
           annotations:
             summary: >-
-              PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}
-              is {{ $value | printf "%.0f" }}% full — act now
+              PVC
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.persistentvolumeclaim }}`}}
+              is
+              {{`{{ $value | printf "%.0f" }}`}}%
+              full — act now
             description: >-
-              PVC {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}
+              PVC
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.persistentvolumeclaim }}`}}
               has less than 10% free space.
 
     # ── ArgoCD ──────────────────────────────────────────────────────────────
@@ -159,9 +207,15 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "ArgoCD app {{ $labels.name }} is degraded"
+            summary: >-
+              ArgoCD app
+              {{`{{ $labels.name }}`}}
+              is degraded
             description: >-
-              ArgoCD application {{ $labels.name }} (project: {{ $labels.project }})
+              ArgoCD application
+              {{`{{ $labels.name }}`}}
+              (project:
+              {{`{{ $labels.project }}`}})
               has been in Degraded health for >5 min.
 
         - alert: ArgoCDAppOutOfSync
@@ -170,9 +224,14 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "ArgoCD app {{ $labels.name }} out of sync for 30+ min"
+            summary: >-
+              ArgoCD app
+              {{`{{ $labels.name }}`}}
+              out of sync for 30+ min
             description: >-
-              ArgoCD application {{ $labels.name }} has an OutOfSync status.
+              ArgoCD application
+              {{`{{ $labels.name }}`}}
+              has an OutOfSync status.
               Check http://192.168.178.127:30080.
 
         - alert: ArgoCDAppSyncFailed
@@ -181,9 +240,14 @@ spec:
           labels:
             severity: critical
           annotations:
-            summary: "ArgoCD app {{ $labels.name }} sync failed"
+            summary: >-
+              ArgoCD app
+              {{`{{ $labels.name }}`}}
+              sync failed
             description: >-
-              The last sync of ArgoCD application {{ $labels.name }} failed.
+              The last sync of ArgoCD application
+              {{`{{ $labels.name }}`}}
+              failed.
 
     # ── NAS ─────────────────────────────────────────────────────────────────
     - name: homeserver.nas
@@ -251,10 +315,14 @@ spec:
           labels:
             severity: warning
           annotations:
-            summary: "Traefik router {{ $labels.router }} has >5% 5xx errors"
+            summary: >-
+              Traefik router
+              {{`{{ $labels.router }}`}}
+              has >5% 5xx errors
             description: >-
               More than 5% of requests through Traefik router
-              {{ $labels.router }} are returning 5xx status codes.
+              {{`{{ $labels.router }}`}}
+              are returning 5xx status codes.
 
     # ── Media & Home-Automation ──────────────────────────────────────────────
     - name: homeserver.services
