@@ -19,7 +19,5 @@
       tags: [paperless]
     - role: node_exporter_nas
       tags: [node-exporter]
-    - role: day_pilot
-      tags: [day-pilot]
     - role: jellyfin_media
       tags: [jellyfin-media]

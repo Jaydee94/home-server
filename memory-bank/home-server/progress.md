@@ -30,7 +30,7 @@ Migration ugreen-paperless → home-server: NAS-Dienste aus diesem Repo verwaltb
 - Enthält Gameplay (GMSG joined/died/left, Chat, PlayerSpawned) — Quelle vollständig.
 
 ## NAS-Dienste (aktiv)
-- Paperless-NGX (8000), OpenCode (4096), Day Pilot (3003), Node Exporter + cAdvisor
+- Paperless-NGX (8000), OpenCode (4096), Portainer (9000), Node Exporter + cAdvisor
 
 ## Known Issues
 - TinyTeller läuft ggf. noch auf NAS unter /opt/tinyteller — manuell stoppen.

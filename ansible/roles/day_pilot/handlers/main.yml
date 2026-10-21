@@ -1,8 +1,0 @@
----
-# Handlers for day-pilot
-- name: Restart day-pilot compose
-  become: true
-  community.docker.docker_compose_v2:
-    project_src: "{{ day_pilot_base_dir }}"
-    state: restarted
-    pull: never

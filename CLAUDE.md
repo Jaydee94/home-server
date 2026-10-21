@@ -49,7 +49,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Mosquitto | mqtt://192.168.178.4:1883 |
 | Gameserver-UI / 7DTD | http://gameserver.homeserver · 100.x.x.x:26900 (Tailscale) |
 | Portainer (NAS GitOps) | http://jays-ugreen:9000 |
-| Paperless / OpenCode / DayPilot | http://jays-ugreen:{8000,4096,3003} |
+| Paperless / OpenCode | http://jays-ugreen:{8000,4096} |
 
 ## Secrets
 
