@@ -67,6 +67,8 @@ victoria-metrics-k8s-stack:
         cluster: homeserver
       extraArgs:
         promscrape.streamParse: "true"
+        # NAS cAdvisor response is ~19 MB; raise the global ceiling to 32 MB.
+        promscrape.maxScrapeSize: "32MB"
 
   # ---- VMAlert ---------------------------------------------
   vmalert:
@@ -76,22 +78,32 @@ victoria-metrics-k8s-stack:
       evaluationInterval: 30s
 
   # ---- Alertmanager ----------------------------------------
-  # Default "blackhole" receiver: alerts are routed but silently dropped.
-  # To wire up Discord/Slack/Gotify later, replace `receivers` and `route`
-  # with a real configuration (see commented examples in the upstream
-  # values.yaml).
+  # Routes critical/warning alerts to the alertmanager-gotify-bridge
+  # (monitoring namespace), which translates Alertmanager webhooks into
+  # Gotify push notifications. Info-severity alerts are silently dropped.
+  # The bridge reads its Gotify app token from the SealedSecret
+  # sealedsecret-alertmanager-gotify-bridge.yaml — create the token first
+  # in the Gotify UI, then run `make vault-edit` or kubeseal to seal it.
   alertmanager:
     enabled: true
     spec:
       replicaCount: 1
     config:
       route:
-        receiver: blackhole
+        receiver: gotify
         group_by: ["alertname", "namespace"]
         group_wait: 30s
         group_interval: 5m
-        repeat_interval: 12h
+        repeat_interval: 4h
+        routes:
+          - receiver: blackhole
+            matchers:
+              - severity="info"
       receivers:
+        - name: gotify
+          webhook_configs:
+            - url: "http://alertmanager-gotify-bridge.monitoring.svc.cluster.local:8080/gotify_webhook"
+              send_resolved: true
         - name: blackhole
       inhibit_rules:
         - target_matchers:

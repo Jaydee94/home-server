@@ -8,8 +8,14 @@ spec:
     matchNames:
       - argocd
   selector:
-    matchLabels:
-      app.kubernetes.io/part-of: argocd
+    matchExpressions:
+      - key: app.kubernetes.io/part-of
+        operator: In
+        values: [argocd]
+      # dex-server is not configured (no OIDC/SSO) → port 5558 not listening.
+      - key: app.kubernetes.io/name
+        operator: NotIn
+        values: [argocd-dex-server]
   podMetricsEndpoints:
     - port: metrics
       path: /metrics
