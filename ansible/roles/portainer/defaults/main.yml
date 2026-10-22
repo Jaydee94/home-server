@@ -5,6 +5,6 @@ portainer_https_port: 9443
 portainer_agent_port: 8002
 portainer_image: portainer/portainer-ce
 # renovate: datasource=docker depName=portainer/portainer-ce
-portainer_image_tag: "2.45.2"
+portainer_image_tag: "2.45.3"
 portainer_compose_file: docker-compose.yml
 portainer_data_dir: "{{ portainer_base_dir }}/data"
