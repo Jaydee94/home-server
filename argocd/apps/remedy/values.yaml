@@ -8,6 +8,12 @@ remedy:
   existingSecret:
     name: remedy-secrets
 
+  # The chart installs its own single-node PostgreSQL (StatefulSet remedy-postgres, data claim and a nightly dump
+  # on a second claim). Its password is the key `password` of the SealedSecret remedy-postgres (created by hand,
+  # see docs/24-remedy.md). Do not set `networkPolicy.database`: that is for a database of your own.
+  postgres:
+    existingSecret: remedy-postgres
+
   runner:
     # Pinned: the CLI runs with --restricted, which ignores user settings. "sonnet" is the value of the
     # example in docs/runbook/homelab-deploy.md of the Remedy repository (deploy/cli-pin.yaml has no model).

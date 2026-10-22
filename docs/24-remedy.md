@@ -12,6 +12,7 @@ aus einem **Release** des Remedy-Charts installiert (OCI-Artefakt), nicht aus de
 | Images | `ghcr.io/jaydee94/remedy-server` und `remedy-runner`, Tag = Chart-`appVersion` |
 | URL | <http://remedy.homeserver> (Traefik, HTTP, LAN und Tailscale) |
 | Secret | SealedSecret `remedy-secrets` (Admin-Passwort, Runner-Token, Master-Key), **von Hand erzeugt** |
+| Datenbank | PostgreSQL 16, vom Remedy-Chart mitinstalliert (StatefulSet `remedy-postgres`, Datenclaim `data-remedy-postgres-0`, nächtlicher Dump auf dem Claim `remedy-postgres-backup`); Passwort im SealedSecret `remedy-postgres` (Schlüssel `password`), **von Hand erzeugt** |
 | Cluster | nur Lesezugriff (`cluster.write.enabled: false`): kein Write-Token, kein CronJob, kein PostSync-Hook |
 | Ausgehend | nur DNS, API-Server `192.168.178.127:6443`, SSH zum NAS `192.168.178.118:22`, Alertmanager (`monitoring`, Port 9093), HTTPS |
 
@@ -78,6 +79,22 @@ Werte dürfen trotzdem nicht auf eine Platte.
 
 Commit nur die versiegelte Datei. Das SealedSecret ist an Namespace und Name gebunden (`remedy`, `remedy-secrets`).
 
+### Das Datenbank-Passwort (`remedy-postgres`)
+
+Seit Remedy 0.16.0 ist PostgreSQL die einzige Datenbank (kein SQLite mehr), und der Chart installiert sie selbst.
+Dafür gibt es ein zweites SealedSecret `remedy-postgres` mit dem Schlüssel `password`
+(`argocd/apps/remedy/templates/sealedsecret-postgres.yaml`). Das Passwort entsteht in einer Pipe
+(`openssl rand -hex 24 | read` → `printf` → `kubeseal`), landet nie auf einer Platte und nie in einer
+Prozessliste; versiegelt wird mit dem Zertifikat des Controllers (`kubeseal --fetch-cert`). Der Server bekommt es als
+`PGPASSWORD`, die Datenbank-URL enthält keins. Eine Neuerzeugung ändert das Passwort **nicht** in einer bestehenden
+Datenbank: dann `\password remedy` in `psql` im Pod ausführen (Remedy `docs/runbook/postgres.md`).
+
+**Keine Datenmigration.** Der Wechsel von 0.15.x (SQLite) auf 0.16.0 startet mit einer leeren Datenbank
+(Entscheidung des Maintainers, 2026-10-22): GitHub-Token, Hosts, Zugangsdaten und Einstellungen müssen in der UI neu
+eingegeben werden. Der Runner-Login (eigener Claim `state-remedy-runner-0`) und `remedy-secrets` (Master-Key)
+bleiben erhalten. Der alte Claim `remedy-data` wird von Argo CD (`prune`) entfernt; wer `remedy.db` noch braucht,
+kopiert sie **vor dem Merge** heraus.
+
 ## 4. Pull Request, Merge, erster Sync
 
 1. Pull Request öffnen (Titel `feat: ...`, CI grün), der Maintainer merged, Argo CD legt die Application `remedy`
@@ -89,8 +106,9 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
   'sudo kubectl -n argocd get application remedy; sudo kubectl -n remedy get pods,svc,ingress,pvc,sealedsecret,secret,networkpolicy'
 ```
 
-Erwartet: `remedy-server` und `remedy-runner-0` werden `Ready`; der Init-Container `install-cli` lädt die
-CLI (HTTPS ins Internet) und prüft die SHA-256; kein Job und kein CronJob.
+Erwartet: `remedy-postgres-0`, `remedy-server` und `remedy-runner-0` werden `Ready` (der Server startet erst, wenn
+die Datenbank antwortet, und kann dabei einmal neu starten); der Init-Container `install-cli` lädt die CLI (HTTPS
+ins Internet) und prüft die SHA-256; es gibt den CronJob `remedy-postgres-backup` (nächtlicher Dump), sonst keinen Job.
 
 3. Admin-Passwort und Master-Key aus dem Cluster lesen, **den Master-Key in den Passwortmanager** legen:
 
