@@ -69,6 +69,16 @@ victoria-metrics-k8s-stack:
         promscrape.streamParse: "true"
         # NAS cAdvisor response is ~19 MB; raise the global ceiling to 32 MB.
         promscrape.maxScrapeSize: "32MB"
+      # The operator default (200m) was hit: the scrape of the API server (~74k
+      # samples) and of the NAS cAdvisor ran late, up{job="apiserver"} came
+      # every 2-3 min instead of 30 s and KubeAPIDown (absent(up)) fired.
+      resources:
+        requests:
+          cpu: 50m
+          memory: 200Mi
+        limits:
+          cpu: 500m
+          memory: 500Mi
 
   # ---- VMAlert ---------------------------------------------
   vmalert:
