@@ -72,12 +72,14 @@ victoria-metrics-k8s-stack:
       # The operator default (200m) was hit: the scrape of the API server (~74k
       # samples) and of the NAS cAdvisor ran late, up{job="apiserver"} came
       # every 2-3 min instead of 30 s and KubeAPIDown (absent(up)) fired.
+      # 500m was hit too (TooHighCPUUsage); k3s serves the same ~74k samples
+      # on the kubelet's /metrics, and four kubelet scrapes take 17-35 s each.
       resources:
         requests:
           cpu: 50m
           memory: 200Mi
         limits:
-          cpu: 500m
+          cpu: 1000m
           memory: 500Mi
 
   # ---- VMAlert ---------------------------------------------
@@ -262,6 +264,28 @@ victoria-metrics-k8s-stack:
   # Enabled where k3s actually exposes the metric.
   kubelet:
     enabled: true
+    # k3s serves the API server's registry on the kubelet's /metrics too (the
+    # same ~74k samples as the apiserver job), so the bucket families that the
+    # apiserver job drops are dropped here as well. Only /metrics: the other
+    # kubelet scrapes do not carry them. The list is the chart default plus
+    # the last entry (a list replaces the default, it is not merged).
+    vmScrapes:
+      kubelet:
+        spec:
+          metricRelabelConfigs:
+            - action: labeldrop
+              regex: (uid)
+            - action: labeldrop
+              regex: (id|name)
+            - action: drop
+              source_labels: [__name__]
+              regex: (rest_client_request_duration_seconds_bucket|rest_client_request_duration_seconds_sum|rest_client_request_duration_seconds_count)
+            - action: drop
+              source_labels: [__name__]
+              regex: "(apiserver_request_duration_seconds|etcd_request_duration_seconds|\
+                apiserver_request_body_size_bytes|apiserver_watch_list_duration_seconds|\
+                apiserver_response_sizes|apiserver_watch_cache_read_wait_seconds|\
+                apiserver_watch_events_sizes)_bucket"
   kubeApiServer:
     enabled: true
     # The scrape is ~74k series and took longer than the 30 s interval, so
