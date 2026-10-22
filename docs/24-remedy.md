@@ -14,7 +14,7 @@ aus einem **Release** des Remedy-Charts installiert (OCI-Artefakt), nicht aus de
 | Secret | SealedSecret `remedy-secrets` (Admin-Passwort, Runner-Token, Master-Key), **von Hand erzeugt** |
 | Datenbank | PostgreSQL 16, vom Remedy-Chart mitinstalliert (StatefulSet `remedy-postgres`, Datenclaim `data-remedy-postgres-0`, nächtlicher Dump auf dem Claim `remedy-postgres-backup`); Passwort im SealedSecret `remedy-postgres` (Schlüssel `password`), **von Hand erzeugt** |
 | Cluster | nur Lesezugriff (`cluster.write.enabled: false`): kein Write-Token, kein CronJob, kein PostSync-Hook |
-| Ausgehend | nur DNS, API-Server `192.168.178.127:6443`, SSH zum NAS `192.168.178.118:22`, Alertmanager (`monitoring`, Port 9093), HTTPS |
+| Ausgehend | nur DNS, API-Server `192.168.178.127:6443`, SSH zum NAS `192.168.178.118:22`, Alertmanager (`monitoring`, Port 9093), VictoriaMetrics (`monitoring`, Port 8428), HTTPS |
 
 Die Betriebsanleitung, der Ablauf der Übung (Drill) und die Fehlersuche stehen im Remedy-Repository:
 `docs/runbook/homelab-deploy.md` und `docs/runbook/home-server-drill.md`. Dieses Dokument beschreibt nur, was
