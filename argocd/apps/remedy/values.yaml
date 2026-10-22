@@ -64,3 +64,11 @@ remedy:
       namespace: monitoring
       podSelector: {app.kubernetes.io/name: vmalertmanager}
       port: 9093
+    # VictoriaMetrics (vmsingle) of the monitoring app, for the read tools metrics_query and metrics_query_range.
+    # The same ingress rule in argocd/apps/monitoring/templates/networkpolicy.yaml admits the namespace remedy.
+    # The address itself (http://vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc:8428) is set on
+    # the Setup page of Remedy, not here.
+    metrics:
+      namespace: monitoring
+      podSelector: {app.kubernetes.io/name: vmsingle}
+      port: 8428
