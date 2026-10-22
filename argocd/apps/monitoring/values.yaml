@@ -269,6 +269,27 @@ victoria-metrics-k8s-stack:
     # apiserver job drops are dropped here as well. Only /metrics: the other
     # kubelet scrapes do not carry them. The list is the chart default plus
     # the last entry (a list replaces the default, it is not merged).
+    #
+    # The chart copies every node label onto every series (labelmap). On this
+    # node that is 525 labels, 512 of them KubeVirt's feature labels
+    # (cpu-feature.node.kubevirt.io/*, host-model-*, hyperv.*), so vmsingle
+    # rejected every kubelet, cAdvisor, probes and resources row with
+    # too_many_labels: no container metrics, KubeletDown firing, vmagent
+    # burning CPU on rows that were thrown away. The labelmap stays (the other
+    # 13 node labels are kept as before); the KubeVirt ones are dropped.
+    # relabelConfigs applies to all four kubelet scrapes. It is the chart
+    # default plus the labeldrop (a list replaces the default).
+    vmScrape:
+      spec:
+        relabelConfigs:
+          - action: labelmap
+            regex: __meta_kubernetes_node_label_(.+)
+          - action: labeldrop
+            regex: ".*kubevirt.*"
+          - source_labels: [__metrics_path__]
+            target_label: metrics_path
+          - target_label: job
+            replacement: kubelet
     vmScrapes:
       kubelet:
         spec:
