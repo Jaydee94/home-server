@@ -21,4 +21,4 @@ dependencies:
     # Remedy pull request #157 is released, `helm dependency build` fails on this file. Check the version
     # again before merging: `helm show chart oci://ghcr.io/jaydee94/charts/remedy --version <X.Y.Z>`.
     # A bump of this version and of runner.cli in values.yaml are one pull request.
-    version: "0.10.0"
+    version: "0.12.0"
