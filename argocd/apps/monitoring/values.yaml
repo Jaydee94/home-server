@@ -264,6 +264,29 @@ victoria-metrics-k8s-stack:
     enabled: true
   kubeApiServer:
     enabled: true
+    # The scrape is ~74k series and took longer than the 30 s interval, so
+    # vmagent sat at its CPU limit and every other sample was missing. These
+    # histogram bucket families are 56% of it (~41.7k series) and no rule or
+    # dashboard queries their _bucket series (checked 2026-10-22); _sum and
+    # _count stay. The apiserver_request_sli_duration_seconds_* the rules use
+    # stay too. The endpoint is the chart default plus metricRelabelConfigs
+    # (a list replaces the default, it is not merged).
+    vmScrape:
+      spec:
+        endpoints:
+          - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+            port: https
+            scheme: https
+            tlsConfig:
+              caFile: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+              serverName: kubernetes
+            metricRelabelConfigs:
+              - action: drop
+                source_labels: [__name__]
+                regex: "(apiserver_request_duration_seconds|etcd_request_duration_seconds|\
+                  apiserver_request_body_size_bytes|apiserver_watch_list_duration_seconds|\
+                  apiserver_response_sizes|apiserver_watch_cache_read_wait_seconds|\
+                  apiserver_watch_events_sizes)_bucket"
   coreDns:
     enabled: true
 
