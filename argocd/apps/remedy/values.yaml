@@ -38,12 +38,6 @@ remedy:
       enabled: false     # no actions on the cluster: no write token, no CronJob, no PostSync hook
     argoNamespace: argocd
 
-  # The login from the Setup page of Remedy (a four-step wizard in the runner card). Off by default in the chart:
-  # it passes the CLI's sign-in address and the one-time code through Remedy, in memory only (docs/design.md 2.7.1
-  # of the Remedy repository). The real run with the real CLI has not been made yet. `kubectl exec` stays the fallback.
-  loginRelay:
-    enabled: true
-
   networkPolicy:
     enabled: true
     public:
