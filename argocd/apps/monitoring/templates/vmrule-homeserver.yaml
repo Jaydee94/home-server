@@ -349,13 +349,3 @@ spec:
               The Mosquitto MQTT broker is unreachable. Home Assistant
               MQTT-based devices will stop reporting.
 
-        - alert: MinIODown
-          expr: up{namespace="minio"} == 0
-          for: 5m
-          labels:
-            severity: critical
-          annotations:
-            summary: "MinIO object storage is down"
-            description: >-
-              MinIO is unreachable. Argo Workflows artifact storage and any
-              S3-backed services will fail.

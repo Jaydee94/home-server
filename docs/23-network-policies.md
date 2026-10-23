@@ -34,8 +34,8 @@ spec:
 - **`podSelector: {}` als erster `from`-Eintrag erlaubt jeglichen Traffic
   innerhalb desselben Namespace.** Das ist bewusst grob (nicht
   Port-scharf) — Apps mit mehreren zusammenspielenden Komponenten im
-  selben Namespace (z. B. Argo Workflows Controller/Server, der
-  VictoriaMetrics-Stack aus VMSingle/VMAgent/VMAlert/Alertmanager/Grafana,
+  selben Namespace (z. B. der VictoriaMetrics-Stack aus
+  VMSingle/VMAgent/VMAlert/Alertmanager/Grafana,
   Recyclarr → Sonarr/Radarr im `media`-Namespace) funktionieren dadurch
   unverändert weiter, ohne dass jede interne Verbindung einzeln
   nachvollzogen werden musste.
@@ -47,7 +47,6 @@ spec:
 
 | Namespace | Zusätzliche Allow-Regel(n) | Grund |
 |---|---|---|
-| `argo-workflows` | `monitoring` | vmagent scraped Argo Workflows (`monitoring/templates/vm{pod,service}scrape-argo-workflows*.yaml`) |
 | `example-whoami` | – | nur Traefik |
 | `gameserver-ui` | – | nur Traefik |
 | `gotify` | – | nur Traefik |
@@ -55,7 +54,6 @@ spec:
 | `homepage` | – | nur Traefik (Homepage ruft andere Namespaces selbst auf — das ist *deren* Ingress-Regel, nicht Homepages eigene) |
 | `kubeseal-webgui` | – | nur Traefik |
 | `media` | `monitoring`, `homepage` | vmagent scraped `media-api-exporter`; Homepage-Widgets rufen Seerr/Sonarr/Radarr/Prowlarr/SABnzbd direkt per ClusterIP-DNS auf |
-| `minio` | `monitoring`, `argo-workflows` | vmagent scraped MinIO; Argo Workflows nutzt MinIO als S3-Artifact-Repository (`minio.minio.svc.cluster.local:9000`) |
 | `monitoring` | `homepage`, `gameserver-ui`, `remedy` | Homepage-Grafana-Widget; gameserver-ui fragt VictoriaMetrics direkt ab (`vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428`); Remedy liest den Alertmanager (`vmalertmanager-monitoring-victoria-metrics-k8s-stack.monitoring.svc:9093`) |
 | `semaphore` | – | nur Traefik |
 
@@ -127,10 +125,8 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
 
 # Homepage-Dashboard öffnen, prüfen ob alle Widgets (Grafana-Status,
 # Sonarr/Radarr/Prowlarr/SABnzbd/Seerr-Stats) weiterhin Live-Daten zeigen.
-# Grafana öffnen, prüfen ob Argo-Workflows- und MinIO-Dashboards weiterhin
-# Daten anzeigen (vmagent-Scraping funktioniert noch).
-# Argo Workflows: einen Workflow mit Artifact-Output laufen lassen, prüfen
-# ob der Upload nach MinIO klappt.
+# Grafana öffnen, prüfen ob alle Dashboards weiterhin Daten anzeigen
+# (vmagent-Scraping funktioniert noch).
 ```
 
 ## Offene Punkte / mögliche Folge-Schritte

@@ -133,7 +133,6 @@ generators:
 
 ```
 argocd/apps/
-├── argo-workflows/      → Private CI-Plattform (Argo Workflows)
 ├── csi-driver-smb/      → SMB-CSI-Driver (NAS-Mounts)
 ├── example-whoami/      → Referenz-Helm-Chart als Wiring-Test
 ├── gameserver/          → 7 Days to Die (KubeVirt VM, Tailscale only)
@@ -145,7 +144,6 @@ argocd/apps/
 ├── kubeseal-webgui/     → Browser-UI zum Erzeugen von SealedSecrets
 ├── kubevirt/            → KubeVirt Operator + CDI (VMs im Cluster)
 ├── metallb/             → L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
-├── minio/               → S3-kompatibler Artifact-Store für Argo Workflows
 ├── monitoring/          → VictoriaMetrics + Grafana + node-exporter +
 │                          kube-state-metrics + Alertmanager
 ├── monitoring-dashboards/ → Extra Grafana-Dashboards als ConfigMaps

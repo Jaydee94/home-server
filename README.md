@@ -51,7 +51,6 @@ Am Ende druckt das Playbook die ArgoCD-URL und das Admin-Passwort. Fertig.
 | Dokumenten-Scan  | **scanbd + Fujitsu USB-Scanner**       | Bare-Metal-Scan-Daemon → CIFS → Paperless-NGX auf der NAS              |
 | Notifications    | **Gotify**                             | Self-hosted Push-Notifications (Android/iOS-Client)                    |
 | Remote-Access    | **Tailscale**                          | WireGuard-Mesh-VPN — keine Portfreigaben, keine öffentliche IP         |
-| CI/CD intern     | **Argo Workflows + MinIO**             | Private CI/CD-Pipeline + S3-Artifact-Store im Cluster                 |
 | Media-Server     | **Jellyfin** (+ csi-driver-smb)        | Streamt Medien vom NAS via SMB; deutsches Live-TV (M3U+EPG)            |
 | Home Automation  | **Home Assistant**                     | Solakon-ONE Solar (Modbus TCP), Zigbee ZHA (Sonoff MG24 Dongle)        |
 | MQTT-Broker      | **Mosquitto** (MetalLB `.4`)           | Nuki Smart Lock Pro → Home Assistant via MQTT Auto-Discovery            |
@@ -149,7 +148,6 @@ home-server/
 │   ├── 10-scanner.md                 # Fujitsu-Scanner + scanbd + Paperless
 │   ├── 11-gotify.md                  # Push-Notifications via Gotify
 │   ├── 12-paperless-ai.md            # KI-Dokumentenanalyse für Paperless-NGX
-│   ├── 13-argo-workflows.md          # Private CI/CD mit Argo Workflows + MinIO
 │   ├── 14-homepage.md                # Zentrales Dashboard
 │   ├── 15-pihole.md                  # LAN-Adblock + DNS-Migration
 │   ├── 16-jellyfin.md                # Media-Server + Live-TV
@@ -178,7 +176,6 @@ home-server/
     │   ├── root-applicationset.yaml        # Erkennt jedes Verzeichnis darunter
     │   └── bootstrap-app.yaml              # ArgoCD-Selbstverwaltung des bootstrap/-Ordners
     └── apps/                               # Ein Ordner pro ArgoCD-Application
-        ├── argo-workflows/                 # Private CI/CD-Pipeline (Argo Workflows)
         ├── csi-driver-smb/                 # SMB-CSI-Driver (NAS-Mounts)
         ├── example-whoami/                 # Referenz-Helm-Chart
         ├── gameserver/                     # 7 Days to Die (KubeVirt VM, Tailscale only)
@@ -190,7 +187,6 @@ home-server/
         ├── kubeseal-webgui/                # Sealed-Secrets-Verschlüsselungs-UI
         ├── kubevirt/                       # KubeVirt Operator + CDI
         ├── metallb/                        # L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
-        ├── minio/                          # S3-Artifact-Store für Argo Workflows
         ├── monitoring/                     # VictoriaMetrics + Grafana
         ├── monitoring-dashboards/          # Extra Grafana-Dashboards als ConfigMaps
         ├── mosquitto/                      # MQTT-Broker (MetalLB .4) für Nuki Smart Lock
@@ -281,7 +277,6 @@ Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
 | [Scanner & Paperless](docs/10-scanner.md)                       | Fujitsu-USB-Scanner → CIFS → Paperless-NGX   |
 | [Gotify-Push](docs/11-gotify.md)                                | Self-hosted Push-Notifications aus dem Stack |
 | [Paperless-AI](docs/12-paperless-ai.md)                         | KI-Dokumentenanalyse + RAG für Paperless-NGX |
-| [Argo Workflows](docs/13-argo-workflows.md)                     | Private CI/CD-Pipeline mit MinIO-Artifact-Store |
 | [Homepage Dashboard](docs/14-homepage.md)                       | Zentrales Startpage-Dashboard (home.homeserver) |
 | [Pi-hole](docs/15-pihole.md)                                    | LAN-Adblock + DNS-Migration (dnsmasq → Pi-hole) |
 | [Jellyfin](docs/16-jellyfin.md)                                 | Media-Server (NAS via SMB) + deutsches Live-TV |
