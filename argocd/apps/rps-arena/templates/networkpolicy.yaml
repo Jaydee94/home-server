@@ -20,3 +20,5 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: monitoring
+        - ipBlock:
+            cidr: 192.168.178.0/24
