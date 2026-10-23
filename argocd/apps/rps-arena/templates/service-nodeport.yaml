@@ -1,0 +1,21 @@
+---
+# Additional NodePort service for direct LAN access without DNS.
+# Access via http://192.168.178.127:30808 — no *.homeserver DNS required.
+# externalTrafficPolicy: Local preserves the client LAN IP so the NetworkPolicy
+# ipBlock rule (192.168.178.0/24) can match it. With Cluster (default), kube-proxy
+# SNATs the source to a pod-CIDR IP which would be blocked by the NetworkPolicy.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rps-arena-nodeport
+  namespace: {{ .Release.Namespace }}
+spec:
+  type: NodePort
+  externalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/name: rps-arena
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      nodePort: 30808
