@@ -45,6 +45,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Jellyfin / Prowlarr / SABnzbd | http://{jellyfin,prowlarr,sabnzbd}.homeserver |
 | Sonarr / Radarr / Seerr | http://{sonarr,radarr,seerr}.homeserver |
 | Home Assistant / HA-MCP | http://homeassistant.homeserver · http://ha-mcp.homeserver/\<secret\> |
+| Remedy | http://remedy.homeserver |
 | Mosquitto | mqtt://192.168.178.4:1883 |
 | Gameserver-UI / 7DTD | http://gameserver.homeserver · 100.x.x.x:26900 (Tailscale) |
 | Portainer (NAS GitOps) | http://jays-ugreen:9000 |
