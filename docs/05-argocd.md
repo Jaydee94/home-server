@@ -154,6 +154,7 @@ argocd/apps/
 ├── paperless-ai/        → KI-gestützte Dokumenten-Kategorisierung
 ├── pihole/              → Netzwerkweiter DNS-Adblock (pihole.homeserver/admin/login)
 ├── remedy/              → KI-Operator: Alerts lesen, NAS prüfen, Fixes vorschlagen
+├── rps-arena/           → Rock-Paper-Scissors Browser-Game (rps-arena.homeserver)
 ├── sealed-secrets/      → bitnami-labs SealedSecrets-Controller
 └── semaphore/           → Web-UI zum Ausführen von Ansible-Playbooks
 ```

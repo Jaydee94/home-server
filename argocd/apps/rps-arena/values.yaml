@@ -1,0 +1,41 @@
+---
+# Values passed through to the rps-arena sub-chart.
+# All keys live under `rps-arena:` because that is the dependency name.
+rps-arena:
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 96Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  ingress:
+    enabled: true
+    className: traefik
+    host: rps-arena.homeserver
+    path: /
+    pathType: Prefix
+    # Traefik handles WebSocket upgrades natively — no annotations needed.
+    # (The chart's nginx-specific timeout annotations are intentionally omitted.)
+    annotations: {}
+    tls:
+      enabled: false
+
+  redis:
+    enabled: true
+    maxmemory: 100mb
+    maxmemoryPolicy: volatile-lru
+    persistence:
+      enabled: true
+      storageClass: local-path
+      size: 1Gi
+    resources:
+      requests:
+        cpu: 25m
+        memory: 32Mi
+      limits:
+        cpu: 250m
+        memory: 128Mi

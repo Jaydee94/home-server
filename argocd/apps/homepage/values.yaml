@@ -219,5 +219,9 @@ homepage:
               href: http://gameserver.homeserver
               description: 7DTD KubeVirt VM-Verwaltung
               icon: mdi-zombie
+          - RPS-Arena:
+              href: http://rps-arena.homeserver
+              description: Rock-Paper-Scissors Browser-Game
+              icon: mdi-hand-wave
 
     bookmarks: []

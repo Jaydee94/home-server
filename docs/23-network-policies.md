@@ -55,6 +55,7 @@ spec:
 | `kubeseal-webgui` | – | nur Traefik |
 | `media` | `monitoring`, `homepage` | vmagent scraped `media-api-exporter`; Homepage-Widgets rufen Seerr/Sonarr/Radarr/Prowlarr/SABnzbd direkt per ClusterIP-DNS auf |
 | `monitoring` | `homepage`, `gameserver-ui`, `remedy` | Homepage-Grafana-Widget; gameserver-ui fragt VictoriaMetrics direkt ab (`vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428`); Remedy liest den Alertmanager (`vmalertmanager-monitoring-victoria-metrics-k8s-stack.monitoring.svc:9093`) |
+| `rps-arena` | – | nur Traefik (interner app↔redis-Traffic über `podSelector: {}`) |
 | `semaphore` | – | nur Traefik |
 
 Alle Cross-Namespace-Abhängigkeiten wurden vorher per
