@@ -136,13 +136,16 @@ argocd/apps/
 ├── csi-driver-smb/      → SMB-CSI-Driver (NAS-Mounts)
 ├── example-whoami/      → Referenz-Helm-Chart als Wiring-Test
 ├── gameserver/          → 7 Days to Die (KubeVirt VM, Tailscale only)
+├── gameserver-ui/       → Web-Oberfläche für die 7DTD-VM (gameserver.homeserver)
 ├── gotify/              → Push-Notification-Server (Android/iOS-Client)
+├── ha-mcp/              → Home Assistant MCP-Server (ha-mcp.homeserver/<secret>)
 ├── headlamp/            → Web-basiertes Kubernetes-Dashboard
 ├── home-assistant/      → Home Automation (Solakon ONE, Zigbee ZHA, MQTT)
 ├── homepage/            → Zentrales Dashboard (home.homeserver)
 ├── jellyfin/            → Media-Server (MetalLB LAN-IP, NAS via SMB)
 ├── kubeseal-webgui/     → Browser-UI zum Erzeugen von SealedSecrets
 ├── kubevirt/            → KubeVirt Operator + CDI (VMs im Cluster)
+├── media/               → Sonarr / Radarr / Prowlarr / SABnzbd / Seerr
 ├── metallb/             → L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
 ├── monitoring/          → VictoriaMetrics + Grafana + node-exporter +
 │                          kube-state-metrics + Alertmanager
@@ -150,6 +153,7 @@ argocd/apps/
 ├── mosquitto/           → MQTT-Broker (MetalLB .4:1883) für Nuki Smart Lock
 ├── paperless-ai/        → KI-gestützte Dokumenten-Kategorisierung
 ├── pihole/              → Netzwerkweiter DNS-Adblock (pihole.homeserver/admin/login)
+├── remedy/              → KI-Operator: Alerts lesen, NAS prüfen, Fixes vorschlagen
 ├── sealed-secrets/      → bitnami-labs SealedSecrets-Controller
 └── semaphore/           → Web-UI zum Ausführen von Ansible-Playbooks
 ```
