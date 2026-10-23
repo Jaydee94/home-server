@@ -154,6 +154,12 @@ home-server/
 │   ├── 17-homeassistant.md           # Home Assistant (Solakon ONE, Zigbee ZHA)
 │   ├── 18-nuki-mqtt.md               # Nuki Smart Lock Pro via MQTT
 │   ├── 19-gameserver.md              # 7 Days to Die (KubeVirt VM)
+│   ├── 20-gameserver-ui.md           # Gameserver-Web-UI (Next.js)
+│   ├── 21-media-stack.md             # Sonarr / Radarr / Prowlarr / SABnzbd / Seerr
+│   ├── 22-ha-mcp.md                  # Home Assistant MCP-Server
+│   ├── 23-network-policies.md        # Namespace-Isolation via NetworkPolicies
+│   ├── 24-remedy.md                  # KI-Operator für Alerts
+│   ├── gotchas.md                    # Fallstricke & Lösungen
 │   └── assets/banner.svg
 ├── ansible/
 │   ├── site.yml                      # Entry-Point
@@ -179,19 +185,23 @@ home-server/
         ├── csi-driver-smb/                 # SMB-CSI-Driver (NAS-Mounts)
         ├── example-whoami/                 # Referenz-Helm-Chart
         ├── gameserver/                     # 7 Days to Die (KubeVirt VM, Tailscale only)
+        ├── gameserver-ui/                  # Gameserver-Web-UI (Next.js)
         ├── gotify/                         # Push-Notifications
+        ├── ha-mcp/                         # Home Assistant MCP-Server
         ├── headlamp/                       # Kubernetes-Web-Dashboard
         ├── home-assistant/                 # Home Automation (Solakon ONE, Zigbee ZHA)
         ├── homepage/                       # Zentrales Dashboard
         ├── jellyfin/                       # Media-Server (NAS via SMB)
         ├── kubeseal-webgui/                # Sealed-Secrets-Verschlüsselungs-UI
         ├── kubevirt/                       # KubeVirt Operator + CDI
+        ├── media/                          # Sonarr / Radarr / Prowlarr / SABnzbd / Seerr
         ├── metallb/                        # L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
         ├── monitoring/                     # VictoriaMetrics + Grafana
         ├── monitoring-dashboards/          # Extra Grafana-Dashboards als ConfigMaps
         ├── mosquitto/                      # MQTT-Broker (MetalLB .4) für Nuki Smart Lock
         ├── paperless-ai/                   # KI-Dokumentenanalyse für Paperless-NGX
         ├── pihole/                         # DNS + netzwerkweiter Adblock
+        ├── remedy/                         # KI-Operator für Alerts
         ├── sealed-secrets/                 # SealedSecrets-Controller
         └── semaphore/                      # Ansible-Web-UI
 ```
@@ -283,6 +293,12 @@ Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
 | [Home Assistant](docs/17-homeassistant.md)                      | Solakon-ONE Solar (Modbus TCP), Zigbee ZHA (Sonoff MG24) |
 | [Nuki MQTT](docs/18-nuki-mqtt.md)                               | Nuki Smart Lock Pro → Mosquitto → Home Assistant |
 | [Gameserver](docs/19-gameserver.md)                             | 7 Days to Die auf KubeVirt VM (Tailscale, Zeitplan Mi 20–24 Uhr) |
+| [Gameserver-UI](docs/20-gameserver-ui.md)                       | Web-Oberfläche für die 7DTD-VM (Start/Stop, Logs, Console, Config) |
+| [Media-Stack](docs/21-media-stack.md)                           | Sonarr / Radarr / Prowlarr / SABnzbd / Seerr + Recyclarr (Deutsch) |
+| [HA-MCP](docs/22-ha-mcp.md)                                     | Home Assistant MCP-Server (Claude-Integration) |
+| [NetworkPolicies](docs/23-network-policies.md)                  | Namespace-Isolation — abgedeckte und bewusst ausgenommene Namespaces |
+| [Remedy](docs/24-remedy.md)                                     | KI-Operator: Alerts lesen, NAS prüfen, Änderungen vorschlagen |
+| [Gotchas](docs/gotchas.md)                                      | Gesammelte Fallstricke und Lösungen |
 
 ---
 

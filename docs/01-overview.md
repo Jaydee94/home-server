@@ -58,7 +58,7 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │  │  │  │    home-assistant, ha-mcp, jellyfin,          │   │   │   │
 │  │  │  │    mosquitto, media (Sonarr/Radarr/…),       │   │   │   │
 │  │  │  │    kubevirt, gameserver, gameserver-ui,      │   │   │   │
-│  │  │  │    csi-driver-smb, example-whoami            │   │   │   │
+│  │  │  │    remedy, csi-driver-smb, example-whoami    │   │   │   │
 │  │  │  └─────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
 │  │  │  ┌──────────────────────────────────────────────┐   │   │   │
@@ -83,6 +83,7 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │       ├── metallb/                                                 │
 │       ├── pihole/                                                  │
 │       ├── monitoring/                                              │
+│       ├── monitoring-dashboards/                                    │
 │       ├── sealed-secrets/                                          │
 │       ├── kubeseal-webgui/                                         │
 │       ├── headlamp/                                                │
@@ -98,6 +99,7 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │       ├── kubevirt/                                                 │
 │       ├── gameserver/                                               │
 │       ├── gameserver-ui/                                            │
+│       ├── remedy/                                                   │
 │       ├── csi-driver-smb/                                           │
 │       └── my-new-app/       ← Verzeichnis anlegen → auto-deployed  │
 └─────────────────────────────────────────────────────────────────────┘
