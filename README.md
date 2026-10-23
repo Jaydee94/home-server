@@ -55,6 +55,7 @@ Am Ende druckt das Playbook die ArgoCD-URL und das Admin-Passwort. Fertig.
 | Home Automation  | **Home Assistant**                     | Solakon-ONE Solar (Modbus TCP), Zigbee ZHA (Sonoff MG24 Dongle)        |
 | MQTT-Broker      | **Mosquitto** (MetalLB `.4`)           | Nuki Smart Lock Pro → Home Assistant via MQTT Auto-Discovery            |
 | Gameserver       | **7 Days to Die** (KubeVirt VM)        | KubeVirt-VM, Tailscale-only; Zeitplan Mi 20–24 Uhr; Node-Sharing       |
+| Browser-Game     | **RPS-Arena**                          | Rock-Paper-Scissors (Svelte + Socket.IO) — Turnier-Modus, Bots         |
 | Ingress          | **Traefik v2** (mit k3s gebundled)     | HTTP/HTTPS-Routing in den Cluster                                      |
 | Provisioning     | **Ansible** (≥ 2.14)                   | Vollständig idempotent, Role-per-Concern, Vault für Secrets            |
 
@@ -202,6 +203,7 @@ home-server/
         ├── paperless-ai/                   # KI-Dokumentenanalyse für Paperless-NGX
         ├── pihole/                         # DNS + netzwerkweiter Adblock
         ├── remedy/                         # KI-Operator für Alerts
+        ├── rps-arena/                      # Rock-Paper-Scissors Browser-Game
         ├── sealed-secrets/                 # SealedSecrets-Controller
         └── semaphore/                      # Ansible-Web-UI
 ```
@@ -298,6 +300,7 @@ Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
 | [HA-MCP](docs/22-ha-mcp.md)                                     | Home Assistant MCP-Server (Claude-Integration) |
 | [NetworkPolicies](docs/23-network-policies.md)                  | Namespace-Isolation — abgedeckte und bewusst ausgenommene Namespaces |
 | [Remedy](docs/24-remedy.md)                                     | KI-Operator: Alerts lesen, NAS prüfen, Änderungen vorschlagen |
+| [RPS-Arena](docs/25-rps-arena.md)                               | Rock-Paper-Scissors Browser-Game (Svelte + Socket.IO) |
 | [Gotchas](docs/gotchas.md)                                      | Gesammelte Fallstricke und Lösungen |
 
 ---
