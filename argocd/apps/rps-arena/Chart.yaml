@@ -19,4 +19,4 @@ maintainers:
 dependencies:
   - name: rps-arena
     repository: oci://ghcr.io/jaydee94/charts
-    version: "1.3.0"
+    version: "1.4.0"
