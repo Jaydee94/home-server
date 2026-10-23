@@ -53,7 +53,7 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │  │  │  │    metallb (LB-IP), pihole (DNS+Adblock),    │   │   │   │
 │  │  │  │    monitoring + monitoring-dashboards,        │   │   │   │
 │  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
-│  │  │  │    semaphore, argo-workflows + minio,        │   │   │   │
+│  │  │  │    semaphore,                                │   │   │   │
 │  │  │  │    headlamp, gotify, homepage, paperless-ai, │   │   │   │
 │  │  │  │    home-assistant, ha-mcp, jellyfin,          │   │   │   │
 │  │  │  │    mosquitto, media (Sonarr/Radarr/…),       │   │   │   │
@@ -87,8 +87,6 @@ Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
 │       ├── kubeseal-webgui/                                         │
 │       ├── headlamp/                                                │
 │       ├── semaphore/                                               │
-│       ├── argo-workflows/                                          │
-│       ├── minio/                                                   │
 │       ├── gotify/                                                  │
 │       ├── homepage/                                                │
 │       ├── paperless-ai/                                            │

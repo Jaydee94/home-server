@@ -131,10 +131,6 @@ homepage:
               href: http://headlamp.homeserver
               description: Kubernetes Dashboard
               icon: headlamp.svg
-          - Argo Workflows:
-              href: http://argo-workflows.homeserver
-              description: Private CI
-              icon: https://raw.githubusercontent.com/argoproj/argo-workflows/main/docs/assets/logo.png
           - Semaphore:
               href: http://semaphore.homeserver
               description: Ansible UI
@@ -219,10 +215,6 @@ homepage:
               href: http://gotify.homeserver
               description: Push-Notifications
               icon: gotify.svg
-          - MinIO:
-              href: http://minio.homeserver
-              description: S3 Artifact Store
-              icon: minio.svg
           - Gameserver-UI:
               href: http://gameserver.homeserver
               description: 7DTD KubeVirt VM-Verwaltung

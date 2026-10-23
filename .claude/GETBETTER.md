@@ -26,8 +26,6 @@ _Letzte Aktualisierung: 2026-06-12_
 
 - **Laufende Secret-Werte auslesen statt neu erfinden**: Für `vault_paperless_*` die echten Werte aus der bereits deployten NAS-`.env` gelesen — ein neues DB-Passwort hätte die bestehende PostgreSQL-DB unzugänglich gemacht.
 
-- **`CronWorkflow.spec.schedules` (Array) in Argo Workflows v4.x**: `spec.schedule` (String) wurde in v4.x aus dem CRD-Schema entfernt. Ersatz: `spec.schedules: ["0 3 * * *"]`.
-
 - **jameswynn/homepage Helm Chart als Wrapper (Ansatz A)**: Upstream-Dependency statt plain Manifests oder Custom Chart — folgt dem headlamp-Muster, Renovate hält Version aktuell. Konfiguration unter `homepage.config.*` (settings, services, widgets, bookmarks) — nicht direkt unter `homepage:`. `homepage.config.kubernetes.mode: cluster` geht in `config:`, nicht in `kubernetes:` auf Top-Level.
 
 - **dnsmasq-Wildcard deckt neue Services automatisch ab**: `address=/homeserver/<ip>` in `dnsmasq.conf.j2` macht jeden `*.homeserver`-Namen direkt erreichbar ohne `dnsmasq_hosts`-Eintrag. Kein Update nötig für neue ArgoCD-Apps.
@@ -99,8 +97,6 @@ _Letzte Aktualisierung: 2026-06-12_
 - **ArgoCD stuck auf alter Revision nicht früh erkannt**: Wenn `status.operationState.operation.sync.revision` ≠ `status.sync.revision`, synct ArgoCD noch die alte Revision. Lösung: `/operation` via `kubectl patch --type json -p '[{"op":"remove","path":"/operation"}]'` entfernen.
 
 - **Placeholder-SealedSecrets ohne Guard committen**: `PLACEHOLDER_SEAL_WITH_KUBESEAL`-Werte in SealedSecrets erzeugen sofortigen `CreateContainerConfigError` — Pod kann nicht starten weil Secret nicht existiert. Zwei Strategien: (a) `helm template` rendert das SealedSecret erst wenn ein `enabled: true`-Guard gesetzt ist, oder (b) Placeholder committen und explizit dokumentieren dass `kubectl rollout restart` nach echtem Seal nötig ist. Wichtig: nach Seal-Commit immer `kubectl rollout restart deployment/<name> -n <ns>` ausführen.
-
-- **Credential-Mindestlängen nicht in values.yaml dokumentieren**: MinIO verlangt rootUser ≥ 3 Zeichen und rootPassword ≥ 8 Zeichen. Generell: Mindestanforderungen direkt beim Seal-Kommentar dokumentieren.
 
 - **ArgoCD ApplicationSet trackt nur `main` — kein Live-Testing auf Feature-Branch**: Wenn der Root ApplicationSet `revision: main` nutzt, erscheinen neue Apps erst nach dem Merge. Pod-Health-Verifikation während der Entwicklung auf Feature-Branch ist nicht möglich — diesen Schritt in den Post-Merge-Workflow verschieben.
 

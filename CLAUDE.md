@@ -41,7 +41,6 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Grafana | http://grafana.homeserver |
 | ArgoCD | http://\<server-ip\>:30080 |
 | Headlamp / Semaphore / Gotify | http://{headlamp,semaphore,gotify}.homeserver |
-| Argo Workflows / MinIO | http://{argo-workflows,minio}.homeserver |
 | Homepage / Pi-hole | http://home.homeserver · http://pihole.homeserver/admin/login |
 | Jellyfin / Prowlarr / SABnzbd | http://{jellyfin,prowlarr,sabnzbd}.homeserver |
 | Sonarr / Radarr / Seerr | http://{sonarr,radarr,seerr}.homeserver |
