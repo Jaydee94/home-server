@@ -22,7 +22,7 @@ homepage:
   # PFLICHT: ohne HOMEPAGE_ALLOWED_HOSTS schlägt Kubernetes-Healthcheck fehl
   env:
     - name: HOMEPAGE_ALLOWED_HOSTS
-      value: "home.homeserver"
+      value: "home.homeserver,192.168.178.127"
 
   envFrom:
     - secretRef:
