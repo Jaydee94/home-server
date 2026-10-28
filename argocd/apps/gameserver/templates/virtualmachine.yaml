@@ -12,11 +12,6 @@ kind: VirtualMachine
 metadata:
   name: {{ .Values.vm.name }}
   namespace: {{ .Release.Namespace }}
-  annotations:
-    # Ubuntu 26.04 / kernel 7.0.0: cri-containerd.apparmor.d blocks SIGURG/SIGKILL/ptrace
-    # between QEMU threads → qemu:cpus_kick_thread: Permission denied → CrashLoop.
-    # KubeVirt propagates this annotation to the virt-launcher pod's compute container.
-    container.apparmor.security.beta.kubernetes.io/compute: unconfined
   labels:
     app.kubernetes.io/name: gameserver
     app.kubernetes.io/instance: {{ .Release.Name }}
@@ -25,6 +20,11 @@ spec:
   runStrategy: {{ .Values.vm.runStrategy }}
   template:
     metadata:
+      annotations:
+        # Ubuntu 26.04 / kernel 7.0.0: cri-containerd.apparmor.d blocks SIGURG/SIGKILL/ptrace
+        # between QEMU threads → qemu:cpus_kick_thread: Permission denied → CrashLoop.
+        # Placed on VMI template so KubeVirt propagates it to the virt-launcher pod.
+        container.apparmor.security.beta.kubernetes.io/compute: unconfined
       labels:
         kubevirt.io/vm: {{ .Values.vm.name }}
     spec:
