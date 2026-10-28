@@ -29,6 +29,7 @@ Verweis aus CLAUDE.md — hier die vollständige Liste.
 ## KubeVirt / Gameserver
 
 - **KubeVirt — Bare-Metal-Voraussetzung**: Benötigt `/dev/kvm`. Vor erstem Sync `virt-host-validate` ausführen. Ohne KVM: `useEmulation: true` in `kubevirt-cr.yaml` (langsam, nicht für 7DTD empfohlen).
+- **KubeVirt — AppArmor CrashLoop auf Ubuntu 26.04**: Das `cri-containerd.apparmor.d`-Profil (von k3s/containerd dynamisch geladen) blockiert auf Kernel ≥ 7.0 die Signal-Ops (`SIGURG`, `SIGKILL`, `ptrace`), die QEMU intern braucht → `qemu:cpus_kick_thread: Permission denied` → VM crasht sofort. Fix: `container.apparmor.security.beta.kubernetes.io/compute: unconfined` in `metadata.annotations` des VM-Objekts (bereits in `argocd/apps/gameserver/templates/virtualmachine.yaml` gesetzt). Symptom im Cluster: `dmesg | grep "apparmor.*DENIED" | grep "virt-launcher\|qemu-kvm"`.
 - **KubeVirt — Bootstrap-Reihenfolge via ArgoCD-Retry**: `argocd/apps/kubevirt/` muss vor `argocd/apps/gameserver/` konvergieren. Retry (5×, exponential) übernimmt das automatisch — erste Sync-Fehler sind normal.
 - **KubeVirt — VM bleibt Halted bis Secret versiegelt**: `vm.runStrategy` initial `Halted`. On-Demand-Start: `kubectl patch vm 7dtd-server -n gameserver --type merge -p '{"spec":{"runStrategy":"Always"}}'`. Details: `docs/19-gameserver.md`.
 - **KubeVirt — CDI deployt in eigenem Namespace `cdi`**: Ressourcen mit eigenem `namespace:`-Feld überschreiben die ArgoCD-Destination.
