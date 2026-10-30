@@ -58,3 +58,15 @@ scanner_gotify_env_path: "/etc/scanner/gotify.env"
 scanner_gotify_priority_success: 5
 scanner_gotify_priority_error: 8
 scanner_gotify_timeout_seconds: 5
+
+# ---- Paperless REST-API Upload ----------------------------
+# Opt-in — übergeht den CIFS-Mount vollständig wenn aktiviert.
+# Token in Paperless-UI anlegen: Einstellungen → API-Token → Neu
+# dann vault-encrypten:
+#   ansible-vault encrypt_string '<token>' --name 'scanner_paperless_api_token'
+# und in ansible/group_vars/all.yml eintragen.
+scanner_paperless_api_enabled: false
+scanner_paperless_api_url: ""            # z.B. "http://192.168.178.118:8000"
+scanner_paperless_api_token: ""          # vault-encrypted
+scanner_paperless_api_timeout_seconds: 30
+scanner_paperless_env_path: "/etc/scanner/paperless.env"

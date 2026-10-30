@@ -65,7 +65,8 @@ trap 'on_error ${LINENO}' ERR
 
 ts="$(date +%Y%m%d-%H%M%S)"
 work_dir="$(mktemp -d "${TMP_DIR}/scan-${ts}-XXXXXX")"
-out_pdf="${CONSUME_DIR}/scan-${ts}.pdf"
+# PDF wird zuerst lokal gebaut; Auslieferung (API oder CIFS) danach.
+out_pdf="${work_dir}/scan-${ts}.pdf"
 
 cleanup() {
     rm -rf "${work_dir}" 2>/dev/null || true
@@ -133,7 +134,36 @@ FAIL_REASON="PDF-Konvertierung fehlgeschlagen (ImageMagick policy.xml?)."
 convert "${pages[@]}" "${out_pdf}"
 sync
 
-log_info "scan_to_pdf: wrote ${out_pdf}"
+# --- Paperless API settings (PAPERLESS_API_ENABLED, PAPERLESS_URL, ...) ---
+# shellcheck disable=SC1091
+[ -r "{{ scanner_paperless_env_path }}" ] && . "{{ scanner_paperless_env_path }}"
+
+if [ "${PAPERLESS_API_ENABLED:-0}" = "1" ] && \
+   [ -n "${PAPERLESS_URL:-}" ] && [ -n "${PAPERLESS_TOKEN:-}" ]; then
+    log_info "scan_to_pdf: uploading ${out_pdf##*/} via Paperless API to ${PAPERLESS_URL}"
+    FAIL_REASON="Paperless API-Upload fehlgeschlagen — Token gültig und ${PAPERLESS_URL}/api/ erreichbar?"
+    http_code="$(curl -fsS \
+        --connect-timeout "${PAPERLESS_API_TIMEOUT:-30}" \
+        -X POST "${PAPERLESS_URL%/}/api/documents/post_document/" \
+        -H "Authorization: Token ${PAPERLESS_TOKEN}" \
+        -F "document=@${out_pdf};type=application/pdf" \
+        -o /dev/null -w "%{http_code}")"
+    if [ "${http_code}" = "200" ] || [ "${http_code}" = "202" ]; then
+        log_info "scan_to_pdf: Paperless API akzeptiert Dokument (HTTP ${http_code})"
+    else
+        FAIL_REASON="Paperless API-Upload: HTTP ${http_code} — Token gültig? ${PAPERLESS_URL}/api/ erreichbar?"
+        log_error "scan_to_pdf: API upload failed with HTTP ${http_code}"
+        exit 1
+    fi
+else
+    final_pdf="${CONSUME_DIR}/scan-${ts}.pdf"
+    log_info "scan_to_pdf: writing ${final_pdf} (CIFS consume)"
+    FAIL_REASON="Kopieren ins Consume-Verzeichnis fehlgeschlagen (CIFS-Mount aktiv?)."
+    cp "${out_pdf}" "${final_pdf}"
+    sync
+    log_info "scan_to_pdf: wrote ${final_pdf}"
+fi
+
 gotify_notify "✅ Scan erfolgreich" \
     "📄 ${out_pdf##*/} (${page_count} Seiten) → Paperless" \
     "${GOTIFY_PRIORITY_SUCCESS:-5}"
