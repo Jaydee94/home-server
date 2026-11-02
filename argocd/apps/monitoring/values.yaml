@@ -63,14 +63,18 @@ victoria-metrics-k8s-stack:
     spec:
       selectAllByDefault: true
       scrapeInterval: 30s
-      # Chart 0.97.0 (2026-10-27) rolled vmagent to v1.155.0, which panics right
-      # after the config-reloader's first reload ("cannot send SIGHUP to itself:
-      # permission denied"): CrashLoopBackOff, 1378 restarts in 6 days, and one
-      # sample every ~22 min instead of every 30 s for every job. v1.154.1 is
-      # the version that ran before. Remove this pin once a newer vmagent runs
-      # without the panic (try it in a pull request, then watch the restarts).
-      image:
-        tag: v1.154.1
+      # Kernel >= 7.0 plus containerd's default AppArmor profile (cri-containerd.apparmor.d)
+      # deny the signals a process sends to itself. vmagent reloads its config with
+      # SIGHUP to itself, so it panics after the config-reloader's first reload
+      # ("cannot send SIGHUP to itself: permission denied"): CrashLoopBackOff, 1378
+      # restarts in 6 days, one sample every ~22 min instead of every 30 s for every job
+      # (dmesg: apparmor="DENIED" operation="signal" comm="vmagent-prod" signal=hup).
+      # An image pin does not help (v1.154.1 panics too). Same cause and same fix as
+      # the KubeVirt entry in docs/gotchas.md: run the container unconfined. k8s 1.30+
+      # converts the annotation to appArmorProfile.type: Unconfined.
+      podMetadata:
+        annotations:
+          container.apparmor.security.beta.kubernetes.io/vmagent: unconfined
       externalLabels:
         cluster: homeserver
       extraArgs:
@@ -96,6 +100,12 @@ victoria-metrics-k8s-stack:
     spec:
       selectAllByDefault: true
       evaluationInterval: 30s
+      # Same AppArmor denial as for vmagent: the rule reload is a SIGHUP to itself
+      # (dmesg: comm="vmalert-prod" signal=hup). Without this a changed VMRule is not
+      # picked up.
+      podMetadata:
+        annotations:
+          container.apparmor.security.beta.kubernetes.io/vmalert: unconfined
 
   # ---- Alertmanager ----------------------------------------
   # Routes critical/warning alerts to the alertmanager-gotify-bridge
