@@ -63,6 +63,14 @@ victoria-metrics-k8s-stack:
     spec:
       selectAllByDefault: true
       scrapeInterval: 30s
+      # Chart 0.97.0 (2026-10-27) rolled vmagent to v1.155.0, which panics right
+      # after the config-reloader's first reload ("cannot send SIGHUP to itself:
+      # permission denied"): CrashLoopBackOff, 1378 restarts in 6 days, and one
+      # sample every ~22 min instead of every 30 s for every job. v1.154.1 is
+      # the version that ran before. Remove this pin once a newer vmagent runs
+      # without the panic (try it in a pull request, then watch the restarts).
+      image:
+        tag: v1.154.1
       externalLabels:
         cluster: homeserver
       extraArgs:
