@@ -13,6 +13,12 @@ remedy:
   # see docs/24-remedy.md). Do not set `networkPolicy.database`: that is for a database of your own.
   postgres:
     existingSecret: remedy-postgres
+    # The data directory of this database was made by PostgreSQL 16 (Remedy 0.16.x). Chart 0.17.0 moved the default tag
+    # to 18.6, and PostgreSQL 18 refuses the directory ("database files are incompatible with server"): remedy-postgres-0
+    # and remedy-server crash-looped, the nightly dumps failed. Keep 16.15, the tag that ran before, until the data has
+    # been moved with a dump and a restore (docs/runbook/postgres.md of the Remedy repository, "A new major version").
+    image:
+      tag: "16.15"
 
   runner:
     # Pinned: the CLI runs with --restricted, which ignores user settings. "sonnet" is the value of the
