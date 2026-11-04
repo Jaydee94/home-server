@@ -19,6 +19,11 @@ remedy:
     # been moved with a dump and a restore (docs/runbook/postgres.md of the Remedy repository, "A new major version").
     image:
       tag: "16.15"
+    # Kernel 7.0 with containerd's default AppArmor profile denies the signals a process sends within its own container:
+    # PostgreSQL logged "autovacuum worker took too long to start; canceled" every minute (116 denials for comm="postgres"),
+    # so autovacuum never ran. Unconfined takes this one container out of the profile (Remedy chart 0.19.0). Same cause and
+    # same fix as vmagent and vmalert in the monitoring app.
+    appArmorProfile: Unconfined
 
   runner:
     # Pinned: the CLI runs with --restricted, which ignores user settings. "sonnet" is the value of the
