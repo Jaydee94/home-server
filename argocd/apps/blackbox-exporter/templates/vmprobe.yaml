@@ -7,19 +7,18 @@ metadata:
 spec:
   jobName: homeserver-blackbox
   vmProberSpec:
-    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+    # ArgoCD ApplicationSet deploys blackbox-exporter into namespace "blackbox-exporter"
+    # (destination.namespace = path.basename from root-applicationset.yaml).
+    url: blackbox-exporter-prometheus-blackbox-exporter.blackbox-exporter.svc.cluster.local:9115
     path: /probe
     scheme: http
   module: http_2xx
   targets:
-    staticConfig:
-      static:
+    static:
+      targets:
         - http://homepage.homeserver
         - http://grafana.homeserver
         - http://pihole.homeserver/admin/login
         - http://192.168.178.127:30080           # ArgoCD
         - http://jellyfin.homeserver
         - http://homeassistant.homeserver
-      relabelingConfigs:
-        - sourceLabels: [__address__]
-          targetLabel: instance

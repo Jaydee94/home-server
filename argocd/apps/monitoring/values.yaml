@@ -260,18 +260,22 @@ victoria-metrics-k8s-stack:
   # CPU/RAM/disk/network/load. Mounts /proc and /sys read-only.
   prometheus-node-exporter:
     enabled: true
-    # --collector.systemd aktiviert node_systemd_unit_state; benötigt den
-    # D-Bus-Socket vom Host (/run/systemd). ~200 Units × 7 States ≈ 1 400
-    # Zeitreihen — kein Problem für VMSingle mit 10 Gi Storage.
+    # Helm replaces lists rather than merging them, so the chart defaults must
+    # be repeated here alongside --collector.systemd. The two filesystem flags
+    # are the upstream defaults from victoria-metrics-k8s-stack values.yaml.
+    # --collector.systemd requires the D-Bus system socket (/run/dbus), NOT
+    # /run/systemd; node_exporter calls dbus.NewWithContext (the system bus).
     extraArgs:
       - --collector.systemd
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+      - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|erofs|sysfs|tracefs)$
     extraVolumes:
-      - name: systemd-socket
+      - name: dbus-socket
         hostPath:
-          path: /run/systemd
+          path: /run/dbus
     extraVolumeMounts:
-      - name: systemd-socket
-        mountPath: /run/systemd
+      - name: dbus-socket
+        mountPath: /var/run/dbus
         readOnly: true
     resources:
       requests:

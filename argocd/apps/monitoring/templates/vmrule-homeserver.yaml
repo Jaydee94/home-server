@@ -104,7 +104,7 @@ spec:
 
         - alert: HostNetworkInterfaceDown
           expr: >-
-            node_network_up{device!~"lo|veth.*|cni.*|flannel.*|tunl.*|cali.*|dummy.*"} == 0
+            node_network_up{device=~"en.*|eth.*|wlan.*|wl.*"} == 0
           for: 5m
           labels:
             severity: critical
@@ -116,9 +116,10 @@ spec:
               {{`{{ $labels.instance }}`}}
               ist down
             description: >-
-              Interface
+              Physisches Interface
               {{`{{ $labels.device }}`}}
               hat seit 5 min keinen Link.
+              Tailscale-, Docker-, Bridge- und virtuelle Interfaces sind ausgeschlossen.
 
     # ── Kubernetes ──────────────────────────────────────────────────────────
     - name: homeserver.kubernetes
@@ -385,16 +386,21 @@ spec:
     - name: homeserver.kubevirt
       rules:
         - alert: KubeVirtVMNotRunning
-          expr: kubevirt_vmi_phase_count{phase=~"Failed|Unknown"} > 0
+          expr: >-
+            kubevirt_vmi_info{phase=~"failed|unknown"} > 0
           for: 5m
           labels:
             severity: critical
           annotations:
             summary: >-
-              KubeVirt VMI in Phase
+              KubeVirt VMI
+              {{`{{ $labels.name }}`}}
+              in Phase
               {{`{{ $labels.phase }}`}}
             description: >-
-              Eine oder mehrere VMIs befinden sich in Phase
+              VMI
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.name }}`}}
+              befindet sich in Phase
               {{`{{ $labels.phase }}`}}.
               Prüfe `kubectl get vmi -A`.
 
