@@ -79,6 +79,7 @@ jobs:
               echo "dirs=" >> "$GITHUB_OUTPUT"
             else
               echo "Changed charts:"
+              # shellcheck disable=SC2086  # intentional word-splitting: one chart per line
               printf '  %s\n' ${changed}
               echo "dirs=${changed}" >> "$GITHUB_OUTPUT"
             fi
