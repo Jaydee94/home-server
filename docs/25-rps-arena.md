@@ -1,4 +1,4 @@
-# rps-arena — Rock-Paper-Scissors Browser-Game
+# rps-arena: Rock-Paper-Scissors Browser-Game
 
 **URL:** http://rps-arena.homeserver
 
@@ -23,10 +23,10 @@ Redis Pod (bundled, same namespace)
   │  PVC: local-path 1Gi
 ```
 
-- **Image:** `ghcr.io/jaydee94/rps-arena` — Renovate hält Tag aktuell
+- **Image:** `ghcr.io/jaydee94/rps-arena`; Renovate hält Tag aktuell
 - **Helm-Chart:** `oci://ghcr.io/jaydee94/charts/rps-arena` (selbe Versionierung)
-- **Redis:** bundled, in-namespace — kein externes Secret nötig
-- **Replica-Count:** 1 — kein Sticky-Session-Middleware erforderlich
+- **Redis:** bundled, in-namespace, kein externes Secret nötig
+- **Replica-Count:** 1, kein Sticky-Session-Middleware erforderlich
 
 ---
 

@@ -1,4 +1,4 @@
-# 14 — Homepage Dashboard
+# 14: Homepage Dashboard
 
 [gethomepage/homepage](https://gethomepage.dev) ist das zentrale Startpage-Dashboard
 des Home Servers.
@@ -25,7 +25,7 @@ Google-/Material-inspiriertes Dark-Theme mit Teal-Akzent:
 
 - `theme: dark` (fest), `color: teal`, `headerStyle: clean`, `iconStyle: color`
 - **Angepasstes Raster:** Cluster `columns: 3`, Media `columns: 2`, NAS + Tools `columns: 4`
-- **Gleich hohe Karten:** `useEqualHeights: true` — verhindert unterschiedlich
+- **Gleich hohe Karten:** `useEqualHeights: true`, verhindert unterschiedlich
   große Kacheln (Karten mit Widget wären sonst höher als Karten ohne)
 - Zentrierte Inhaltsspalte (kein `fullWidth`), Google-Suche + Quick Launch
 
@@ -35,7 +35,7 @@ Der Google-/Material-Feinschliff (Roboto-Schrift, dezenter Hintergrund-Verlauf,
 weiche Material-Schatten + Hover-Lift, betonte Suchleiste) liegt in der ConfigMap
 `homepage-custom-css` (`argocd/apps/homepage/templates/configmap-custom-css.yaml`)
 und wird über `homepage.persistence.customcss` nach `/app/config/custom.css`
-gemountet — homepage lädt die Datei automatisch.
+gemountet; homepage lädt die Datei automatisch.
 
 ## Widget-Credentials rotieren
 
@@ -104,23 +104,23 @@ Nach Änderungen: `make argocd` ausführen.
 
 - **Cross-namespace Secrets:** Kubernetes erlaubt kein `envFrom` über Namespace-Grenzen.
   Grafana-PW und ArgoCD-Token müssen als eigenes SealedSecret im Namespace `homepage`
-  existieren — nicht aus `monitoring` oder `argocd` referenzierbar.
+  existieren, nicht aus `monitoring` oder `argocd` referenzierbar.
 - **HOMEPAGE_ALLOWED_HOSTS:** Ohne diese Env-Var schlägt der Kubernetes-Liveness-Probe fehl.
   Gesetzt in `values.yaml` unter `env:`.
 - **Grafana intern:** Widget-URL ist `http://monitoring-grafana.monitoring.svc.cluster.local`
-  — kein Umweg über den Ingress, kein Passwort-Prompt.
+  (kein Umweg über den Ingress, kein Passwort-Prompt).
 - **ArgoCD intern:** Widget-URL ist `http://argocd-server.argocd.svc.cluster.local`.
 - **Icons:** Eingebaute Icons (z.B. `grafana.svg`, `jellyfin.svg`) ohne Pfad angeben.
   Für alle anderen: `mdi-<name>` (Material Design Icons, immer verfügbar) bevorzugen.
-  CDN-URLs von walkxcode/dashboard-icons und selfhst/icons liefern häufig 403 — nicht verwenden.
+  CDN-URLs von walkxcode/dashboard-icons und selfhst/icons liefern häufig 403, nicht verwenden.
 - **Custom-CSS greift nicht / veraltet:** ConfigMap-Änderungen lösen je nach
   Chart-Version keinen Pod-Neustart aus. Dann
   `sudo kubectl -n homepage rollout restart deploy` ausführen. Homepage muss die
   statische Seite neu generieren (Refresh-Icon unten rechts erzwingt das auch).
 - **`.service-card` / `#information-widgets`:** stabile homepage-Selektoren für
-  Custom-CSS (Karten bzw. Header). Hintergrundfarbe liegt auf `body` — der
+  Custom-CSS (Karten bzw. Header). Hintergrundfarbe liegt auf `body`; der
   Inhalts-Wrapper ist transparent, daher greift ein Verlauf auf `body`.
-- **Pi-hole:** Kein manueller DNS-Eintrag nötig — Wildcard `address=/homeserver/<ip>`
+- **Pi-hole:** Kein manueller DNS-Eintrag nötig; der Wildcard-Eintrag `address=/homeserver/<ip>`
   (in `argocd/apps/pihole/values.yaml` → `customDnsEntries`) deckt `home.homeserver`
   automatisch ab.
 - **Feature-Branch:** ArgoCD synct nur `main`. Homepage erscheint erst nach dem Merge des PRs.

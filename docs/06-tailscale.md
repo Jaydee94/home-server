@@ -1,14 +1,12 @@
 # Tailscale-VPN-Guide
 
-Dieses Dokument behandelt Tailscale-Setup, MagicDNS, Subnet-Routing und Client-Konfiguration.
-
 ---
 
 ## Überblick
 
 Tailscale baut ein WireGuard-basiertes Mesh-VPN (ein „tailnet") zwischen allen
 eigenen Geräten. Sobald der Home-Server im Tailnet ist, sind seine Services
-von jedem Tailscale-Gerät erreichbar — ohne Port-Forwarding, ohne Dynamic-DNS,
+von jedem Tailscale-Gerät erreichbar, ohne Port-Forwarding, ohne Dynamic-DNS,
 ohne offene Ports am Router.
 
 ---
@@ -24,10 +22,10 @@ Server, bei denen ein interaktiver Browser-Login nicht passt).
 4. Optionen:
    - **Reusable:** deaktivieren (Single-Use ist sicherer)
    - **Ephemeral:** deaktivieren (Server soll persistent bleiben)
-   - **Tags:** optional — z. B. `tag:homeserver` für ACLs
+   - **Tags:** optional, z. B. `tag:homeserver` für ACLs
    - **Expiry:** vernünftiges Ablaufdatum setzen (oder ganz deaktivieren)
 5. **Generate key**.
-6. Key sofort kopieren — er wird nur einmal angezeigt.
+6. Key sofort kopieren; er wird nur einmal angezeigt.
 
 **Mit Ansible-Vault verschlüsseln** (niemals plaintext speichern):
 
@@ -60,7 +58,7 @@ Nameserver `192.168.178.2`, „Restrict to search domain: `homeserver`".
 Voraussetzung: Subnet-Route `192.168.178.0/24` muss approved und auf dem
 Client aktiv sein (`--accept-routes`). Vollständige Anleitung: [docs/15-pihole.md §4](15-pihole.md).
 
-**Nach Aktivierung — Server-Zugriff:**
+**Nach Aktivierung:**
 
 ```
 # Kurzer Hostname (im Tailnet)
@@ -99,7 +97,7 @@ tailscale ip -4
 # https://login.tailscale.com/admin/machines
 ```
 
-Beispiel — Server-Tailscale-IP `100.101.102.103`:
+Beispiel mit Server-Tailscale-IP `100.101.102.103`:
 
 ```
 http://100.101.102.103:30080    # ArgoCD
@@ -113,7 +111,7 @@ kubectl --server=https://100.101.102.103:6443 get nodes
 ## Subnet-Routing
 
 Subnet-Routing erlaubt anderen Tailscale-Clients, Geräte im **Heim-LAN** zu
-erreichen, auf denen kein Tailscale läuft — z. B. eine NAS, ein Smart-TV
+erreichen, auf denen kein Tailscale läuft, z. B. eine NAS, ein Smart-TV
 oder ein Drucker.
 
 Die Ansible-Rolle konfiguriert den Server so, dass er das eigene Subnetz

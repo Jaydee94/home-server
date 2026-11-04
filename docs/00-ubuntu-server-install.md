@@ -1,7 +1,7 @@
-# Ubuntu Server 26.04 LTS — Installationsleitfaden
+# Ubuntu Server 26.04 LTS: Installationsleitfaden
 
 Dieser Leitfaden beschreibt die Installation von **Ubuntu Server 26.04 LTS** auf
-dem Home-Server. **Server-Variante** (nicht Desktop) — sie ist die unterstützte
+dem Home-Server. **Server-Variante** (nicht Desktop), die unterstützte
 Basis für den k3s-Cluster.
 
 ---
@@ -18,7 +18,7 @@ Basis für den k3s-Cluster.
 
 ---
 
-## Schritt 1 — Ubuntu-Server-ISO herunterladen
+## Schritt 1: Ubuntu-Server-ISO herunterladen
 
 Von der offiziellen Seite:
 
@@ -26,7 +26,7 @@ Von der offiziellen Seite:
 
 > **Ubuntu Server** wählen, nicht Ubuntu Desktop. Aktuelles LTS: **26.04.x**.
 
-Optional, aber empfohlen — SHA256-Summe verifizieren:
+Optional, aber empfohlen: SHA256-Summe verifizieren.
 
 ```bash
 sha256sum ubuntu-26.04.*-live-server-amd64.iso
@@ -35,7 +35,7 @@ sha256sum ubuntu-26.04.*-live-server-amd64.iso
 
 ---
 
-## Schritt 2 — Bootable USB-Stick erstellen
+## Schritt 2: Bootable USB-Stick erstellen
 
 **Linux**
 
@@ -52,14 +52,14 @@ diskutil unmountDisk /dev/diskX
 sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 ```
 
-**Windows** — [Rufus](https://rufus.ie) oder
+**Windows:** [Rufus](https://rufus.ie) oder
 [balenaEtcher](https://www.balena.io/etcher/) nutzen.
 
 > Der USB-Stick wird komplett überschrieben. Device-Pfad doppelt prüfen.
 
 ---
 
-## Schritt 3 — Ubuntu Server installieren
+## Schritt 3: Ubuntu Server installieren
 
 1. Server vom USB-Stick booten (BIOS/UEFI-Taste meist `F2`, `F10`, `F12` oder `Del`).
 2. Durch den Subiquity-Installer klicken:
@@ -69,20 +69,20 @@ sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 | Sprache              | English (vermeidet Locale-Issues)                                      |
 | Tastatur             | Eigenes Layout (z. B. German)                                          |
 | Installationstyp     | **Ubuntu Server** (NICHT *minimized*)                                  |
-| Netzwerk             | DHCP zunächst akzeptieren — statische IP folgt später                  |
+| Netzwerk             | DHCP zunächst akzeptieren (statische IP folgt später)                  |
 | Proxy                | leer lassen                                                            |
 | Mirror               | Default                                                                |
 | Storage              | **Use an entire disk** + **Set up this disk as an LVM group**          |
 | Profile              | Username **`jaydee`** (muss zum Inventory passen)                      |
 | Servername           | **`homeserver`** (muss zu `hostname` in `group_vars/all.yml` passen)   |
 | SSH                  | **Install OpenSSH server** (optional GitHub/Launchpad-Keys importieren)|
-| Featured Snaps       | alles überspringen — Ansible installiert alles Weitere                 |
+| Featured Snaps       | alles überspringen; Ansible installiert alles Weitere                  |
 
 3. Nach dem Reboot den USB-Stick entfernen.
 
 ---
 
-## Schritt 4 — Erster Login & Server-IP finden
+## Schritt 4: Erster Login & Server-IP finden
 
 Nach dem Reboot lokal oder per SSH (falls Key importiert wurde) anmelden:
 
@@ -93,7 +93,7 @@ hostname -I             # Kurzform
 
 ---
 
-## Schritt 5 — SSH-Public-Key vom Control-Rechner pushen
+## Schritt 5: SSH-Public-Key vom Control-Rechner pushen
 
 Auf dem **lokalen** Rechner (von dort wird Ansible laufen):
 
@@ -113,11 +113,11 @@ Bei abweichendem Key-Pfad (z. B. legacy `~/.ssh/id_rsa`) den Eintrag
 
 ---
 
-## Schritt 6 — Statische IP einrichten
+## Schritt 6: Statische IP einrichten
 
 Für einen Server dringend empfohlen.
 
-### Variante A — Ansible erledigt es (empfohlen)
+### Variante A: Ansible erledigt es (empfohlen)
 
 In `ansible/group_vars/all.yml`:
 
@@ -135,7 +135,7 @@ network_dns:
 Die SSH-Session bricht kurz weg, während Netplan neu konfiguriert. Wichtig:
 `ansible_host` im Inventory muss auf die neue IP zeigen (oder vorher schon).
 
-### Variante B — Manuell vor dem Playbook
+### Variante B: Manuell vor dem Playbook
 
 ```bash
 ip link show                              # Interface-Name herausfinden, z. B. eno1
@@ -176,10 +176,10 @@ ssh jaydee@192.168.178.127
 
 ---
 
-## Schritt 7 — Passwortloses sudo
+## Schritt 7: Passwortloses sudo
 
 Ansible braucht `NOPASSWD`-sudo. Ubuntu Server hat das nicht standardmäßig
-aktiv — prüfen und bei Bedarf fixen:
+aktiv. Bei Bedarf fixen:
 
 ```bash
 sudo -n whoami           # sollte "root" liefern, ohne Passwortabfrage
@@ -190,7 +190,7 @@ sudo chmod 0440 /etc/sudoers.d/jaydee
 
 ---
 
-## Schritt 8 — System-Updates
+## Schritt 8: System-Updates
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -199,7 +199,7 @@ sudo reboot
 
 ---
 
-## Bereit für Ansible — Checkliste
+## Bereit für Ansible: Checkliste
 
 - [ ] Ubuntu Server 26.04 LTS installiert (nicht Desktop)
 - [ ] Username ist `jaydee`

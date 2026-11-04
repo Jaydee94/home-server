@@ -15,10 +15,10 @@ the existing Paperless-NGX stack reads it out of
 ```
 
 Push-Notifications für jeden Scan (Erfolg/Fehler) sind eine optionale
-Erweiterung — Setup in [`docs/11-gotify.md`](11-gotify.md).
+Erweiterung. Setup in [`docs/11-gotify.md`](11-gotify.md).
 
 Paperless-NGX, its Postgres and Redis run on the UGREEN NAS and are not
-managed by this playbook — the scanner role only owns the bare-metal
+managed by this playbook; the scanner role only owns the bare-metal
 scanning daemon and the SMB mount that delivers PDFs into the NAS consume
 directory.
 
@@ -132,7 +132,7 @@ few seconds; Paperless-NGX on the NAS picks it up shortly after.
 | Wrong USB perms | `sudo udevadm test $(udevadm info -q path -n /dev/bus/usb/<bus>/<dev>)` |
 | `scan-FAILED-*.failed` in consume | `journalctl -t scanbd-scan --since '1 hour ago'` |
 | ImageMagick PDF refused | check `/etc/ImageMagick-6/policy.xml` for the `ANSIBLE MANAGED — scanner role` block |
-| `scanimage` works as root but not `saned` | `usermod -aG scanner saned` was skipped — re-run `make scanner` |
+| `scanimage` works as root but not `saned` | `usermod -aG scanner saned` was skipped; re-run `make scanner` |
 
 ## 8. Design notes
 
@@ -156,7 +156,7 @@ safe to run on a bare-metal host:
 - **Self-healing.** An hourly `scanner-healthcheck.timer` re-mounts the
   share if it disappears and logs scanner reachability to the journal.
 - **Idempotent ImageMagick patch.** `blockinfile` re-enables PDF/TIFF
-  writes — re-running the role is a no-op instead of an in-place `sed`.
+  writes; re-running the role is a no-op instead of an in-place `sed`.
 - **Optional Gotify push.** App token lives in a `0640 root:scanner`
   env-file, never in the rendered shell script. Setup:
   [`docs/11-gotify.md`](11-gotify.md).

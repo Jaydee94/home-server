@@ -49,7 +49,7 @@ Zugang:
 
 **Warum KubeVirt statt direktem Pod?**
 Tailscale Node-Sharing erfordert einen eigenständigen Tailscale-Node mit
-eigener Identität. Eine VM mit `tailscaled` im Gast erfüllt das — ein
+eigener Identität. Eine VM mit `tailscaled` im Gast erfüllt das; ein
 Kubernetes-Pod würde die Node-IP des k3s-Hosts teilen.
 
 **Warum keine Ingress/Service/MetalLB?**
@@ -146,7 +146,7 @@ noch nicht. Das ist beabsichtigt.
 ## Secrets versiegeln
 
 Die cloud-init-Userdata enthält den **Tailscale Auth Key** und das
-**7DTD-Server-Passwort** — beide müssen versiegelt werden, bevor die VM
+**7DTD-Server-Passwort**: beide müssen versiegelt werden, bevor die VM
 starten kann.
 
 ### Schritt 1: cloud-init-Vorlage ausfüllen
@@ -287,7 +287,7 @@ runcmd:
 
 1. Tailscale Admin Console → **Keys** → **Generate auth key**
 2. Optionen:
-   - **Reusable**: ✅ (reusable — single-use Keys können bei cloud-init-Fehlern nicht wiederholt werden; Expiry auf 90 Tage setzen)
+   - **Reusable**: ✅ (single-use Keys können bei cloud-init-Fehlern nicht wiederholt werden; Expiry auf 90 Tage setzen)
    - **Ephemeral**: ❌ (VM soll dauerhaft im Tailnet bleiben)
    - **Pre-authorized**: ✅
    - **Tags**: `tag:gameserver`
@@ -331,7 +331,7 @@ git push
 
 Nachdem das SealedSecret eingetragen ist und ArgoCD die App gesynct hat,
 verwalten die **CronJobs** den VM-Lebenszyklus automatisch. `runStrategy: Halted`
-bleibt der Git-Default — ArgoCD ignoriert Laufzeit-Abweichungen dieses Felds
+bleibt der Git-Default; ArgoCD ignoriert Laufzeit-Abweichungen dieses Felds
 (`ignoreDifferences` in `root-applicationset.yaml`).
 
 **Sofortstart (on-demand):**
@@ -349,7 +349,7 @@ ssh jaydee@192.168.178.127 \
 ```
 
 **Geplanter Betrieb:** Die CronJobs starten die VM jeden Mittwoch um 20:00 Uhr
-und stoppen sie um 00:00 Uhr (Donnerstag) automatisch — kein manueller Eingriff
+und stoppen sie um 00:00 Uhr (Donnerstag) automatisch, kein manueller Eingriff
 nötig. Siehe [Zeitplan & Scheduling](#zeitplan--scheduling).
 
 Nach dem Start läuft cloud-init durch (~5–10 Minuten für Pakete + 7DTD-Download).
@@ -610,7 +610,7 @@ VM-seitige Voraussetzungen:
    ```
 3. **Stock-TFP-Mods einmalig nach `/opt/7dtd/mods` seeden.** Der Bind-Mount
    `/opt/7dtd/mods → serverfiles/Mods` überdeckt die mitgelieferten Mods
-   (`0_TFP_Harmony` — zwingend für DLL-Mods —, `TFP_CommandExtensions`,
+   (`0_TFP_Harmony`, zwingend für DLL-Mods, `TFP_CommandExtensions`,
    `TFP_MapRendering`, `TFP_WebServer`, `Xample_MarkersMod`). Nach dem ersten
    Install einmalig:
    ```bash
@@ -623,7 +623,7 @@ VM-seitige Voraussetzungen:
 
 **Symptom:** In der Gameserver-UI (`/config`) oder direkt in
 `/opt/7dtd/config/serverconfig.xml` gesetzte Werte (z. B. `EACEnabled=false`,
-ServerName, Multiplikatoren) haben keinen Effekt — der Server läuft mit
+ServerName, Multiplikatoren) haben keinen Effekt; der Server läuft mit
 Stock-Defaults (z. B. EAC an, ServerName „My Game Host").
 
 **Ursache:** Zwei verkettete Fehler:

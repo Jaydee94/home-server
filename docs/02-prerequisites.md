@@ -55,7 +55,7 @@ ssh -V
 - **Server-Variante** (kein Desktop)
 - Mindestens **4 GB RAM** (Referenz: 32 GB)
 - Mindestens **20 GB Disk** (Referenz: 512 GB NVMe-SSD)
-- Netzwerk-Anbindung (DHCP oder statische IP — statisch empfohlen)
+- Netzwerk-Anbindung (DHCP oder statische IP, statisch empfohlen)
 - Non-Root-User mit `sudo`-Rechten (Ubuntu-Default: `ubuntu`)
 
 ### SSH-Key-Authentifizierung
@@ -104,7 +104,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "python3 --version"
 
 ArgoCD zieht die Manifests aus einem Git-Repository. Möglichkeiten:
 
-- **Dieses Repository selbst** (empfohlen — am einfachsten)
+- **Dieses Repository selbst** (empfohlen, am einfachsten)
 - Ein separates privates Repository
 
 Das Repository muss **öffentlich** sein oder ArgoCD mit Credentials für
@@ -134,7 +134,7 @@ Die `ansible/requirements.yml` liefert:
 
 ## Pre-flight-Checks
 
-Vor dem Playbook-Run alle Punkte abhaken — alle sollten grün sein.
+Vor dem Playbook-Run alle Punkte abhaken; alle sollten grün sein.
 
 ### 1. SSH-Verbindung
 
@@ -215,7 +215,7 @@ grep "tailscale_auth_key:" ansible/group_vars/all.yml
 
 ## Optional: Statische IP
 
-Für einen Server ist eine statische IP dringend empfohlen — vor dem Ansible-Run
+Für einen Server ist eine statische IP dringend empfohlen, vor dem Ansible-Run
 konfigurieren.
 
 Auf Ubuntu 26.04 (netplan):

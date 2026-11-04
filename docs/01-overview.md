@@ -1,6 +1,6 @@
 # Architektur-Überblick
 
-Dieses Dokument beschreibt die High-Level-Architektur des Home-Server-Setups.
+High-Level-Architektur des Home-Server-Setups.
 
 ---
 
@@ -160,13 +160,13 @@ ArgoCD beobachtet das Git-Repository und gleicht den Cluster-State mit dem
 gewünschten YAML-State ab. Wird per Helm-Chart in den `argocd`-Namespace deployt.
 
 Der **ApplicationSet**-Controller erlaubt dynamisches Erzeugen von Applications
-aus Verzeichnis-Patterns — neues Verzeichnis unter `argocd/apps/` anlegen,
+aus Verzeichnis-Patterns: Ein neues Verzeichnis unter `argocd/apps/` anlegen,
 pushen, ArgoCD erzeugt automatisch eine neue Application und synct sie.
 
 ### Tailscale (VPN)
 
 Tailscale liefert ein WireGuard-basiertes Mesh-VPN. Der Home-Server wird
-zum Knoten im eigenen Tailscale-Netz — alle Services sind von jedem
+zum Knoten im eigenen Tailscale-Netz, alle Services sind von jedem
 Tailscale-Gerät per MagicDNS-Hostname oder Tailscale-IP erreichbar, ohne
 Portfreigaben am Router.
 
@@ -179,8 +179,8 @@ werden über `Ingress`-Resourcen oder Traefiks `IngressRoute`-CRD exponiert.
 
 DNS macht **Pi-hole** als einziger Resolver (`argocd/apps/pihole/`, in k3s auf
 der MetalLB-IP `192.168.178.2`). Es löst die `*.homeserver`-Wildcard autoritativ
-auf (`address=/homeserver/192.168.178.127`) — so erreichst du Apps als
-`grafana.homeserver`, `argocd.homeserver` etc. — und blockt netzwerkweit
+auf (`address=/homeserver/192.168.178.127`), so dass Apps als
+`grafana.homeserver`, `argocd.homeserver` etc. erreichbar sind. Es blockt netzwerkweit
 Werbung/Tracker. Das frühere Host-`dnsmasq` wurde abgelöst; der Host selbst
 fragt Pi-hole über die `host_dns`-Rolle (systemd-resolved → `.2`, FritzBox als
 Fallback). Setup, FritzBox- und Tailscale-Schritte:
@@ -253,7 +253,7 @@ die UI ist nach dem ersten Playbook-Run sofort einsatzbereit.
 
 ## Security-Modell
 
-- **Keine Ports ins Internet** — Remote-Zugriff ausschließlich über Tailscale.
+- **Keine Ports ins Internet:** Remote-Zugriff ausschließlich über Tailscale.
 - **UFW-Firewall** blockt alles, was nicht explizit erlaubt ist.
 - **Tailscale-ACLs** können zusätzlich pro Gerät einschränken, welche Services erreichbar sind.
 - **ArgoCD** hat ausschließlich Read-Access auf das Git-Repo.

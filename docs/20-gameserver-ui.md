@@ -1,4 +1,4 @@
-# 20 — Gameserver-UI
+# 20: Gameserver-UI
 
 Web-Oberfläche zur Verwaltung der 7DTD-KubeVirt-VM unter `http://gameserver.homeserver`.
 
@@ -16,11 +16,11 @@ Browser → Traefik (LAN/Tailnet) → Namespace gameserver-ui
 
 - **Authentifizierung:** Single-Admin, iron-session-Cookie, bcrypt-Hash aus SealedSecret `gameserver-ui-auth`
 - **VM-Steuerung:** PATCH `spec.runStrategy` (`Always` = starten, `Halted` = stoppen)
-- **Container-Neustart:** `POST /api/restart` → `saveworld` + `sudo docker restart 7dtd-server` via SSH (bei Online-Spielern 30 s Broadcast-Countdown). Startet nur den 7DTD-Container neu (nicht die VM) — lädt u. a. neue Mods.
+- **Container-Neustart:** `POST /api/restart` → `saveworld` + `sudo docker restart 7dtd-server` via SSH (bei Online-Spielern 30 s Broadcast-Countdown). Startet nur den 7DTD-Container neu (nicht die VM); lädt u. a. neue Mods.
 - **Spielversion:** `GET /api/version` → Telnet `version` → `parseVersion` (`V 2.6 (b14)`)
-- **Metriken:** VictoriaMetrics-Abfragen via `/api/metrics` — CPU-Auslastung (`kubevirt_vmi_vcpu_seconds_total`) und RAM `X.X / Y.Y GB` (`kubevirt_vmi_memory_resident_bytes` / `kubevirt_vm_resource_requests`)
-- **RBAC:** Cross-Namespace — ServiceAccount im Namespace `gameserver-ui`, Role/RoleBinding im Namespace `gameserver` (nur `get/list` auf VMI, `get/list/patch` auf VM)
-- **Image:** `ghcr.io/jaydee94/gameserver-ui` — Build via GitHub Actions (`.github/workflows/gameserver-ui.yml`), Tag `sha-<short-sha>`
+- **Metriken:** VictoriaMetrics-Abfragen via `/api/metrics`: CPU-Auslastung (`kubevirt_vmi_vcpu_seconds_total`) und RAM `X.X / Y.Y GB` (`kubevirt_vmi_memory_resident_bytes` / `kubevirt_vm_resource_requests`)
+- **RBAC:** Cross-Namespace: ServiceAccount im Namespace `gameserver-ui`, Role/RoleBinding im Namespace `gameserver` (nur `get/list` auf VMI, `get/list/patch` auf VM)
+- **Image:** `ghcr.io/jaydee94/gameserver-ui`; Build via GitHub Actions (`.github/workflows/gameserver-ui.yml`), Tag `sha-<short-sha>`
 
 ## Seal-Prozedur
 
@@ -56,7 +56,7 @@ SEALED_HASH=$(echo -n "$HASH" | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 
 #    sealedSecret.encryptedAdminPasswordHash: "<SEALED_HASH>"
 ```
 
-Anschließend committen und pushen — ArgoCD synct automatisch.
+Anschließend committen und pushen; ArgoCD synct automatisch.
 
 ## Image-Tag pinnen
 
@@ -89,7 +89,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
 
 ### 502 vom /api/vm-Endpunkt
 
-RBAC-Problem — ServiceAccount hat keine Berechtigung auf die KubeVirt-Ressourcen:
+RBAC-Problem: ServiceAccount hat keine Berechtigung auf die KubeVirt-Ressourcen:
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
@@ -129,12 +129,12 @@ ob diese beiden Mechanismen noch greifen.
 und 7DTD lädt aus `serverfiles/Mods`. Zwei VM-seitige Voraussetzungen müssen
 erfüllt sein (in `docs/19-gameserver.md` cloud-init verankert):
 
-1. **`unzip` installiert** — sonst `502` mit `sudo: unzip: command not found`.
+1. **`unzip` installiert**: sonst `502` mit `sudo: unzip: command not found`.
    Live nachinstallieren: `sudo apt-get install -y unzip`.
 2. **Bind-Mount `/opt/7dtd/mods → /home/sdtdserver/serverfiles/Mods`** in
-   `/opt/7dtd/docker-compose.yml` — sonst landet der Mod zwar auf dem Host, kommt
+   `/opt/7dtd/docker-compose.yml`; sonst landet der Mod zwar auf dem Host, kommt
    aber nie im Container an. Volume ergänzen, dann `cd /opt/7dtd && sudo docker
-   compose up -d` (Recreate, nicht nur `restart` — neue Mounts greifen erst beim
+   compose up -d` (Recreate, nicht nur `restart`; neue Mounts greifen erst beim
    Recreate). Mod-Pfad laut vinanrra „Manual Mods": `serverfiles/Mods/<ModName>/`.
 
 Verifikation: Upload → `200`, Mod in der Liste, im Container sichtbar via
@@ -162,11 +162,11 @@ Verifikation: Upload → `200`, Mod in der Liste, im Container sichtbar via
 | Seite | Pfad | Funktion |
 |---|---|---|
 | Dashboard | `/` | VM-Status, CPU/RAM/Version-Kacheln, Horde-Night-Countdown, Starten/Stoppen/**Neustarten** (Container-Restart) |
-| Logs | `/logs` | Live-Logs (`docker logs -f --since <Container-Start> --tail=2000 7dtd-server`, == LinuxGSM `sdtdserver-console.log`) — zeigt nur den **aktuellen** Server-Start (frühere Boots gefiltert via `.State.StartedAt`); mit Suche, Pause, Kopieren, Download; Toggle „Verbindungs-Logs" blendet Telnet-Polling-Rauschen aus (Default aus) |
+| Logs | `/logs` | Live-Logs (`docker logs -f --since <Container-Start> --tail=2000 7dtd-server`, == LinuxGSM `sdtdserver-console.log`), zeigt nur den **aktuellen** Server-Start (frühere Boots gefiltert via `.State.StartedAt`); mit Suche, Pause, Kopieren, Download; Toggle „Verbindungs-Logs" blendet Telnet-Polling-Rauschen aus (Default aus) |
 | Console | `/console` | Interaktive Telnet-Console zur VM |
-| Config | `/config` | Alle ~70 serverconfig.xml-Settings (V2.6) mit typgerechten Controls (Dropdown/Toggle/Slider/Stepper), gruppiert (Akkordeon) + Suche; Map-Dropdown via `/api/worlds`; „Experten (XML)" für Rohbearbeitung; veraltete/unbekannte Properties (Gruppe „Sonstige") per 🗑 entfernbar. Speichern schreibt XML + Container-Neustart. Schreibt nach `/opt/7dtd/config/serverconfig.xml` — diese Datei MUSS per Bind-Mount auf die vom Server gelesene `serverfiles/sdtdserver.xml` zeigen und vollständig sein, sonst wirken Änderungen nicht bzw. crasht 7DTD (siehe `docs/19` → „Server-Config & Gameserver-UI") |
+| Config | `/config` | Alle ~70 serverconfig.xml-Settings (V2.6) mit typgerechten Controls (Dropdown/Toggle/Slider/Stepper), gruppiert (Akkordeon) + Suche; Map-Dropdown via `/api/worlds`; „Experten (XML)" für Rohbearbeitung; veraltete/unbekannte Properties (Gruppe „Sonstige") per 🗑 entfernbar. Speichern schreibt XML + Container-Neustart. Schreibt nach `/opt/7dtd/config/serverconfig.xml`; diese Datei MUSS per Bind-Mount auf die vom Server gelesene `serverfiles/sdtdserver.xml` zeigen und vollständig sein, sonst wirken Änderungen nicht bzw. crasht 7DTD (siehe `docs/19` → „Server-Config & Gameserver-UI") |
 | Backups | `/backups` | Backup erstellen (mit Retention), Download, Löschen |
-| Mods | `/mods` | Mod-Liste anzeigen/verwalten; „Mods anwenden (Neustart)" lädt hochgeladene Mods via Container-Restart. Stock-Mods (Präfix `0_TFP`/`TFP_`/`Xample_`, z. B. `0_TFP_Harmony`) sind als „System" markiert und vor Löschen geschützt — auch server-seitig (DELETE → 403) |
+| Mods | `/mods` | Mod-Liste anzeigen/verwalten; „Mods anwenden (Neustart)" lädt hochgeladene Mods via Container-Restart. Stock-Mods (Präfix `0_TFP`/`TFP_`/`Xample_`, z. B. `0_TFP_Harmony`) sind als „System" markiert und vor Löschen geschützt, auch server-seitig (DELETE → 403) |
 | Players | `/players` | Online-Spieler mit Session-Dauer |
 
 ## Weiterführend

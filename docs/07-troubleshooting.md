@@ -1,7 +1,5 @@
 # Troubleshooting
 
-Diese Datei sammelt typische Probleme und ihre Lösungen pro Komponente.
-
 ---
 
 ## k3s startet nicht

@@ -1,4 +1,4 @@
-# Pi-hole — netzwerkweiter Werbe-/Tracker-Blocker
+# Pi-hole: netzwerkweiter Werbe-/Tracker-Blocker
 
 [Pi-hole](https://pi-hole.net) läuft als ArgoCD-verwaltete App im k3s-Cluster
 (`argocd/apps/pihole/`) und ist der **einzige DNS-Server** im Heimnetz: Es
@@ -29,11 +29,11 @@ Pi-hole darf **nicht** die Node-IP `:53` über k3s' eingebauten Klipper-LB
 belegen: Klipper bindet den LB-Port als **hostPort auf `0.0.0.0:53`** und
 **kollidiert dann mit dem Host-Resolver** (`systemd-resolved` auf
 `127.0.0.53:53`). Folge wäre ein Node, der nichts mehr auflöst (Image-Pulls,
-eigener Hostname) — ein dokumentierter Fallstrick
+eigener Hostname), ein dokumentierter Fallstrick
 ([k3s networking docs](https://docs.k3s.io/networking/networking-services)).
 
 Deshalb vergibt **MetalLB** (L2/ARP, `argocd/apps/metallb/`) Pi-hole eine
-**eigene, freie LAN-IP** — `192.168.178.2` — und liefert `:53` dorthin per
+**eigene, freie LAN-IP** (`192.168.178.2`) und liefert `:53` dorthin per
 ARP/kube-proxy aus, **ohne** `0.0.0.0:53` am Host zu belegen. Der Host-Resolver
 bleibt unangetastet.
 
@@ -58,7 +58,7 @@ Andernfalls eine andere freie IP wählen und **an vier Stellen** anpassen:
 
 - `argocd/apps/metallb/templates/ipaddresspool.yaml` (`addresses:`)
 - `argocd/apps/pihole/values.yaml` (`serviceDns.loadBalancerIP`)
-- `ansible/group_vars/all.yml` (`pihole_dns_ip` — Host-Resolver)
+- `ansible/group_vars/all.yml` (`pihole_dns_ip`, Host-Resolver)
 - den FritzBox-Schritt unten
 
 ## 1. Erstdeploy
@@ -72,7 +72,7 @@ git push
 ```
 
 ArgoCD entdeckt beide Apps automatisch (~3 min); die Namespaces `metallb` und
-`pihole` werden angelegt. Die App wird **Healthy** — die Web-UI hat per Default
+`pihole` werden angelegt. Die App wird **Healthy**; die Web-UI hat per Default
 **kein Passwort** (der Ingress ist nur im LAN/Tailnet erreichbar). Setze das
 Passwort daher zeitnah (Schritt 1.2).
 
@@ -118,13 +118,13 @@ adminSecret:
 ArgoCD entschlüsselt das Secret; Pi-hole übernimmt das Passwort beim nächsten
 Pod-Start. (Wer `admin.existingSecret` setzt, aber `adminSecret.enabled` auf
 `false` vergisst, bekommt `CreateContainerConfigError`, weil das referenzierte
-Secret dann fehlt — beides zusammen setzen.)
+Secret dann fehlt; beides zusammen setzen.)
 
 ### 1.3 dnsmasq ablösen, Host-Resolver auf Pi-hole umstellen
 
 Erst wenn Pi-hole **Healthy** ist und auf `192.168.178.2:53` antwortet (sonst
 fällt der Host bis dahin ohnehin sauber auf die FritzBox zurück), die
-`host_dns`-Rolle laufen lassen — sie entfernt das alte Host-dnsmasq und biegt
+`host_dns`-Rolle laufen lassen; sie entfernt das alte Host-dnsmasq und biegt
 `systemd-resolved` auf Pi-hole (primär) + FritzBox (Fallback) um:
 
 ```bash
@@ -132,7 +132,7 @@ make host-dns
 ```
 
 Danach prüfen, dass der Host weiter auflöst (siehe Verifikation §2). `*.homeserver`
-löst jetzt Pi-hole auf — wenn Pi-hole/k3s mal down ist, behält der Host über die
+löst jetzt Pi-hole auf. Wenn Pi-hole/k3s mal down ist, behält der Host über die
 FritzBox Internet, nur `*.homeserver` schlägt bis zur Erholung fehl.
 
 ### 1.4 FritzBox auf Pi-hole zeigen
@@ -140,12 +140,12 @@ FritzBox Internet, nur `*.homeserver` schlägt bis zur Erholung fehl.
 **Heimnetz → Netzwerk → Netzwerkeinstellungen → IPv4-Adressen** →
 Feld **„Lokaler DNS-Server"** auf `192.168.178.2` setzen, speichern.
 
-Clients übernehmen die Änderung erst beim nächsten DHCP-Lease-Renew — am
+Clients übernehmen die Änderung erst beim nächsten DHCP-Lease-Renew, am
 schnellsten durch kurzes Trennen/Neuverbinden des Netzwerks.
 
 > **Bewusster Tradeoff:** Damit wird Pi-hole zum primären DNS für das ganze
 > LAN. Die FritzBox kann per DHCP nur **eine** DNS-IP verteilen, es gibt also
-> keinen automatischen Client-Fallback — fällt Pi-hole (bzw. der Home-Server)
+> keinen automatischen Client-Fallback. Fällt Pi-hole (bzw. der Home-Server)
 > aus, ist LAN-DNS weg. Das ist dieselbe SPOF-Klasse wie der restliche Stack,
 > der ohnehin auf diesem einen Node läuft. Schnelles Rollback: Feld wieder
 > leeren (siehe unten).
@@ -181,7 +181,7 @@ Per-Client-Test: an einem Client nach dem Lease-Renew `nslookup doubleclick.net`
 - **DNS-Service bleibt `<pending>`** → MetalLB-Controller/Speaker prüfen
   (`kubectl -n metallb get pods`); IPAddressPool vorhanden? `.2` außerhalb des
   DHCP-Bereichs? Bei frischem Deploy kann der Validating-Webhook von MetalLB
-  beim ersten Sync zu spät sein — ArgoCD-Retry (`sync-wave 1`) konvergiert das,
+  beim ersten Sync zu spät sein; ArgoCD-Retry (`sync-wave 1`) konvergiert das,
   notfalls App in ArgoCD manuell *Sync*en.
 - **Pod `CreateContainerConfigError`** → `admin.existingSecret: pihole-admin`
   gesetzt, aber `adminSecret.enabled` noch `false` (Secret wird nicht gerendert)
@@ -224,19 +224,19 @@ Per-Client-Test: an einem Client nach dem Lease-Renew `nslookup doubleclick.net`
 - Jedes Gerät braucht „Use Tailscale subnets" / `--accept-routes` aktiv —
   sonst ist `192.168.178.2` außerhalb des Heim-LANs nicht erreichbar.
 
-**Einrichtung** ([Tailscale-Konsole → DNS](https://login.tailscale.com/admin/dns)) —
+**Einrichtung** ([Tailscale-Konsole → DNS](https://login.tailscale.com/admin/dns)),
 zwei Varianten:
 
-- **Variante A — nur `.homeserver` (minimal):** Nameserver `192.168.178.2`
+- **Variante A: nur `.homeserver` (minimal):** Nameserver `192.168.178.2`
   **mit** „Restrict to search domain" = `homeserver`. Internet-DNS bleibt am
   Gerät, nur `.homeserver` geht an Pi-hole. Kein Remote-Adblocking, aber Pi-hole
   ist kein SPOF fürs allgemeine Surfen unterwegs.
-- **Variante B — alles über Pi-hole (inkl. Remote-Adblocking):** Nameserver
+- **Variante B: alles über Pi-hole (inkl. Remote-Adblocking):** Nameserver
   `192.168.178.2` **ohne** Restrict (= global) + **„Override local DNS"**.
   Adblocking auch unterwegs, aber die komplette Auflösung hängt dann an Pi-hole.
 
 Tailscale tunnelt DNS-Anfragen an einen per Subnet-Router erreichbaren privaten
-Nameserver über WireGuard — `192.168.178.2` als Nameserver funktioniert also,
+Nameserver über WireGuard; `192.168.178.2` als Nameserver funktioniert also,
 solange die Subnet-Route approved und auf dem Client akzeptiert ist.
 
 **Stolpersteine (damit nichts schiefgeht):**
@@ -246,10 +246,10 @@ solange die Subnet-Route approved und auf dem Client akzeptiert ist.
   „use this nameserver even when an exit node is in use" aktivieren, sonst greift
   Pi-hole dort nicht.
 - **Per-Client-Stats gehen remote verloren (SNAT):** Der Subnet-Router maskiert
-  weitergeleiteten Traffic per Default — Pi-hole sieht alle Remote-Anfragen mit
+  weitergeleiteten Traffic per Default, Pi-hole sieht alle Remote-Anfragen mit
   der LAN-IP des Home-Servers als *einen* Client. Wer echte Per-Client-Stats
   will, setzt am Server `tailscale up … --snat-subnet-routes=false` (Linux-only)
-  und muss dann Rückrouten einrichten — für den Heim-Use-Case meist nicht den
+  und muss dann Rückrouten einrichten; für den Heim-Use-Case meist nicht den
   Aufwand wert.
 - **DNS-Rebinding-Schutz:** Manche Resolver/Setups blocken private IPs in
   DNS-Antworten. Falls `*.homeserver` über Tailscale `NXDOMAIN`/`0.0.0.0`
@@ -277,12 +277,12 @@ nslookup doubleclick.net     # → geblockt (nur Variante B)
 - **Schnell (Clients zurück auf FritzBox-DNS):** FritzBox-Feld „Lokaler
   DNS-Server" wieder leeren. Tailscale-Nameserver in der Konsole entfernen.
 - **Host-Resolver:** Da `host_dns` das alte dnsmasq entfernt hat, ist ein
-  vollständiger Rollback nicht nur ein `git revert` — die alte `dnsmasq`-Rolle
+  vollständiger Rollback nicht nur ein `git revert`; die alte `dnsmasq`-Rolle
   muss zurückgeholt und `make host-dns`/`make dnsmasq` erneut gelaufen werden,
   um dnsmasq wieder zu installieren. Für einen reinen Pi-hole-Stopp reicht es,
   den Host-Resolver provisorisch auf die FritzBox zu zeigen
   (`/etc/systemd/resolved.conf.d/host-dns.conf`: `DNS=192.168.178.1`,
   `resolvectl flush-caches`).
 - **Apps entfernen:** Verzeichnisse `argocd/apps/pihole/` und
-  `argocd/apps/metallb/` löschen, committen, pushen — ArgoCD entfernt beide
+  `argocd/apps/metallb/` löschen, committen, pushen; ArgoCD entfernt beide
   Apps automatisch (prune).

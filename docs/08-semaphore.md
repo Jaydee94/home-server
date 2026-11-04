@@ -1,14 +1,14 @@
-# Semaphore UI — One-Click Ansible für deine Heimnetz-Targets
+# Semaphore UI: One-Click Ansible für deine Heimnetz-Targets
 
 Semaphore ist eine schlanke Web UI, die deine Ansible-Repos ausschert,
 gegen ein gewähltes Inventory laufen lässt und dir das Live-Log im Browser
 zeigt. In diesem Setup läuft Semaphore als Pod im k3s-Cluster auf dem
-Home Server und wird über ArgoCD gepflegt — du fasst nach dem Erst-Setup
+Home Server und wird über ArgoCD gepflegt; du fasst nach dem Erst-Setup
 nie wieder eine YAML-Datei an, um eine neue Aktion auszulösen.
 
 ## Was du am Ende hast
 
-- **`http://semaphore.homeserver`** im LAN und im Tailnet — Pi-hole
+- **`http://semaphore.homeserver`** im LAN und im Tailnet; Pi-hole
   löst `*.homeserver` autoritativ auf (`address=/homeserver/192.168.178.127`).
   ([DNS-Architektur und Tailscale Split DNS → docs/09-dns-architecture.md](09-dns-architecture.md))
 - Ein-Klick-Run von Playbooks aus beliebigen Git-Repos
@@ -58,7 +58,7 @@ Der `semaphore-bootstrap` Secret im Namespace `semaphore` hält:
 | `admin_password`          | Auto-generiert, liegt unter `/etc/semaphore-secrets/admin_password` |
 | `access_key_encryption`   | 32-byte base64, verschlüsselt Semaphores DB-Secrets |
 | `ansible_vault_password`  | Dein Master-Vault-Password (erforderlich)   |
-| `ssh_private_key`         | Ed25519-Key — Semaphore SSH-t damit raus    |
+| `ssh_private_key`         | Ed25519-Key; Semaphore SSH-t damit raus     |
 | `ssh_public_key`          | Gegenstück, wird auf die Targets verteilt   |
 
 ## Erst-Setup (einmalig, ~5 Min)
@@ -135,7 +135,7 @@ kubectl -n semaphore get pods,svc,ingress
 ## Projekte werden automatisch angelegt
 
 Nach `make install` (genauer: nach der Rolle `semaphore_bootstrap`) sind in
-Semaphore **zwei Projekte schon vollständig konfiguriert** — Key Store,
+Semaphore **zwei Projekte schon vollständig konfiguriert**: Key Store,
 Repository, Inventory und Task Template inklusive. Du musst in der UI
 nichts mehr klicken außer ▶ **Run**.
 
@@ -194,7 +194,7 @@ semaphore_projects:
 
 Schedules werden in der Zeitzone `Europe/Berlin` ausgewertet (via `SEMAPHORE_SCHEDULE_TIMEZONE` im Semaphore-Deployment). Das Cron-Format ist Standard-5-Feld. Das Auto-Bootstrap ist idempotent: bei jedem `make semaphore-bootstrap` wird ein vorhandener Schedule per PUT aktualisiert (self-healing).
 
-**Wichtig:** das Auto-Bootstrap ist vollständig **idempotent** — Ressourcen werden
+**Wichtig:** das Auto-Bootstrap ist vollständig **idempotent**: Ressourcen werden
 bei jedem Run via PUT aktualisiert (self-healing). Ein manuelles Löschen in der UI
 ist nicht nötig. Einzige Ausnahme: Umbenennen eines Projekts/Inventories/Templates
 erzeugt einen Orphan-Eintrag, der beim nächsten Run automatisch gelöscht wird.
@@ -202,7 +202,7 @@ erzeugt einen Orphan-Eintrag, der beim nächsten Run automatisch gelöscht wird.
 ## Manuelles Anlegen (Fallback / ad-hoc)
 
 > ⚠️ **Warnung:** Manuell in der UI angelegte Projekte werden beim nächsten
-> `make semaphore-bootstrap` **kommentarlos gelöscht** — der Bootstrap entfernt
+> `make semaphore-bootstrap` **kommentarlos gelöscht**: der Bootstrap entfernt
 > alle Projekte, die nicht in `semaphore_projects` (`group_vars/all.yml`) definiert
 > sind. Für persistente Projekte immer `semaphore_projects` erweitern.
 
@@ -211,7 +211,7 @@ du es per UI anlegen:
 
 1. **Create New Project** → Name vergeben.
 2. **Key Store**:
-   - `semaphore-ssh-key` (Type *SSH Key*) — Inhalt aus
+   - `semaphore-ssh-key` (Type *SSH Key*): Inhalt aus
      `/etc/semaphore-secrets/id_ed25519` einfügen.
    - `git-none` (Type *None*) für öffentliche Repos.
 3. **Repository** → URL, Branch, Access Key = `git-none`.
@@ -227,7 +227,7 @@ du es per UI anlegen:
 - **Neuer Target-Host**: in `ansible/inventory/hosts.yml` eintragen,
   `make semaphore-targets` laufen lassen. Der Public Key landet
   automatisch in dessen `authorized_keys`. In der Semaphore-Inventory
-  ergänzen — fertig.
+  ergänzen, fertig.
 - **SSH-Key rotieren**: `sudo rm -rf /etc/semaphore-secrets/id_ed25519*`
   auf dem Home-Server, `make semaphore && make semaphore-targets` neu
   laufen lassen. Dann Key in Semaphore Key Store einmal neu pasten.
@@ -239,8 +239,8 @@ du es per UI anlegen:
 
 | Symptom                           | Check                                                                  |
 |-----------------------------------|------------------------------------------------------------------------|
-| `semaphore.homeserver` löst nicht | Pi-hole läuft? `dig @192.168.178.2 semaphore.homeserver` — der Wildcard-Eintrag `address=/homeserver/192.168.178.127` in `argocd/apps/pihole/values.yaml` deckt alle `*.homeserver`-Namen ab. Tailscale: Split DNS auf `192.168.178.2` zeigen (siehe §Tailscale oben). |
-| Pod CrashLoopBackOff              | `kubectl -n semaphore logs deploy/semaphore` — meist fehlt das Bootstrap-Secret |
-| Playbook scheitert mit "Permission denied (publickey)" | `make semaphore-targets` lief nicht — Public Key fehlt in authorized_keys auf dem Ziel |
+| `semaphore.homeserver` löst nicht | Pi-hole läuft? `dig @192.168.178.2 semaphore.homeserver`. Der Wildcard-Eintrag `address=/homeserver/192.168.178.127` in `argocd/apps/pihole/values.yaml` deckt alle `*.homeserver`-Namen ab. Tailscale: Split DNS auf `192.168.178.2` zeigen (siehe §Tailscale oben). |
+| Pod CrashLoopBackOff              | `kubectl -n semaphore logs deploy/semaphore`; meist fehlt das Bootstrap-Secret |
+| Playbook scheitert mit "Permission denied (publickey)" | `make semaphore-targets` lief nicht; Public Key fehlt in authorized_keys auf dem Ziel |
 | Vault-Passwort wird nicht erkannt | `semaphore_vault_password` ist leer oder mit falschem PW verschlüsselt; sicherstellen dass `ANSIBLE_VAULT_PASSWORD_FILE` im Semaphore Default-Environment gesetzt ist (wird ab Bootstrap automatisch injiziert) |
 | `semaphore-bootstrap` failt beim Login | Admin-PW in der UI geändert ohne `/etc/semaphore-secrets/admin_password` zu syncen, oder PVC enthält noch alte DB. Fix: PW dort hinterlegen oder PVC neu (löscht alle Projekte!). |

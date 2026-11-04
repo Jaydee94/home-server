@@ -7,14 +7,14 @@ Schritt-für-Schritt-Anleitung, um den Home-Server von Null aus zu provisioniere
 ## Überblick
 
 Die komplette Installation wird durch einen einzigen Ansible-Playbook-Run
-erledigt. Dieser Leitfaden begleitet jeden Schritt — vom Repo-Clone bis zur
+erledigt. Dieser Leitfaden begleitet jeden Schritt, vom Repo-Clone bis zur
 Verifikation eines lauffähigen Clusters mit ArgoCD und Tailscale.
 
 **Dauer:** ca. 15–25 Minuten (mehrheitlich Downloads).
 
 ---
 
-## Schritt 1 — Repository klonen
+## Schritt 1: Repository klonen
 
 ```bash
 git clone https://github.com/Jaydee94/home-server.git
@@ -25,7 +25,7 @@ Bei einem Fork stattdessen die URL des Forks verwenden.
 
 ---
 
-## Schritt 2 — Inventory konfigurieren (Server-IP setzen)
+## Schritt 2: Inventory konfigurieren (Server-IP setzen)
 
 Inventory-Datei öffnen und die Platzhalter-IP durch die tatsächliche IP des Servers ersetzen:
 
@@ -56,7 +56,7 @@ ansible -i ansible/inventory/hosts.yml homeserver -m ping
 
 ---
 
-## Schritt 3 — Variablen setzen
+## Schritt 3: Variablen setzen
 
 Variablendatei öffnen und alle Werte durchgehen:
 
@@ -84,20 +84,20 @@ $EDITOR ansible/group_vars/all.yml
 | `helm_version`              | `""` (leer)   | Leer ⇒ neuestes Helm 3                                                 |
 | `argocd_version`            | `""` (leer)   | Leer ⇒ neuestes Argo-Helm-Chart                                        |
 | `hostname`                  | `homeserver`  | Hostname des Servers                                                   |
-| `pihole_dns_ip`             | `192.168.178.2` | MetalLB-IP für Pi-hole DNS — muss außerhalb des FritzBox-DHCP-Bereichs liegen |
+| `pihole_dns_ip`             | `192.168.178.2` | MetalLB-IP für Pi-hole DNS, muss außerhalb des FritzBox-DHCP-Bereichs liegen  |
 | `semaphore_vault_password`  | Vault-Block   | Ansible-Vault-Passwort, das Semaphore zur Laufzeit zum Decrypten nutzt |
-| `scanner_usb_vendor_id` / `scanner_usb_product_id` | leer | USB-IDs aus `lsusb` — Pflicht, wenn die Scanner-Rolle aktiv ist     |
+| `scanner_usb_vendor_id` / `scanner_usb_product_id` | leer | USB-IDs aus `lsusb` (Pflicht, wenn die Scanner-Rolle aktiv ist)     |
 | `scanner_smb_share` / `scanner_smb_username` / `scanner_smb_password` | — | NAS-Share + Creds für das Paperless-`consume`-Verzeichnis    |
 | `scanner_gotify_enabled`    | `false`       | Gotify-Push-Notifications aus der Scan-Pipeline ein/aus                |
 | `scanner_gotify_url` / `scanner_gotify_token` | — | Gotify-Endpoint + (vault-verschlüsselter) App-Token                  |
 | `gotify_admin_password`     | Vault-Block   | Optional: Gotify-Admin-Passwort als Vault-Eintrag aufbewahren          |
 
 > **Tipp.** `auto_upgrade: false` setzen, wenn Reproduzierbarkeit wichtig ist
-> (CI, Lab-Snapshots) — Ansible installiert dann nur fehlende Pakete und respektiert alle Pins.
+> (CI, Lab-Snapshots): Ansible installiert dann nur fehlende Pakete und respektiert alle Pins.
 
 ---
 
-## Schritt 4 — Tailscale-Auth-Key mit Ansible-Vault verschlüsseln
+## Schritt 4: Tailscale-Auth-Key mit Ansible-Vault verschlüsseln
 
 **Niemals den Auth-Key im Klartext committen.** Stattdessen mit Ansible-Vault verschlüsseln.
 
@@ -113,7 +113,7 @@ $EDITOR ansible/group_vars/all.yml
 ansible-vault encrypt_string 'tskey-auth-DEIN_AUTH_KEY' --name 'tailscale_auth_key'
 ```
 
-Beim ersten Mal wird ein Vault-Passwort vergeben. **Dieses Passwort merken** —
+Beim ersten Mal wird ein Vault-Passwort vergeben. **Dieses Passwort merken:**
 es wird bei jedem Playbook-Run abgefragt.
 
 3. Das Kommando liefert etwas wie:
@@ -139,7 +139,7 @@ grep -A5 "tailscale_auth_key:" ansible/group_vars/all.yml
 
 ---
 
-## Schritt 5 — Ansible-Requirements installieren
+## Schritt 5: Ansible-Requirements installieren
 
 Galaxy-Collections auf der Control-Machine installieren:
 
@@ -149,9 +149,9 @@ ansible-galaxy collection install -r ansible/requirements.yml
 
 Installiert:
 
-- `ansible.posix` — POSIX-System-Module
-- `community.general` — erweiterte Community-Module
-- `kubernetes.core` — Kubernetes-/Helm-Module
+- `ansible.posix`: POSIX-System-Module
+- `community.general`: erweiterte Community-Module
+- `kubernetes.core`: Kubernetes-/Helm-Module
 
 Verifizieren:
 
@@ -161,9 +161,9 @@ ansible-galaxy collection list | grep -E "ansible.posix|community.general|kubern
 
 ---
 
-## Schritt 6 — Playbook ausführen
+## Schritt 6: Playbook ausführen
 
-Einfachster Weg — Makefile:
+Einfachster Weg:
 
 ```bash
 make install            # ruft `ansible-galaxy install` + das Playbook auf
@@ -182,18 +182,18 @@ Vault-Passwort eingeben, wenn abgefragt.
 
 **Was das Playbook tut (in Reihenfolge):**
 
-1. **common** (~3 min) — APT-Updates, UFW-Firewall, Kernel-Parameter, Swap-off, chrony NTP.
-2. **host_dns** (~30 s) — Entfernt dnsmasq, konfiguriert `systemd-resolved` so dass der Host Pi-hole (`.2`) als primären Resolver nutzt (FritzBox als Fallback).
-3. **tailscale** (~1 min) — Installiert Tailscale, joint das Tailnet mit dem vault-verschlüsselten Auth-Key.
-4. **k3s** (~5 min) — Installiert k3s, schreibt die kubeconfig, installiert Helm.
-5. **argocd** (~10 min) — Deployt ArgoCD per Helm-Chart und appliziert das Root-`ApplicationSet`.
-6. **scanner** (~2 min) — Installiert `sane` + `scanbd`, mountet die NAS per CIFS, verdrahtet den Fujitsu-USB-Scanner (braucht `scanner_usb_vendor_id`/`scanner_usb_product_id`).
-7. **semaphore_secrets** (~30 s) — Rendert das Bootstrap-Secret, das der in-Cluster-Semaphore-Pod liest.
+1. **common** (~3 min): APT-Updates, UFW-Firewall, Kernel-Parameter, Swap-off, chrony NTP.
+2. **host_dns** (~30 s): Entfernt dnsmasq, konfiguriert `systemd-resolved` so dass der Host Pi-hole (`.2`) als primären Resolver nutzt (FritzBox als Fallback).
+3. **tailscale** (~1 min): Installiert Tailscale, joint das Tailnet mit dem vault-verschlüsselten Auth-Key.
+4. **k3s** (~5 min): Installiert k3s, schreibt die kubeconfig, installiert Helm.
+5. **argocd** (~10 min): Deployt ArgoCD per Helm-Chart und appliziert das Root-`ApplicationSet`.
+6. **scanner** (~2 min): Installiert `sane` + `scanbd`, mountet die NAS per CIFS, verdrahtet den Fujitsu-USB-Scanner (braucht `scanner_usb_vendor_id`/`scanner_usb_product_id`).
+7. **semaphore_secrets** (~30 s): Rendert das Bootstrap-Secret, das der in-Cluster-Semaphore-Pod liest.
 
 Im Anschluss an die host-zentrischen Rollen laufen zwei zusätzliche Plays:
 
-8. **semaphore_targets** (~30 s pro Target-Host) — Pusht den Semaphore-SSH-Public-Key in jeden Host der Inventory-Gruppe `semaphore_targets`.
-9. **semaphore_bootstrap** (~1 min) — Spricht die Semaphore-REST-API auf dem Home-Server an und legt Projects, Keys, Repositories, Inventories und Templates idempotent an.
+8. **semaphore_targets** (~30 s pro Target-Host): Pusht den Semaphore-SSH-Public-Key in jeden Host der Inventory-Gruppe `semaphore_targets`.
+9. **semaphore_bootstrap** (~1 min): Spricht die Semaphore-REST-API auf dem Home-Server an und legt Projects, Keys, Repositories, Inventories und Templates idempotent an.
 
 Am Ende druckt das Playbook eine Summary mit den URLs.
 
@@ -217,11 +217,11 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --skip-tags tai
 
 Alle Convenience-Targets siehst du mit `make help`.
 
-**Das Playbook ist vollständig idempotent** — mehrfaches Ausführen ist sicher und führt zu keinen unnötigen Änderungen.
+**Das Playbook ist vollständig idempotent:** mehrfaches Ausführen ist sicher und führt zu keinen unnötigen Änderungen.
 
 ---
 
-## Schritt 7 — Installation verifizieren
+## Schritt 7: Installation verifizieren
 
 Per SSH auf den Server und folgende Kommandos laufen lassen:
 
@@ -280,7 +280,7 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 
 ---
 
-## Schritt 8 — Services nutzen
+## Schritt 8: Services nutzen
 
 ### ArgoCD-Web-UI
 

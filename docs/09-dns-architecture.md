@@ -4,12 +4,10 @@
 > **Pi-hole als einzigen, netzwerkweiten DNS-Server** (auf der MetalLB-IP
 > `192.168.178.2`); das frühere Host-**dnsmasq wurde abgelöst**. Der unten
 > beschriebene „opt-in pro Gerät"-Ansatz ist damit die **historische**
-> Vorgänger-Lösung — die Abwägungen (SPOF, Fritz!Box verteilt nur eine DNS-IP)
+> Vorgänger-Lösung; die Abwägungen (SPOF, Fritz!Box verteilt nur eine DNS-IP)
 > gelten weiter und wurden für Pi-hole **bewusst akzeptiert**. Die maßgebliche,
 > aktuelle Anleitung steht in [`15-pihole.md`](15-pihole.md). Dieses Dokument
 > bleibt als Begründung der Trade-offs erhalten.
-
-Dieses Dokument beantwortet eine sehr berechtigte Frage:
 
 > *"Wenn ich den Home-Server als zentralen DNS-Server für mein LAN
 > eintrage und der mal ausfällt, geht zu Hause das ganze Internet weg.
@@ -17,7 +15,7 @@ Dieses Dokument beantwortet eine sehr berechtigte Frage:
 
 Kurzfassung: **Mach den Home-Server NIEMALS zum einzigen DHCP-DNS-Server
 in der Fritz!Box.** Die Fritz!Box kann per DHCP nur **eine** lokale
-DNS-IP verteilen — es gibt also keinen automatischen Fallback. Stattdessen
+DNS-IP verteilen; es gibt also keinen automatischen Fallback. Stattdessen
 behandelst du `*.homeserver` als *opt-in*-Komfort pro Gerät.
 
 ---
@@ -113,7 +111,7 @@ Probleme gleichzeitig:
 **Setup**: einmaliger Admin-Console-Schritt, beschrieben in
 [docs/08-semaphore.md → Zugriff über Tailscale](08-semaphore.md#zugriff-über-tailscale-einmaliger-admin-schritt).
 
-**Verfügbarkeit**: macOS, Windows, Linux, iOS, Android — überall wo
+**Verfügbarkeit**: macOS, Windows, Linux, iOS, Android, überall wo
 Tailscale läuft, was praktisch jedes moderne Gerät ist.
 
 ### Weg 2: Pro Gerät manuell zweiten DNS-Server eintragen
@@ -145,7 +143,7 @@ Verhalten:
 
 ### Weg 3: `/etc/hosts`-Einträge (Linux/macOS) bzw. `hosts`-Datei (Windows)
 
-Für einzelne, langlebige Hostnamen — wenn du es ganz statisch willst:
+Für einzelne, langlebige Hostnamen (wenn du es ganz statisch willst):
 
 ```
 192.168.178.127  semaphore.homeserver argocd.homeserver headlamp.homeserver
@@ -187,17 +185,17 @@ Fritz!Box → Heimnetz → Netzwerk → Netzwerkeinstellungen →
 
 **Standard: Lass das Feld leer.** Wenn du dort `192.168.178.127` einträgst,
 verteilt die Fritz!Box den Home-Server als einzigen DNS-Server an alle
-LAN-Geräte per DHCP — genau das Single-Point-of-Failure-Szenario, das
+LAN-Geräte per DHCP; genau das Single-Point-of-Failure-Szenario, das
 wir per Default vermeiden wollen.
 
-**Ausnahme — bewusst gewählt: Pi-hole als netzwerkweiter Blocker.** Wer
+**Ausnahme, bewusst gewählt: Pi-hole als netzwerkweiter Blocker.** Wer
 Werbung/Tracker für *alle* Geräte blocken will, trägt hier bewusst die
 **Pi-hole-IP `192.168.178.2`** ein (nicht die frühere `.127` von dnsmasq).
 Damit wird Pi-hole zum primären LAN-DNS; `*.homeserver` löst weiter auf, weil
 Pi-hole diese Domain via `address=/homeserver/192.168.178.127` selbst
 autoritativ beantwortet. Der SPOF-Tradeoff wird
 dabei akzeptiert (die Fritz!Box kann ohnehin nur **eine** DNS-IP verteilen,
-es gibt keinen automatischen Client-Fallback) — fällt der Home-Server aus,
+es gibt keinen automatischen Client-Fallback); fällt der Home-Server aus,
 ist LAN-DNS weg, also dieselbe SPOF-Klasse wie der restliche Stack auf diesem
 Node. Schnelles Rollback: Feld wieder leeren. Vollständige Anleitung inkl.
 MetalLB und Verifikation: [`15-pihole.md`](15-pihole.md).
