@@ -44,7 +44,7 @@ Warum diese Aufteilung:
 Den dedizierten Share **`media`** einmalig in der UGOS-Oberfläche anlegen
 (Control Panel → Shared Folders) und einem SMB-Konto Lese-/Schreibrechte geben
 (dasselbe wie beim Scanner geht, siehe `scanner_smb_username`). UGOS verwaltet
-Shares in einer eigenen DB — deshalb lässt sich das **Anlegen des Shares** nicht
+Shares in einer eigenen DB; das **Anlegen des Shares** lässt sich daher nicht
 per Ansible automatisieren, das **Anlegen der Unterordner** dagegen schon
 (Schritt 2).
 
@@ -149,10 +149,10 @@ wurde (z. B. Geräte von Freunden außerhalb des eigenen Tailnets), können wede
 `192.168.178.3` erreichen. Für sie existiert der Service `jellyfin-tailscale`
 (`argocd/apps/jellyfin/templates/service-tailscale.yaml`): ein
 LoadBalancer-Service **ohne** `loadBalancerClass`, den k3s' Klipper ServiceLB
-übernimmt und als hostPort `0.0.0.0:8096` auf dem Node bindet — also auch auf
+übernimmt und als hostPort `0.0.0.0:8096` auf dem Node bindet, also auch auf
 `tailscale0`.
 
-- **Adresse:** `http://<tailscale-ip>:8096` — die Tailscale-IPv4 des Servers
+- **Adresse:** `http://<tailscale-ip>:8096`; die Tailscale-IPv4 des Servers
   liefert `tailscale ip -4` (auf dem Server) bzw. die Tailscale Admin Console.
   Alternativ funktioniert für Sharees auch der MagicDNS-Name des geteilten
   Nodes: `http://homeserver.<tailnet>.ts.net:8096`.
@@ -161,7 +161,7 @@ LoadBalancer-Service **ohne** `loadBalancerClass`, den k3s' Klipper ServiceLB
   Gameserver-Muster in `docs/19-gameserver.md`. Wegen der dort beschriebenen
   Shared-Node/Tag-ACL-Reibung ([tailscale/tailscale#14445](https://github.com/tailscale/tailscale/issues/14445))
   den Grant im Zweifel direkt auf die Tailscale-IP statt auf ein Tag schreiben.
-- **Nebeneffekt:** Der hostPort bindet alle Interfaces — Jellyfin ist dadurch
+- **Nebeneffekt:** Der hostPort bindet alle Interfaces, Jellyfin ist dadurch
   zusätzlich unter der Node-LAN-IP `http://192.168.178.127:8096` erreichbar
   (harmlos; UFW erlaubt LAN und Tailscale-CGNAT-Range ohnehin).
 - Der bestehende MetalLB-Service (`192.168.178.3`) und der Traefik-Ingress

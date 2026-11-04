@@ -20,13 +20,13 @@ initial setup (upstream issue
 
 ## Deployment
 
-The app is plain GitOps — ArgoCD discovers `argocd/apps/paperless-ai/` via the
+The app is plain GitOps: ArgoCD discovers `argocd/apps/paperless-ai/` via the
 root ApplicationSet, creates the `paperless-ai` namespace and syncs:
 
-- `Deployment` — `clusterzx/paperless-ai:3.0.9`, web UI on port 3000, internal
+- `Deployment`: `clusterzx/paperless-ai:3.0.9`, web UI on port 3000, internal
   RAG service on 8000 (localhost only)
 - `Service` (ClusterIP) + `Ingress` → `http://paperless-ai.homeserver`
-- `PersistentVolumeClaim` — 5 Gi `local-path` mounted at `/app/data`
+- `PersistentVolumeClaim`: 5 Gi `local-path` mounted at `/app/data`
 
 To bump the version, edit `image.tag` in
 `argocd/apps/paperless-ai/values.yaml` and push.
@@ -41,13 +41,13 @@ To bump the version, edit `image.tag` in
    - **Username:** your Paperless user
 3. **AI provider:** pick OpenAI, Ollama, or any OpenAI-compatible service
    (DeepSeek, Azure, Groq, LiteLLM, …) and enter the base URL / key / model.
-4. Save — paperless-ai validates the connection and starts polling Paperless on
+4. Save. paperless-ai validates the connection and starts polling Paperless on
    the configured `SCAN_INTERVAL`.
 
 ## RAG (semantic search + chat)
 
 Enabled by default (`RAG_SERVICE_ENABLED=true`). The Python RAG service builds
-embeddings of your documents, so the pod is memory-hungry — the chart requests
+embeddings of your documents, so the pod is memory-hungry; the chart requests
 512 Mi and limits to 2 Gi. If the pod gets `OOMKilled`, raise
 `resources.limits.memory` in `values.yaml`. To run lean (classification/tagging
 only), set `RAG_SERVICE_ENABLED` to `"false"`.
@@ -57,7 +57,7 @@ only), set `RAG_SERVICE_ENABLED` to `"false"`.
 - **Pod CrashLoops with a permission error on `/app/data`:** the image manages
   ownership via `PUID`/`PGID` (1000) and the chart sets `fsGroup: 1000`. If
   writes still fail, the `cap_drop: [ALL]` in `securityContext` may be too
-  strict for the image's startup chown — relax it in `values.yaml`.
+  strict for the image's startup chown; relax it in `values.yaml`.
 - **"Cannot reach Paperless":** the k3s pod network reaches the NAS directly on
   the LAN (`192.168.178.0/24`); confirm the URL/port and that the API token is
   valid. Test from inside the pod:

@@ -4,12 +4,10 @@
 > **Pi-hole als einzigen, netzwerkweiten DNS-Server** (auf der MetalLB-IP
 > `192.168.178.2`); das frühere Host-**dnsmasq wurde abgelöst**. Der unten
 > beschriebene „opt-in pro Gerät"-Ansatz ist damit die **historische**
-> Vorgänger-Lösung — die Abwägungen (SPOF, Fritz!Box verteilt nur eine DNS-IP)
+> Vorgänger-Lösung; die Abwägungen (SPOF, Fritz!Box verteilt nur eine DNS-IP)
 > gelten weiter und wurden für Pi-hole **bewusst akzeptiert**. Die maßgebliche,
 > aktuelle Anleitung steht in [`15-pihole.md`](15-pihole.md). Dieses Dokument
 > bleibt als Begründung der Trade-offs erhalten.
-
-Dieses Dokument beantwortet eine sehr berechtigte Frage:
 
 > *"Wenn ich den Home-Server als zentralen DNS-Server für mein LAN
 > eintrage und der mal ausfällt, geht zu Hause das ganze Internet weg.

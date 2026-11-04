@@ -3,7 +3,7 @@
 **[`homeassistant-ai/ha-mcp`](https://github.com/homeassistant-ai/ha-mcp)** (MIT-Lizenz)
 exponiert Home Assistant über das **Model Context Protocol (MCP)**, sodass
 Claude Code auf dem eigenen Rechner Geräte/Sensoren abfragen und Dashboards,
-Automationen, Szenen etc. direkt verwalten kann — z. B. auf Zuruf: "Baue mir
+Automationen, Szenen etc. direkt verwalten kann, z. B. auf Zuruf: "Baue mir
 ein Dashboard aus all meinen Geräten."
 
 | | |
@@ -12,7 +12,7 @@ ein Dashboard aus all meinen Geräten."
 | Namespace | `ha-mcp` |
 | Image | `ghcr.io/homeassistant-ai/ha-mcp` |
 | Port | `8086` (HTTP-Modus, `MCP_PORT`) |
-| URL | `http://ha-mcp.homeserver/<secret-path>` — Secret-Pfad **nicht** im Klartext hier, siehe SealedSecret `ha-mcp-secrets` |
+| URL | `http://ha-mcp.homeserver/<secret-path>` (Secret-Pfad **nicht** im Klartext hier, siehe SealedSecret `ha-mcp-secrets`) |
 | Auth | Geheimer URL-Pfad (`MCP_SECRET_PATH`) statt Bearer-Token; zusätzlich Home-Assistant-Long-Lived-Token |
 | Client | Claude Code auf dem eigenen Rechner, **lokal/user-scope**, nicht im geteilten `.mcp.json` |
 
@@ -29,7 +29,7 @@ Backups, Historie/Statistik, Kamera-Snapshots, ZHA-Geräte, Config-Suche).
 > **Hinweis:** Das Upstream-Projekt selbst empfiehlt primär eine
 > **HACS-Installation als In-Process Custom Component** ("die einfachste
 > Variante"). Das widerspricht der bewussten **HACS-freien Policy** dieses
-> Repos (siehe `docs/17-homeassistant.md`) — Erweiterungen werden hier
+> Repos (siehe `docs/17-homeassistant.md`); Erweiterungen werden hier
 > GitOps-reproduzierbar über gepinnte Init-Container installiert, nicht über
 > HACS' Laufzeit-Downloads. Deshalb wird stattdessen der **eigenständige
 > Docker-Container** (`ghcr.io/homeassistant-ai/ha-mcp`, HTTP-Modus) als
@@ -54,7 +54,7 @@ home-assistant Pod (Namespace "home-assistant")
    └─ NetworkPolicy "home-assistant-ingress" → Ingress von kube-system UND ha-mcp
 ```
 
-`ha-mcp` ist zustandslos (kein PVC) — Einstellungen wie "Read Only Mode" oder
+`ha-mcp` ist zustandslos (kein PVC); Einstellungen wie "Read Only Mode" oder
 angepinnte Tools werden außerhalb der HA-Add-on-Variante nicht persistiert und
 müssen nach jedem Pod-Neustart erneut geprüft werden (siehe Abschnitt
 "Sicherheitshinweise").
@@ -65,7 +65,7 @@ müssen nach jedem Pod-Neustart erneut geprüft werden (siehe Abschnitt
    **Langlebige Zugriffstoken** → *Token erstellen*.
 2. Name z. B. `ha-mcp`, Token kopieren (wird nur einmal angezeigt).
 3. **Wichtig:** Dieser Token hat vollen API-Zugriff auf das verwendete Konto
-   (Dashboards, Automationen, Backups, YAML-Config) — nur mit einem
+   (Dashboards, Automationen, Backups, YAML-Config), nur mit einem
    Admin-Konto erzeugen und wie ein Passwort behandeln. Niemals im Klartext
    committen.
 
@@ -115,18 +115,18 @@ Nach Commit + Push synct ArgoCD das SealedSecret und der `ha-mcp`-Pod startet.
 > **Solange `encryptedToken`/`encryptedSecretPath` noch `REPLACE_ME` sind,
 > rendert `templates/deployment.yaml` bewusst gar kein Deployment** (Guard
 > gegen `CreateContainerConfigError`/`CrashLoopBackOff` mit kaputten
-> Platzhalter-Secrets). Service/Ingress existieren trotzdem — sie zeigen bis
+> Platzhalter-Secrets). Service/Ingress existieren trotzdem; sie zeigen bis
 > dahin nur auf ein leeres Backend.
 
 ## 4. NetworkPolicy: Home Assistant für ha-mcp öffnen
 
 `argocd/apps/home-assistant/templates/networkpolicy.yaml` erlaubte bisher
 Ingress auf Port 8123 nur aus `kube-system`. Diese Datei wurde um einen
-zweiten `from:`-Eintrag für den Namespace `ha-mcp` ergänzt — ohne diese
+zweiten `from:`-Eintrag für den Namespace `ha-mcp` ergänzt; ohne diese
 Änderung würde `ha-mcp` beim Verbindungsversuch zu Home Assistant
 stillschweigend hängen bleiben (Connection Timeout, keine Fehlermeldung).
 Kubernetes labelt jeden Namespace automatisch mit dem unveränderlichen Label
-`kubernetes.io/metadata.name` (seit 1.21) — kein manuelles Namespace-Labeling
+`kubernetes.io/metadata.name` (seit 1.21), kein manuelles Namespace-Labeling
 nötig.
 
 ## 5. Deploy verifizieren
@@ -155,7 +155,7 @@ curl -i http://ha-mcp.homeserver/<dein-secret-pfad>
 ## 6. Claude Code lokal verbinden
 
 **Nicht** in das geteilte, forgecrate-generierte `.mcp.json` dieses Repos
-eintragen — das würde einen persönlichen Home-Assistant-Token in eine
+eintragen; das würde einen persönlichen Home-Assistant-Token in eine
 geteilte, committete Datei schreiben. Stattdessen lokal/user-scope
 registrieren (Flags gegen die installierte Claude-Code-Version mit
 `claude mcp add --help` prüfen, falls abweichend):
@@ -179,15 +179,15 @@ Ergebnis in <http://homeassistant.homeserver> unter den Dashboards prüfen.
 
 - **Read Only Mode muss deaktiviert bleiben**, sonst können keine Dashboards
   angelegt werden. Der Default-Zustand dieser Einstellung ist aus der
-  Upstream-Doku nicht abschließend ersichtlich — nach der ersten Verbindung
+  Upstream-Doku nicht abschließend ersichtlich; nach der ersten Verbindung
   über die Server-Settings (Tool `ha_dev_manage_settings` oder Web-UI unter
   dem Secret-Pfad) prüfen.
 - Einstellungen wie Read-Only-Mode oder angepinnte Tools werden **nicht**
-  über Pod-Neustarts hinweg persistiert (kein PVC) — nach jedem Neustart neu
+  über Pod-Neustarts hinweg persistiert (kein PVC); nach jedem Neustart neu
   setzen, falls abweichend vom gewünschten Zustand.
-- Der Secret-Pfad **ist** das Credential — wie ein Passwort behandeln: nicht
+- Der Secret-Pfad **ist** das Credential, wie ein Passwort behandeln: nicht
   in Chat-Verläufe, Issues oder Klartext-Dateien einfügen.
-- Der Home-Assistant-Token hat vollen API-Zugriff des verwendeten Kontos —
+- Der Home-Assistant-Token hat vollen API-Zugriff des verwendeten Kontos;
   bei Verdacht auf Kompromittierung sofort in HA widerrufen und neu erzeugen.
 
 ## Rotation
@@ -205,10 +205,10 @@ Ergebnis in <http://homeassistant.homeserver> unter den Dashboards prüfen.
 
 | Symptom | Ursache / Fix |
 |---|---|
-| `kubectl -n ha-mcp get deploy` zeigt kein Deployment | `encryptedToken`/`encryptedSecretPath` in `values.yaml` sind noch `REPLACE_ME` — das Deployment ist absichtlich gegated (`templates/deployment.yaml`) und rendert erst, sobald echte kubeseal-Werte eingetragen sind. Secrets über kubeseal-webgui versiegeln, committen, pushen. |
-| `curl` auf den korrekten Pfad liefert 403/404 | Der bei `MCP_SECRET_PATH` gepinnte Pfad wird von diesem Image/Modus evtl. nicht 1:1 übernommen — Pod-Logs prüfen und tatsächlich verwendeten Pfad übernehmen (siehe Abschnitt 2). |
+| `kubectl -n ha-mcp get deploy` zeigt kein Deployment | `encryptedToken`/`encryptedSecretPath` in `values.yaml` sind noch `REPLACE_ME`: das Deployment ist absichtlich gegated (`templates/deployment.yaml`) und rendert erst, sobald echte kubeseal-Werte eingetragen sind. Secrets über kubeseal-webgui versiegeln, committen, pushen. |
+| `curl` auf den korrekten Pfad liefert 403/404 | Der bei `MCP_SECRET_PATH` gepinnte Pfad wird von diesem Image/Modus evtl. nicht 1:1 übernommen; Pod-Logs prüfen und tatsächlich verwendeten Pfad übernehmen (siehe Abschnitt 2). |
 | Home Assistant nicht erreichbar (Timeout in den Pod-Logs) | NetworkPolicy-Anpassung aus Abschnitt 4 fehlt, oder der Service-DNS-Name von Home Assistant weicht von `home-assistant.home-assistant.svc.cluster.local` ab → `kubectl -n home-assistant get svc` prüfen und `homeassistant.url` in `values.yaml` korrigieren. |
-| Claude Code zeigt keine/alte Tools nach einer Settings-Änderung | Tool-Liste ist gecacht — Verbindung in der Claude-Code-Session neu aufbauen. |
+| Claude Code zeigt keine/alte Tools nach einer Settings-Änderung | Tool-Liste ist gecacht; Verbindung in der Claude-Code-Session neu aufbauen. |
 | Dashboard-Erstellung schlägt fehl oder no-op | Read Only Mode ist (noch) aktiv → in den ha-mcp-Server-Settings deaktivieren (siehe "Sicherheitshinweise"). |
-| Falscher Port angenommen (9584/9583) | Das sind die Ports der In-Process- bzw. HA-Add-on-Variante — der Docker/HTTP-Modus hier nutzt `MCP_PORT` = `8086`. |
+| Falscher Port angenommen (9584/9583) | Das sind die Ports der In-Process- bzw. HA-Add-on-Variante; der Docker/HTTP-Modus hier nutzt `MCP_PORT` = `8086`. |
 | Pod startet nicht / Permission-Fehler beim Schreiben | `securityContext.runAsUser`/`runAsGroup` sind hart auf `10001` gesetzt (Trivy-Anforderung), das Image pinnt aber keine feste UID → tatsächliche Image-UID mit `kubectl -n ha-mcp exec deploy/ha-mcp -- id` prüfen, falls der Container Schreibrechte außerhalb von `/tmp`/`/home/mcpuser` braucht. |

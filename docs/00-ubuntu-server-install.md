@@ -1,7 +1,7 @@
-# Ubuntu Server 26.04 LTS — Installationsleitfaden
+# Ubuntu Server 26.04 LTS: Installationsleitfaden
 
 Dieser Leitfaden beschreibt die Installation von **Ubuntu Server 26.04 LTS** auf
-dem Home-Server. **Server-Variante** (nicht Desktop) — sie ist die unterstützte
+dem Home-Server. **Server-Variante** (nicht Desktop), die unterstützte
 Basis für den k3s-Cluster.
 
 ---
@@ -18,7 +18,7 @@ Basis für den k3s-Cluster.
 
 ---
 
-## Schritt 1 — Ubuntu-Server-ISO herunterladen
+## Schritt 1: Ubuntu-Server-ISO herunterladen
 
 Von der offiziellen Seite:
 
@@ -26,7 +26,7 @@ Von der offiziellen Seite:
 
 > **Ubuntu Server** wählen, nicht Ubuntu Desktop. Aktuelles LTS: **26.04.x**.
 
-Optional, aber empfohlen — SHA256-Summe verifizieren:
+Optional, aber empfohlen: SHA256-Summe verifizieren.
 
 ```bash
 sha256sum ubuntu-26.04.*-live-server-amd64.iso
@@ -35,7 +35,7 @@ sha256sum ubuntu-26.04.*-live-server-amd64.iso
 
 ---
 
-## Schritt 2 — Bootable USB-Stick erstellen
+## Schritt 2: Bootable USB-Stick erstellen
 
 **Linux**
 
@@ -52,7 +52,7 @@ diskutil unmountDisk /dev/diskX
 sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 ```
 
-**Windows** — [Rufus](https://rufus.ie) oder
+**Windows:** [Rufus](https://rufus.ie) oder
 [balenaEtcher](https://www.balena.io/etcher/) nutzen.
 
 > Der USB-Stick wird komplett überschrieben. Device-Pfad doppelt prüfen.
@@ -69,14 +69,14 @@ sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 | Sprache              | English (vermeidet Locale-Issues)                                      |
 | Tastatur             | Eigenes Layout (z. B. German)                                          |
 | Installationstyp     | **Ubuntu Server** (NICHT *minimized*)                                  |
-| Netzwerk             | DHCP zunächst akzeptieren — statische IP folgt später                  |
+| Netzwerk             | DHCP zunächst akzeptieren (statische IP folgt später)                  |
 | Proxy                | leer lassen                                                            |
 | Mirror               | Default                                                                |
 | Storage              | **Use an entire disk** + **Set up this disk as an LVM group**          |
 | Profile              | Username **`jaydee`** (muss zum Inventory passen)                      |
 | Servername           | **`homeserver`** (muss zu `hostname` in `group_vars/all.yml` passen)   |
 | SSH                  | **Install OpenSSH server** (optional GitHub/Launchpad-Keys importieren)|
-| Featured Snaps       | alles überspringen — Ansible installiert alles Weitere                 |
+| Featured Snaps       | alles überspringen; Ansible installiert alles Weitere                  |
 
 3. Nach dem Reboot den USB-Stick entfernen.
 
@@ -117,7 +117,7 @@ Bei abweichendem Key-Pfad (z. B. legacy `~/.ssh/id_rsa`) den Eintrag
 
 Für einen Server dringend empfohlen.
 
-### Variante A — Ansible erledigt es (empfohlen)
+### Variante A: Ansible erledigt es (empfohlen)
 
 In `ansible/group_vars/all.yml`:
 
@@ -179,7 +179,7 @@ ssh jaydee@192.168.178.127
 ## Schritt 7 — Passwortloses sudo
 
 Ansible braucht `NOPASSWD`-sudo. Ubuntu Server hat das nicht standardmäßig
-aktiv — prüfen und bei Bedarf fixen:
+aktiv. Bei Bedarf fixen:
 
 ```bash
 sudo -n whoami           # sollte "root" liefern, ohne Passwortabfrage

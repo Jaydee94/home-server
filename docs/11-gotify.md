@@ -12,7 +12,7 @@ push for every scan event.
 ```
 
 The scan scripts source `/etc/scanner/gotify.env` (mode `0640 root:scanner`)
-at runtime — the app token never appears in the script body, the systemd
+at runtime; the app token never appears in the script body, the systemd
 journal, or git.
 
 ## 1. Initial deploy of the Gotify server
@@ -26,7 +26,7 @@ ansible-vault encrypt_string 'YOUR_STRONG_ADMIN_PW' \
 
 Paste the resulting `!vault |` block into `ansible/group_vars/all.yml`
 (see the commented stub at the bottom of that file). This value is **not**
-read by Ansible directly — it is only kept under vault so the plaintext
+read by Ansible directly; it is only kept under vault so the plaintext
 isn't lost when rotating.
 
 ### 1.2 Generate the SealedSecret cipher text
@@ -166,14 +166,14 @@ Expected pushes:
   prune it automatically, then restart the gotify pod.
 - **App token**: revoke the old one in the Gotify Web UI, create a new
   one, repeat steps 3.1–3.3. The env-file (`0640`) is rewritten by
-  Ansible — never edit it by hand.
+  Ansible; never edit it by hand.
 
 ## 5. Troubleshooting
 
 | Symptom | Hint |
 |---|---|
-| Pod CrashLoopBackOff after first deploy | `encryptedPassword` is still `REPLACE_ME_WITH_KUBESEAL_OUTPUT` — finish step 1.3 |
-| `gotify-admin` secret missing | `kubectl -n gotify describe sealedsecret gotify-admin` — controller logs explain decryption errors; cipher must be generated against this cluster's public key |
+| Pod CrashLoopBackOff after first deploy | `encryptedPassword` is still `REPLACE_ME_WITH_KUBESEAL_OUTPUT`; finish step 1.3 |
+| `gotify-admin` secret missing | `kubectl -n gotify describe sealedsecret gotify-admin`: controller logs explain decryption errors; cipher must be generated against this cluster's public key |
 | No pushes despite a successful scan | `sudo cat /etc/scanner/gotify.env` and confirm `GOTIFY_ENABLED=1`; check `journalctl -t scanbd-scan -g "gotify notify failed"` |
 | Pushes work via curl but not from the scripts | `saned` likely isn't in the `scanner` group → re-run `make scanner` |
-| Wrong hostname (`gotify.homeserver` doesn't resolve) | Pi-hole running? `dig @192.168.178.2 gotify.homeserver` — the wildcard `address=/homeserver/192.168.178.127` in `argocd/apps/pihole/values.yaml` covers all `*.homeserver` names automatically. |
+| Wrong hostname (`gotify.homeserver` doesn't resolve) | Pi-hole running? `dig @192.168.178.2 gotify.homeserver`. The wildcard `address=/homeserver/192.168.178.127` in `argocd/apps/pihole/values.yaml` covers all `*.homeserver` names automatically. |

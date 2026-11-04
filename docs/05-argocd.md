@@ -1,7 +1,5 @@
 # ArgoCD-GitOps-Guide
 
-Dieses Dokument behandelt ArgoCD-Zugriff, Konfiguration und GitOps-Alltag.
-
 ---
 
 ## Zugriff
@@ -162,7 +160,7 @@ argocd/apps/
 Jedes Verzeichnis wird zu einer `Application` mit gleichem Namen und Namespace.
 Eine neue App ist drei Schritte entfernt: Verzeichnis unter `argocd/apps/<name>/`
 anlegen (plain Manifests, `kustomization.yaml` **oder** Helm-Chart mit
-`Chart.yaml` + `values.yaml`), committen, pushen — ArgoCD greift in
+`Chart.yaml` + `values.yaml`), committen, pushen; ArgoCD greift in
 ~3 Minuten zu.
 
 ---
@@ -187,7 +185,7 @@ Git: argocd/bootstrap/
   (`directory.exclude: bootstrap-app.yaml`) um eine zirkuläre Abhängigkeit zu
   vermeiden.
 - Änderungen an `root-applicationset.yaml` im Git werden dadurch **automatisch**
-  auf den Cluster angewendet — kein `make argocd` mehr nötig.
+  auf den Cluster angewendet, kein `make argocd` mehr nötig.
 
 **Status prüfen:**
 
@@ -402,18 +400,18 @@ ArgoCD führt zwei Status-Werte pro Application:
 
 **Sync-Status:**
 
-- `Synced` — Cluster stimmt mit Git überein
-- `OutOfSync` — Unterschiede zwischen Git und Cluster
-- `Unknown` — Status nicht ermittelbar
+- `Synced`: Cluster stimmt mit Git überein
+- `OutOfSync`: Unterschiede zwischen Git und Cluster
+- `Unknown`: Status nicht ermittelbar
 
 **Health-Status:**
 
-- `Healthy` — alle Resources gesund
-- `Progressing` — Resources deployen/updaten gerade
-- `Degraded` — Resources schlagen fehl
-- `Missing` — Resources noch nicht vorhanden
-- `Suspended` — Resources pausiert (z. B. CronJob)
-- `Unknown` — Health nicht ermittelbar
+- `Healthy`: alle Resources gesund
+- `Progressing`: Resources deployen/updaten gerade
+- `Degraded`: Resources schlagen fehl
+- `Missing`: Resources noch nicht vorhanden
+- `Suspended`: Resources pausiert (z. B. CronJob)
+- `Unknown`: Health nicht ermittelbar
 
 Über die UI unter **Applications** oder per CLI:
 

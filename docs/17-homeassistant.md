@@ -41,7 +41,7 @@ kopiert die neue Version.
 > *Einstellungen → Dashboards → ⋮ → Ressourcen → Hinzufügen*. Die Registrierung
 > persistiert in `/config/.storage` auf dem PVC und überlebt Pod-Restarts.
 
-## Bubble-Card (Lovelace) — #86
+## Bubble-Card (Lovelace) #86
 
 Modernes Bubble-UI mit Pop-up-Overlays, Button-Stacks und Media-Controls.
 
@@ -53,7 +53,7 @@ Modernes Bubble-UI mit Pop-up-Overlays, Button-Stacks und Media-Controls.
   **JavaScript-Modul**.
 - Danach im Dashboard verfügbar unter *Karte hinzufügen → Bubble Card*.
 
-## Hourly Weather Card (Lovelace) — #88
+## Hourly Weather Card (Lovelace) #88
 
 Visualisiert die kommenden Wetterbedingungen als farbigen Balken.
 
@@ -71,7 +71,7 @@ Visualisiert die kommenden Wetterbedingungen als farbigen Balken.
   name: Nächste 12 Stunden
   ```
 
-## AI Automation Suggester (Integration) — #89
+## AI Automation Suggester (Integration) #89
 
 LLM-gestützte Automatisierungsvorschläge auf Basis der eigenen Entities, Geräte
 und Bereiche.
@@ -86,7 +86,7 @@ und Bereiche.
   einmalig im UI-Config-Flow eingetragen und von HA in `/config/.storage`
   persistiert.
 
-## Dreame Vacuum (Integration) — #90
+## Dreame Vacuum (Integration) #90
 
 Vollständige Steuerung für Dreame-Saugroboter (Live-Karte, Zimmer-Cleaning,
 Automations-Events). Getestet für den **Dreame D9 Max** (`dreame.vacuum.p2259`).
@@ -104,7 +104,7 @@ Automations-Events). Getestet für den **Dreame D9 Max** (`dreame.vacuum.p2259`)
 
   Alternativ Xiaomi-Cloud-Login (kein Token, aber Cloud-Abhängigkeit).
 
-## Midnight Theme — #91
+## Midnight Theme #91
 
 Dunkles Community-Theme
 ([home-assistant-community-themes/midnight](https://github.com/home-assistant-community-themes/midnight)).
@@ -164,10 +164,10 @@ Zigbee-Koordinator: **Sonoff Zigbee Dongle Plus MG24** (EFR32MG24-Chip, CP210x U
 
 1. <http://homeassistant.homeserver> → Settings → Devices & Services → **Add Integration** → ZHA
 2. Serial Device Path: `/dev/ttyUSB0`
-3. Radio type: **EZSP** (EmberZNet — nicht ZNP auswählen!)
+3. Radio type: **EZSP** (EmberZNet, nicht ZNP auswählen)
 4. Koordinator erscheint unter Devices & Services; Zigbee-Geräte können jetzt gepaired werden.
 
-ZHA-Konfiguration persistiert in `/config/.storage/core.config_entries` auf dem PVC — überlebt Pod-Restarts.
+ZHA-Konfiguration persistiert in `/config/.storage/core.config_entries` auf dem PVC und überlebt Pod-Restarts.
 
 **Verifikation:**
 
@@ -180,9 +180,9 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
 
 **Gotchas:**
 
-- `privileged: true` ist zwingend — k3s hat keinen USB-Device-Plugin; ohne Privilegien ist das CharDevice im Pod nicht zugänglich.
-- Kein direkter `/dev/ttyUSB0`-Mount vom Host-Pfad verwenden — die Nummer ist nach Reboot instabil wenn weitere USB-Geräte vorhanden sind. Stattdessen den `by-id`-Symlink als `CharDevice` nutzen.
-- Chip ist EFR32MG24 → **EZSP**-Protokoll. ZNP ist für Texas-Instruments-Chips (CC2652) — falsche Auswahl führt zu Verbindungsfehler.
+- `privileged: true` ist zwingend; k3s hat keinen USB-Device-Plugin, ohne Privilegien ist das CharDevice im Pod nicht zugänglich.
+- Kein direkter `/dev/ttyUSB0`-Mount vom Host-Pfad verwenden; die Nummer ist nach Reboot instabil, wenn weitere USB-Geräte vorhanden sind. Stattdessen den `by-id`-Symlink als `CharDevice` nutzen.
+- Chip ist EFR32MG24 → **EZSP**-Protokoll. ZNP ist für Texas-Instruments-Chips (CC2652); falsche Auswahl führt zu Verbindungsfehler.
 
 ## Troubleshooting
 
@@ -191,5 +191,5 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
 | Karte/Integration fehlt nach Deploy | Pod nicht neu gestartet oder Init-Container fehlgeschlagen → Init-Container-Log prüfen; Pod rollen: `kubectl -n home-assistant rollout restart deploy/home-assistant`. |
 | Lovelace-Karte „Custom element doesn't exist" | Ressource nicht registriert oder falsche URL → *Einstellungen → Dashboards → Ressourcen* prüfen (`/local/...`, Typ JavaScript-Modul); Browser-Cache leeren. |
 | Init-Container `cp: no such file` nach Major-Update | Bei einem Major-Release kann sich der Ordnername im Tarball ändern → Pfad in `values.yaml` an das neue Release anpassen. |
-| `curl: not found` im Init-Container | `apk add --no-cache curl` fehlt — alpine bringt curl nicht mit. |
+| `curl: not found` im Init-Container | `apk add --no-cache curl` fehlt; alpine bringt curl nicht mit. |
 | Midnight-Theme nicht wählbar | ConfigMap nicht gemountet oder `frontend.themes` nicht aktiv → `kubectl get configmap ha-theme-midnight`; Datei im Pod prüfen (`/config/themes/midnight.yaml`). |

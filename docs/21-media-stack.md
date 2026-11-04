@@ -1,4 +1,4 @@
-# 21 — Media-Stack (Sonarr / Radarr / Prowlarr / SABnzbd / Seerr)
+# 21: Media-Stack (Sonarr / Radarr / Prowlarr / SABnzbd / Seerr)
 
 Usenet-basierter Media-Automations-Stack, der das **bestehende Jellyfin**
 (`argocd/apps/jellyfin`, Namespace `jellyfin`) befüllt. Deployt via ArgoCD aus
@@ -34,7 +34,7 @@ Seerr ──▶ jellyfin.jellyfin.svc:8096  +  sonarr:8989 / radarr:7878
 Wichtig: Downloads UND Bibliothek liegen im **selben** SMB-Mount → der Import ist
 ein serverseitiges, atomares **Rename** (schnell, kein Copy über Mount-Grenzen).
 **Hardlinks** funktionieren über SMB/CIFS generell **nicht** (*arr fällt sonst auf
-Copy zurück) — bei diesem **Usenet**-Stack ist das egal: es gibt kein Seeding, die
+Copy zurück); bei diesem **Usenet**-Stack ist das egal: es gibt kein Seeding, die
 Apps verschieben den Download einfach in die Bibliothek. Daher: *arr auf **Move**
 stellen, „Use Hardlinks instead of Copy" **deaktivieren**. (Wer echte Hardlinks
 will, müsste den Mount auf **NFS** umstellen statt SMB.)
@@ -53,7 +53,7 @@ downloads/
 
 Der SMB-Account ist derselbe wie für Jellyfin.
 
-## 2. SMB-Credentials sealen (Pflicht — sonst mountet nichts)
+## 2. SMB-Credentials sealen (Pflicht; sonst mountet nichts)
 
 kubeseal ist **namespace-gebunden**: die Jellyfin-Creds müssen für `media` neu
 gesealt werden.
@@ -104,7 +104,7 @@ Die *arr-Apps und SABnzbd **generieren ihre API-Keys selbst** beim ersten Start
 3. **Sonarr / Radarr**: Auth-Wizard, Root-Folder setzen
    (Sonarr `/data/shows`, Radarr `/data/movies`), Download-Client SABnzbd
    (`sabnzbd:8080`). **Jellyfin-Benachrichtigung einrichten** (Pflicht für
-   sofortige Sichtbarkeit, siehe Abschnitt 8) — Settings → Connect → Emby/Jellyfin:
+   sofortige Sichtbarkeit, siehe Abschnitt 8): Settings → Connect → Emby/Jellyfin:
    Host `jellyfin.jellyfin.svc.cluster.local`, Port `8096`, API-Key (Jellyfin →
    Dashboard → API-Schlüssel), *On Import* + *On Upgrade* + *Update Library* an.
 4. **Seerr** (http://seerr.homeserver): Wizard → Jellyfin-Server
@@ -114,7 +114,7 @@ Die *arr-Apps und SABnzbd **generieren ihre API-Keys selbst** beim ersten Start
 ## 5. Exporter- & Homepage-Keys nachziehen (optional)
 
 Nach Schritt 4 die API-Keys aus den App-UIs sealen, damit Exporter-Metriken und
-Homepage-Widgets funktionieren — alle in **ein** SealedSecret `media-api-keys`:
+Homepage-Widgets funktionieren. Alle in **ein** SealedSecret `media-api-keys`:
 
 ```sh
 for app in sonarr radarr prowlarr sabnzbd jellyfin; do
@@ -129,12 +129,12 @@ Ausgaben in `values.yaml` unter `apiKeys.{sonarr,radarr,prowlarr,sabnzbd,jellyfi
 eintragen. (jellyfin-Key: Jellyfin → Dashboard → API-Schlüssel.)
 
 Die Homepage-Widgets nutzen `HOMEPAGE_VAR_{SONARR,RADARR,PROWLARR,SABNZBD,SEERR}_KEY`
-aus dem `homepage-credentials`-SealedSecret — dort analog ergänzen (siehe
+aus dem `homepage-credentials`-SealedSecret; dort analog ergänzen (siehe
 docs/14-homepage.md).
 
 ## 6. Import-Verhalten (Move, nicht Hardlink)
 
-Über SMB/CIFS funktionieren **keine** Hardlinks — das ist eine Protokoll-/
+Über SMB/CIFS funktionieren **keine** Hardlinks; das ist eine Protokoll-/
 Mount-Limitierung, kein Konfigurationsfehler. Für diesen Usenet-Stack ist das
 unkritisch (kein Seeding). In Sonarr/Radarr unter *Settings → Media Management*:
 „Use Hard Links instead of Copy" **AUS** lassen, damit importiert wird per Move.
@@ -151,12 +151,12 @@ ssh jaydee@192.168.178.127 'sudo kubectl -n media exec deploy/sonarr -- sh -c "\
 
 Wenn das ohne Fehler durchläuft, sind Download- und Bibliotheks-Ordner im selben
 Mount und Imports sind günstig. (Lägen sie in getrennten Mounts, würde *arr
-copy+delete machen — langsam, transient 2× Platz.)
+copy+delete machen; langsam, transient 2× Platz.)
 
 ## 7. Aufräumen / Cleanup (keine RAR-Reste in complete/)
 
 Damit `complete/` nach jedem Import rückstandsfrei bleibt, müssen **drei** Dinge
-zusammenspielen — sonst sammeln sich RAR-, par2- und `_UNPACK_`-Reste an.
+zusammenspielen; sonst sammeln sich RAR-, par2- und `_UNPACK_`-Reste an.
 
 ### Folder-Architektur: Unpack auf SSD, nicht auf SMB
 
@@ -175,7 +175,7 @@ In **SABnzbd → Config → Folders**:
 - *Temporary Download Folder* = `/incomplete-downloads`
 - *Completed Download Folder* = `/data/downloads/complete`
 
-> **Gotcha — Ordnerwechsel nur bei leerer Queue:** SABnzbd lehnt das Ändern des
+> **Gotcha: Ordnerwechsel nur bei leerer Queue.** SABnzbd lehnt das Ändern des
 > Temporary/Completed-Ordners ab, solange Jobs in der Queue stehen
 > („Ordner kann nicht geändert werden, da die Warteschlange nicht leer ist" —
 > *pausiert* zählt **nicht** als leer). Vor dem Umstellen die Queue komplett
@@ -183,7 +183,7 @@ In **SABnzbd → Config → Folders**:
 > Beim Wechsel auf ein neues `download_dir` werden laufende Teildownloads im alten
 > Pfad verwaist → per *Status → Orphaned Jobs → Delete All* aufräumen.
 
-> **Sizing:** Die `sabnzbd-incomplete`-PVC ist `local-path` — die Größe in
+> **Sizing:** Die `sabnzbd-incomplete`-PVC ist `local-path`; die Größe in
 > `values.yaml` (`incomplete.size`) ist **nominal und wird nicht erzwungen**
 > (hostPath-Bind); die PVC nimmt physisch bis zum freien Node-Platz auf. Ein
 > In-place-Vergrößern geht nicht (`allowVolumeExpansion` der SC ist false) —
@@ -200,13 +200,13 @@ In **SABnzbd → Config → Folders**:
 **Config → Switches → Cleanup List**: `nfo,sfv,srr,par2,jpg,nzb,sub,idx`
 ⚠️ **niemals** `mkv`/`mp4`/`avi` aufnehmen (löscht sonst die Videos). Hinweis:
 Die Cleanup-Liste entfernt nur **direkt heruntergeladene** Dateien, keine aus RAR
-entpackten — deshalb ist das *arr-Remove unten zwingend ergänzend.
+entpackten; deshalb ist das *arr-Remove unten zwingend ergänzend.
 
 ### Sonarr/Radarr: Completed Download Handling
 
 **Settings → Download Clients → SABnzbd**:
 - **Category** setzen: Sonarr `tv`, Radarr `movies`.
-- *Completed Download Handling → Remove* = **an** — entfernt nach dem Import die
+- *Completed Download Handling → Remove* = **an**: entfernt nach dem Import die
   ganze Job-Hülle (samt par2/nfo-Resten) aus `complete/`.
 
 ### Einmaliges Aufräumen des Altbestands
@@ -243,7 +243,7 @@ in Sekunden da.
 **Pfad-Topologie (wichtig):** Jellyfin mountet `//jays-ugreen/media` unter
 `/media` (Libraries: `/media/movies`, `/media/shows`), während der Media-Stack
 denselben Share unter `/data` mountet (Radarr-Root `/data/movies`, Sonarr-Root
-`/data/shows`). Es ist **derselbe NAS-Share** — die unterschiedlichen Mount-Pfade
+`/data/shows`). Es ist **derselbe NAS-Share**; die unterschiedlichen Mount-Pfade
 pro Namespace sind unkritisch, solange beide Seiten auf dieselben `movies/`- und
 `shows/`-Ordner zeigen.
 
@@ -251,7 +251,7 @@ pro Namespace sind unkritisch, solange beide Seiten auf dieselben `movies/`- und
 > gesamte Stack UI-konfiguriert), nicht in Git. Nach einem Config-PVC-Verlust neu
 > anlegen.
 
-## 9. Deutsch erzwingen (Recyclarr — GitOps-verwaltet)
+## 9. Deutsch erzwingen (Recyclarr, GitOps-verwaltet)
 
 Sonarr und Radarr laden **ausschließlich deutsche bzw. German-(DL)-Releases**;
 bereits vorhandene englische Medien werden automatisch ersetzt, sobald eine
@@ -267,7 +267,7 @@ TRaSH-Guide-German-Templates in beide Apps synct.
   darunter, Low-Quality-German-Gruppen negativ.
 - Alle Qualitäten (2160p/1080p/720p, Bluray+WEB) liegen in **einer** gemergten
   Gruppe („Merged QPs"): Upgrades entscheiden sich über den **Sprach-Score,
-  nicht die Auflösung** — ein deutsches 1080p schlägt ein englisches 2160p.
+  nicht die Auflösung**: ein deutsches 1080p schlägt ein englisches 2160p.
 - **`min_format_score: 10000`** macht englisch-only Releases ungrabbar
   (strikte Durchsetzung, Upstream-Option „skip English Releases").
 - Upgrade-Kette: liegt ein englisches File vor (importiert bevor es eine
@@ -275,7 +275,7 @@ TRaSH-Guide-German-Templates in beide Apps synct.
   RSS/Suche, sobald ein German-(DL)-Release verfügbar ist
   (`upgrade until score: 35000`).
 - API-Keys bezieht der Job aus dem SealedSecret `media-api-keys`
-  (`sonarr-api-key`, `radarr-api-key` — Abschnitt 5, Pflicht).
+  (`sonarr-api-key`, `radarr-api-key`, Abschnitt 5, Pflicht).
 
 > ⚠️ **Das Profil gehört Git.** Manuelle UI-Änderungen an „UHD Bluray + WEB
 > (GER)" oder den German-Custom-Formats werden beim nächsten Sync
@@ -283,7 +283,7 @@ TRaSH-Guide-German-Templates in beide Apps synct.
 > in `argocd/apps/media/templates/recyclarr.yaml`.
 
 > ⚠️ **Konsequenz der strikten Variante:** Bei brandneuen Releases ohne
-> deutsche Fassung wird **gar nichts** geladen — Seerr-Requests bleiben „in
+> deutsche Fassung wird **gar nichts** geladen; Seerr-Requests bleiben „in
 > Bearbeitung", bis eine deutsche Version erscheint. Wer stattdessen Englisch
 > als Zwischenlösung will: `min_format_score`-Zeilen in `recyclarr.yaml`
 > entfernen (dann greift Laden-und-später-upgraden).
@@ -293,17 +293,17 @@ TRaSH-Guide-German-Templates in beide Apps synct.
 1. **Indexer-Check (Voraussetzung):** In Sonarr/Radarr *Interactive Search* auf
    einen bekannten Titel → es müssen Releases mit `German DL`-Custom-Format
    auftauchen. Falls nicht, in Prowlarr einen Indexer mit deutschem Content
-   ergänzen — sonst wird mit dem strikten Profil **nichts** mehr gegrabbt.
+   ergänzen; sonst wird mit dem strikten Profil **nichts** mehr gegrabbt.
 2. **Profil zuweisen:** Sonarr → *Series → Mass Edit* → Quality Profile
    „UHD Bluray + WEB (GER)" für alle Serien; Radarr → *Movies → Edit* analog.
 3. **Seerr-Defaults:** *Settings → Sonarr/Radarr → Quality Profile* auf das
    German-Profil stellen, damit neue Requests es automatisch bekommen.
 4. **Bestand upgraden:** Radarr *Movies → Select All → Search Selected* bzw.
-   Sonarr *Series Mass-Search* — in Batches (Indexer-API-Limits, Bandbreite).
+   Sonarr *Series Mass-Search*, in Batches (Indexer-API-Limits, Bandbreite).
    Alles mit verfügbarer deutscher Fassung wird ersetzt; der Rest bleibt liegen
    und wird via RSS nachgezogen.
 5. **Jellyfin-Tonspur:** pro Benutzer *Einstellungen → Wiedergabe →
-   Bevorzugte Audiosprache = Deutsch* — German-DL-Files enthalten beide
+   Bevorzugte Audiosprache = Deutsch*; German-DL-Files enthalten beide
    Tonspuren, so startet automatisch die deutsche.
 
 ### Sync manuell anstoßen / prüfen
@@ -329,10 +329,10 @@ Quellen: [TRaSH-Guides German Quality Profiles](https://trash-guides.info/Sonarr
   prüfen, oder in Jellyfin Bibliothek manuell scannen. Sicherstellen, dass *arr
   in dieselben Ordner schreiben, aus denen Jellyfin liest.
 - **Exporter-Metriken 0**: API-Keys in `media-api-keys` nicht gesetzt
-  (Schritt 5) — der Exporter meldet dann `media_exporter_scrape_success 0`.
+  (Schritt 5); der Exporter meldet dann `media_exporter_scrape_success 0`.
 - **Recyclarr-Job schlägt fehl / `CreateContainerConfigError`**: Das
   SealedSecret `media-api-keys` fehlt oder enthält `sonarr-api-key`/
-  `radarr-api-key` nicht (Abschnitt 5) — die Keys sind für den Job Pflicht
+  `radarr-api-key` nicht (Abschnitt 5); die Keys sind für den Job Pflicht
   (bewusst kein `optional:`). Logs: `sudo kubectl -n media logs job/<job-name>`.
 - **Sonarr/Radarr grabben nichts mehr**: Erwartetes Verhalten des strikten
   German-Profils, wenn der Indexer keine deutschen Releases führt —
@@ -343,7 +343,7 @@ Quellen: [TRaSH-Guides German Quality Profiles](https://trash-guides.info/Sonarr
 Alle Images in `values.yaml → images` sind gepinnt und werden von Renovate
 aktuell gehalten: Jede Image-Zeile trägt einen
 `# renovate: datasource=docker depName=…`-Kommentar, den der generische
-Regex-CustomManager in `renovate.json` auswertet — Renovate öffnet bei neuen
+Regex-CustomManager in `renovate.json` auswertet; Renovate öffnet bei neuen
 Upstream-Tags automatisch einen PR. Bei den linuxserver-Images sind bewusst
 die reinen App-Versions-Tags gepinnt (z. B. `4.0.19`), nicht die
 `-lsNNN`-Build-Tags: die reinen Tags existieren parallel, zeigen auf dasselbe
