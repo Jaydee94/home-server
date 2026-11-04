@@ -20,9 +20,10 @@ images:
   # renovate: datasource=docker depName=ghcr.io/seerr-team/seerr
   seerr: ghcr.io/seerr-team/seerr:v3.5.1
   # renovate: datasource=docker depName=ghcr.io/recyclarr/recyclarr
-  # pinned at 8.8.0 — config-templates v8 branch deleted upstream; settings.yaml
-  # forces reference: master (see recyclarr.yaml). Re-pin to latest when upstream fixes it.
-  recyclarr: ghcr.io/recyclarr/recyclarr:8.8.0
+  # pinned at 8.8.1 — config-templates v8 branch deleted upstream; settings.yaml
+  # forces reference: master (see recyclarr.yaml). v8.8.0 crashed (SIGSEGV) due to
+  # Refit-contract mismatch with current Radarr API; 8.8.1 ships hand-written contracts.
+  recyclarr: ghcr.io/recyclarr/recyclarr:8.8.1
   # renovate: datasource=docker depName=python
   exporter: python:3.15-alpine
   pullPolicy: IfNotPresent
