@@ -38,6 +38,15 @@ metadata:
   labels:
     {{- include "media.labels" "recyclarr" | nindent 4 }}
 data:
+  settings.yaml: |
+    # config-templates v8 branch was deleted from the upstream repo; fall back to
+    # master explicitly so the git fetch does not hang until activeDeadlineSeconds.
+    resource_providers:
+      - name: official
+        type: config-templates
+        replace_default: true
+        clone_url: https://github.com/recyclarr/config-templates.git
+        reference: master
   recyclarr.yml: |
     sonarr:
       sonarr:
@@ -197,6 +206,10 @@ spec:
                 - name: config
                   mountPath: /config/recyclarr.yml
                   subPath: recyclarr.yml
+                  readOnly: true
+                - name: config
+                  mountPath: /config/settings.yaml
+                  subPath: settings.yaml
                   readOnly: true
           volumes:
             - name: app-data
