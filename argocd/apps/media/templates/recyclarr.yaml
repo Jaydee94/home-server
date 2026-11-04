@@ -98,6 +98,13 @@ data:
             assign_scores_to:
               - trash_id: 3b0fa37fddaaefc931b75f2889d4b4f5  # [German] UHD Bluray + WEB
               - name: "[German] HD Bluray + WEB"             # 1080p-capped variant
+        # Workaround: config-templates master (post v8-merge) triggers CF group
+        # auto-sync which crashes recyclarr 8.8.1 (SIGSEGV, exit 139).
+        # Skip all default CF groups until the crash is fixed upstream.
+        custom_format_groups:
+          skip:
+            - e3f37512790f00d0e89e54fe5e790d1c  # [Optional] Golden Rule UHD
+            - 6f0872eebfc95b1f93474b7ac866ced0  # [Unwanted] Unwanted Formats German
     radarr:
       radarr:
         base_url: http://radarr:7878
@@ -126,6 +133,11 @@ data:
               - 923b6abef9b17f937fab56cfcf89e1f1  # DV (w/o HDR fallback)
             assign_scores_to:
               - trash_id: 27cc3d153c0a799fd139ef1ff4c4cc42  # [German] UHD Bluray + WEB
+        # Workaround: skip CF group auto-sync (crashes recyclarr 8.8.1, SIGSEGV)
+        custom_format_groups:
+          skip:
+            - ff204bbcecdd487d1cefcefdbf0c278d  # [Optional] Golden Rule UHD
+            - 0ca61b4b233178d07113082a7acff72d  # [Unwanted] Unwanted Formats German
 ---
 apiVersion: batch/v1
 kind: CronJob
