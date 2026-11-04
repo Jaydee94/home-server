@@ -102,6 +102,24 @@ spec:
               ({{`{{ $labels.device }}`}}) of
               {{`{{ $labels.instance }}`}}.
 
+        - alert: HostNetworkInterfaceDown
+          expr: >-
+            node_network_up{device!~"lo|veth.*|cni.*|flannel.*|tunl.*|cali.*|dummy.*"} == 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              Netzwerk-Interface
+              {{`{{ $labels.device }}`}}
+              auf
+              {{`{{ $labels.instance }}`}}
+              ist down
+            description: >-
+              Interface
+              {{`{{ $labels.device }}`}}
+              hat seit 5 min keinen Link.
+
     # ── Kubernetes ──────────────────────────────────────────────────────────
     - name: homeserver.kubernetes
       rules:
@@ -197,6 +215,20 @@ spec:
               PVC
               {{`{{ $labels.namespace }}`}}/{{`{{ $labels.persistentvolumeclaim }}`}}
               has less than 10% free space.
+
+        - alert: PodUnschedulable
+          expr: kube_pod_status_unschedulable == 1
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              Pod
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.pod }}`}}
+              kann nicht scheduled werden
+            description: >-
+              Der Pod ist seit 10 min unschedulable (kein passender Node).
+              Prüfe `kubectl describe pod -n {{`{{ $labels.namespace }}`}} {{`{{ $labels.pod }}`}}`.
 
     # ── ArgoCD ──────────────────────────────────────────────────────────────
     - name: homeserver.argocd
@@ -348,4 +380,40 @@ spec:
             description: >-
               The Mosquitto MQTT broker is unreachable. Home Assistant
               MQTT-based devices will stop reporting.
+
+    # ── KubeVirt ─────────────────────────────────────────────────────────────
+    - name: homeserver.kubevirt
+      rules:
+        - alert: KubeVirtVMNotRunning
+          expr: kubevirt_vmi_phase_count{phase=~"Failed|Unknown"} > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              KubeVirt VMI in Phase
+              {{`{{ $labels.phase }}`}}
+            description: >-
+              Eine oder mehrere VMIs befinden sich in Phase
+              {{`{{ $labels.phase }}`}}.
+              Prüfe `kubectl get vmi -A`.
+
+    # ── systemd ──────────────────────────────────────────────────────────────
+    - name: homeserver.systemd
+      rules:
+        - alert: SystemdUnitFailed
+          expr: node_systemd_unit_state{state="failed"} == 1
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              systemd-Unit
+              {{`{{ $labels.name }}`}}
+              auf
+              {{`{{ $labels.instance }}`}}
+              fehlgeschlagen
+            description: >-
+              Die systemd-Unit ist in state=failed.
+              Prüfe mit `systemctl status {{`{{ $labels.name }}`}}`.
 

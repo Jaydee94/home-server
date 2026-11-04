@@ -259,6 +259,19 @@ victoria-metrics-k8s-stack:
   # CPU/RAM/disk/network/load. Mounts /proc and /sys read-only.
   prometheus-node-exporter:
     enabled: true
+    # --collector.systemd aktiviert node_systemd_unit_state; benötigt den
+    # D-Bus-Socket vom Host (/run/systemd). ~200 Units × 7 States ≈ 1 400
+    # Zeitreihen — kein Problem für VMSingle mit 10 Gi Storage.
+    extraArgs:
+      - --collector.systemd
+    extraVolumes:
+      - name: systemd-socket
+        hostPath:
+          path: /run/systemd
+    extraVolumeMounts:
+      - name: systemd-socket
+        mountPath: /run/systemd
+        readOnly: true
     resources:
       requests:
         cpu: 20m
