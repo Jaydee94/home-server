@@ -417,3 +417,22 @@ spec:
               Die systemd-Unit ist in state=failed.
               Prüfe mit `systemctl status {{`{{ $labels.name }}`}}`.
 
+    # ── Blackbox / HTTP-Probes ────────────────────────────────────────────────
+    - name: homeserver.blackbox
+      rules:
+        - alert: ServiceEndpointDown
+          expr: probe_success{job="homeserver-blackbox"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              Service
+              {{`{{ $labels.instance }}`}}
+              antwortet nicht
+            description: >-
+              HTTP-Probe von
+              {{`{{ $labels.instance }}`}}
+              schlägt seit 2 min fehl.
+              Prüfe Traefik-Logs und Pod-Status.
+

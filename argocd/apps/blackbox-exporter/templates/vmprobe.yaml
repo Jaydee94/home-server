@@ -1,0 +1,25 @@
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: homeserver-services
+  namespace: monitoring
+spec:
+  jobName: homeserver-blackbox
+  vmProberSpec:
+    url: blackbox-exporter-prometheus-blackbox-exporter.monitoring.svc.cluster.local:9115
+    path: /probe
+    scheme: http
+  module: http_2xx
+  targets:
+    staticConfig:
+      static:
+        - http://homepage.homeserver
+        - http://grafana.homeserver
+        - http://pihole.homeserver/admin/login
+        - http://192.168.178.127:30080           # ArgoCD
+        - http://jellyfin.homeserver
+        - http://homeassistant.homeserver
+      relabelingConfigs:
+        - sourceLabels: [__address__]
+          targetLabel: instance
