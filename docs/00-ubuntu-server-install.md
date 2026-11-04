@@ -59,7 +59,7 @@ sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 
 ---
 
-## Schritt 3 — Ubuntu Server installieren
+## Schritt 3: Ubuntu Server installieren
 
 1. Server vom USB-Stick booten (BIOS/UEFI-Taste meist `F2`, `F10`, `F12` oder `Del`).
 2. Durch den Subiquity-Installer klicken:
@@ -82,7 +82,7 @@ sudo dd if=ubuntu-26.04.*-live-server-amd64.iso of=/dev/rdiskX bs=4m
 
 ---
 
-## Schritt 4 — Erster Login & Server-IP finden
+## Schritt 4: Erster Login & Server-IP finden
 
 Nach dem Reboot lokal oder per SSH (falls Key importiert wurde) anmelden:
 
@@ -93,7 +93,7 @@ hostname -I             # Kurzform
 
 ---
 
-## Schritt 5 — SSH-Public-Key vom Control-Rechner pushen
+## Schritt 5: SSH-Public-Key vom Control-Rechner pushen
 
 Auf dem **lokalen** Rechner (von dort wird Ansible laufen):
 
@@ -113,7 +113,7 @@ Bei abweichendem Key-Pfad (z. B. legacy `~/.ssh/id_rsa`) den Eintrag
 
 ---
 
-## Schritt 6 — Statische IP einrichten
+## Schritt 6: Statische IP einrichten
 
 Für einen Server dringend empfohlen.
 
@@ -135,7 +135,7 @@ network_dns:
 Die SSH-Session bricht kurz weg, während Netplan neu konfiguriert. Wichtig:
 `ansible_host` im Inventory muss auf die neue IP zeigen (oder vorher schon).
 
-### Variante B — Manuell vor dem Playbook
+### Variante B: Manuell vor dem Playbook
 
 ```bash
 ip link show                              # Interface-Name herausfinden, z. B. eno1
@@ -176,7 +176,7 @@ ssh jaydee@192.168.178.127
 
 ---
 
-## Schritt 7 — Passwortloses sudo
+## Schritt 7: Passwortloses sudo
 
 Ansible braucht `NOPASSWD`-sudo. Ubuntu Server hat das nicht standardmäßig
 aktiv. Bei Bedarf fixen:
@@ -190,7 +190,7 @@ sudo chmod 0440 /etc/sudoers.d/jaydee
 
 ---
 
-## Schritt 8 — System-Updates
+## Schritt 8: System-Updates
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -199,7 +199,7 @@ sudo reboot
 
 ---
 
-## Bereit für Ansible — Checkliste
+## Bereit für Ansible: Checkliste
 
 - [ ] Ubuntu Server 26.04 LTS installiert (nicht Desktop)
 - [ ] Username ist `jaydee`

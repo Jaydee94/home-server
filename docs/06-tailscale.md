@@ -111,7 +111,7 @@ kubectl --server=https://100.101.102.103:6443 get nodes
 ## Subnet-Routing
 
 Subnet-Routing erlaubt anderen Tailscale-Clients, Geräte im **Heim-LAN** zu
-erreichen, auf denen kein Tailscale läuft — z. B. eine NAS, ein Smart-TV
+erreichen, auf denen kein Tailscale läuft, z. B. eine NAS, ein Smart-TV
 oder ein Drucker.
 
 Die Ansible-Rolle konfiguriert den Server so, dass er das eigene Subnetz
