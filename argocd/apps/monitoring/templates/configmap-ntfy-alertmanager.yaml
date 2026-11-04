@@ -1,0 +1,26 @@
+---
+# Configuration for the ntfy-alertmanager bridge.
+# Topic name is not a personal credential — change it if you want a fresh
+# topic. The ntfy app on your phone must subscribe to the same topic.
+#
+# Priority mapping: critical→urgent (red), warning→high (orange),
+# info→default (white, suppressed by Alertmanager route anyway).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy-alertmanager-config
+  namespace: monitoring
+data:
+  config.yml: |
+    ---
+    http-address: ":8080"
+    ntfy:
+      server: https://ntfy.sh
+      topic: homeserver-alerts-change-me
+    labels:
+      order:
+        - severity
+      severity:
+        critical: urgent
+        warning: high
+        info: default

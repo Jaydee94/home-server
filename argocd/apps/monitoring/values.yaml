@@ -108,19 +108,20 @@ victoria-metrics-k8s-stack:
           container.apparmor.security.beta.kubernetes.io/vmalert: unconfined
 
   # ---- Alertmanager ----------------------------------------
-  # Routes critical/warning alerts to the alertmanager-gotify-bridge
-  # (monitoring namespace), which translates Alertmanager webhooks into
-  # Gotify push notifications. Info-severity alerts are silently dropped.
-  # The bridge reads its Gotify app token from the SealedSecret
-  # sealedsecret-alertmanager-gotify-bridge.yaml — create the token first
-  # in the Gotify UI, then run `make vault-edit` or kubeseal to seal it.
+  # Routes critical/warning alerts to ntfy-alertmanager (monitoring namespace),
+  # which formats and forwards them to ntfy.sh as push notifications.
+  # Info-severity alerts are silently dropped.
+  #
+  # To configure your topic: edit configmap-ntfy-alertmanager.yaml, replace
+  # "homeserver-alerts-change-me" with a random string, subscribe to the
+  # same topic in the ntfy app on your phone, then push — ArgoCD syncs in ~3 min.
   alertmanager:
     enabled: true
     spec:
       replicaCount: 1
     config:
       route:
-        receiver: gotify
+        receiver: ntfy
         group_by: ["alertname", "namespace"]
         group_wait: 30s
         group_interval: 5m
@@ -130,9 +131,9 @@ victoria-metrics-k8s-stack:
             matchers:
               - severity="info"
       receivers:
-        - name: gotify
+        - name: ntfy
           webhook_configs:
-            - url: "http://alertmanager-gotify-bridge.monitoring.svc.cluster.local:8080/gotify_webhook"
+            - url: "http://ntfy-alertmanager.monitoring.svc.cluster.local:8080"
               send_resolved: true
         - name: blackhole
       inhibit_rules:
