@@ -29,8 +29,9 @@ vm:
   macAddress: "ea:8d:94:de:4f:c4"
   memory:
     # guest: RAM visible to the VM OS; requests: pod scheduling budget (guest + QEMU overhead)
-    guest: 8Gi
-    requests: 8704Mi
+    # 10 Gi: 7DTD exhausted 8 Gi → OOM-Killer killed tailscaled → network loss
+    guest: 10Gi
+    requests: 10752Mi
 
 # ---- OS Disk (DataVolume via CDI) ----
 dataVolume:
