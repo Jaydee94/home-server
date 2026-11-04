@@ -27,6 +27,10 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-yamllint-${{ runner.os }}-${{ hashFiles('.github/workflows/lint.yml') }}
       - name: Install yamllint
         run: pip install yamllint
       - name: Detect changed YAML files
@@ -57,8 +61,16 @@ jobs:
         with:
           # "3.x" resolves to 3.15, which ansible-core does not support yet
           python-version: "3.13"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-ansible-${{ runner.os }}-${{ hashFiles('.github/workflows/lint.yml') }}
       - name: Install ansible + ansible-lint
         run: pip install ansible ansible-lint
+      - uses: actions/cache@v4
+        with:
+          path: ~/.ansible/collections
+          key: ansible-collections-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}
       - name: Install required collections
         run: ansible-galaxy collection install -r ansible/requirements.yml
       - name: Run ansible-lint
