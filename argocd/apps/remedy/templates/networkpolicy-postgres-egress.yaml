@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: remedy-postgres-backup-egress
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/instance: remedy
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/part-of: remedy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: remedy
+      app.kubernetes.io/name: remedy-postgres
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 5432
+          protocol: TCP
+      to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/instance: remedy
+              app.kubernetes.io/name: remedy-postgres-backup
