@@ -1,0 +1,77 @@
+---
+# Translates Alertmanager webhook payloads into ntfy push notifications.
+# Source: https://git.xenrox.net/~xenrox/ntfy-alertmanager
+#
+# Config format: scfg (go-scfg), NOT YAML.
+# Topic: injected via SealedSecret ntfy-alertmanager-topic (see sealedsecret-ntfy-alertmanager-topic.yaml).
+# A ConfigMap change alone does NOT restart the pod; bump the checksum annotation below to force a rollout.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ntfy-alertmanager
+  namespace: monitoring
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ntfy-alertmanager
+  template:
+    metadata:
+      labels:
+        app: ntfy-alertmanager
+      annotations:
+        # Increment to force a pod restart after config changes:
+        checksum/config: "1"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+      containers:
+        - name: bridge
+          # renovate: datasource=docker depName=xenrox/ntfy-alertmanager
+          image: xenrox/ntfy-alertmanager:0.5.0
+          args:
+            - --config=/etc/ntfy-alertmanager/config.scfg
+          ports:
+            - name: webhook
+              containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ntfy-alertmanager
+              readOnly: true
+            - name: topic-secret
+              mountPath: /etc/ntfy-alertmanager/secrets
+              readOnly: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+      volumes:
+        - name: config
+          configMap:
+            name: ntfy-alertmanager-config
+        - name: topic-secret
+          secret:
+            secretName: ntfy-alertmanager-topic
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ntfy-alertmanager
+  namespace: monitoring
+spec:
+  selector:
+    app: ntfy-alertmanager
+  ports:
+    - name: webhook
+      port: 8080
+      targetPort: 8080

@@ -81,7 +81,10 @@ jobs:
               echo "Changed charts:"
               # shellcheck disable=SC2086  # intentional word-splitting: one chart per line
               printf '  %s\n' ${changed}
-              echo "dirs=${changed}" >> "$GITHUB_OUTPUT"
+              # GITHUB_OUTPUT does not allow newlines in key=value format;
+              # replace them with spaces (word-splitting in the render step handles both).
+              changed_oneline="$(echo "${changed}" | tr '\n' ' ')"
+              echo "dirs=${changed_oneline}" >> "$GITHUB_OUTPUT"
             fi
           else
             echo "Full scan (push/schedule)."

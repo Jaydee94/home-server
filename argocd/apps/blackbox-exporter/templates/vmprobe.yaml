@@ -1,0 +1,24 @@
+---
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: homeserver-services
+  namespace: monitoring
+spec:
+  jobName: homeserver-blackbox
+  vmProberSpec:
+    # ArgoCD ApplicationSet deploys blackbox-exporter into namespace "blackbox-exporter"
+    # (destination.namespace = path.basename from root-applicationset.yaml).
+    url: blackbox-exporter-prometheus-blackbox-exporter.blackbox-exporter.svc.cluster.local:9115
+    path: /probe
+    scheme: http
+  module: http_2xx
+  targets:
+    static:
+      targets:
+        - http://homepage.homeserver
+        - http://grafana.homeserver
+        - http://pihole.homeserver/admin/login
+        - http://192.168.178.127:30080           # ArgoCD
+        - http://jellyfin.homeserver
+        - http://homeassistant.homeserver

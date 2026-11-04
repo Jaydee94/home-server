@@ -1,0 +1,33 @@
+---
+# Configuration for the ntfy-alertmanager bridge (xenrox/ntfy-alertmanager).
+# Uses scfg format (NOT YAML) — the tool parses go-scfg at startup.
+#
+# Priority mapping: critical→5 (urgent), warning→4 (high), info→3 (default).
+#
+# The ntfy topic is NOT stored here because this repo is public.
+# It is stored in the SealedSecret ntfy-alertmanager-topic and mounted as a
+# separate scfg file that is included at the bottom of this config.
+# See sealedsecret-ntfy-alertmanager-topic.yaml for how to create/update it.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy-alertmanager-config
+  namespace: monitoring
+data:
+  config.scfg: |
+    http-address :8080
+
+    labels {
+        order "severity"
+        severity "critical" {
+            priority 5
+        }
+        severity "warning" {
+            priority 4
+        }
+        severity "info" {
+            priority 3
+        }
+    }
+
+    include /etc/ntfy-alertmanager/secrets/ntfy-topic.scfg

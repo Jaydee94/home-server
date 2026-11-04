@@ -108,19 +108,20 @@ victoria-metrics-k8s-stack:
           container.apparmor.security.beta.kubernetes.io/vmalert: unconfined
 
   # ---- Alertmanager ----------------------------------------
-  # Routes critical/warning alerts to the alertmanager-gotify-bridge
-  # (monitoring namespace), which translates Alertmanager webhooks into
-  # Gotify push notifications. Info-severity alerts are silently dropped.
-  # The bridge reads its Gotify app token from the SealedSecret
-  # sealedsecret-alertmanager-gotify-bridge.yaml — create the token first
-  # in the Gotify UI, then run `make vault-edit` or kubeseal to seal it.
+  # Routes critical/warning alerts to ntfy-alertmanager (monitoring namespace),
+  # which formats and forwards them to ntfy.sh as push notifications.
+  # Info-severity alerts are silently dropped.
+  #
+  # To configure your topic: edit configmap-ntfy-alertmanager.yaml, replace
+  # "homeserver-alerts-change-me" with a random string, subscribe to the
+  # same topic in the ntfy app on your phone, then push — ArgoCD syncs in ~3 min.
   alertmanager:
     enabled: true
     spec:
       replicaCount: 1
     config:
       route:
-        receiver: gotify
+        receiver: ntfy
         group_by: ["alertname", "namespace"]
         group_wait: 30s
         group_interval: 5m
@@ -130,9 +131,9 @@ victoria-metrics-k8s-stack:
             matchers:
               - severity="info"
       receivers:
-        - name: gotify
+        - name: ntfy
           webhook_configs:
-            - url: "http://alertmanager-gotify-bridge.monitoring.svc.cluster.local:8080/gotify_webhook"
+            - url: "http://ntfy-alertmanager.monitoring.svc.cluster.local:8080"
               send_resolved: true
         - name: blackhole
       inhibit_rules:
@@ -259,6 +260,23 @@ victoria-metrics-k8s-stack:
   # CPU/RAM/disk/network/load. Mounts /proc and /sys read-only.
   prometheus-node-exporter:
     enabled: true
+    # Helm replaces lists rather than merging them, so the chart defaults must
+    # be repeated here alongside --collector.systemd. The two filesystem flags
+    # are the upstream defaults from victoria-metrics-k8s-stack values.yaml.
+    # --collector.systemd requires the D-Bus system socket (/run/dbus), NOT
+    # /run/systemd; node_exporter calls dbus.NewWithContext (the system bus).
+    extraArgs:
+      - --collector.systemd
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($|/)
+      - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|erofs|sysfs|tracefs)$
+    extraVolumes:
+      - name: dbus-socket
+        hostPath:
+          path: /run/dbus
+    extraVolumeMounts:
+      - name: dbus-socket
+        mountPath: /var/run/dbus
+        readOnly: true
     resources:
       requests:
         cpu: 20m
