@@ -87,6 +87,12 @@ spec:
             # Kubernetes normalises memory quantities (e.g. 8.5Gi → 8704Mi) at admission;
             # ignore to prevent spurious drift when both values are numerically equal.
             - /spec/template/spec/domain/resources
+        - group: operator.victoriametrics.com
+          kind: VMRule
+          jqPathExpressions:
+            # VictoriaMetrics operator injects record: "" into every alert rule at admission;
+            # this field is absent in YAML templates — ignore to prevent drift loops.
+            - .spec.groups[].rules[].record
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           jsonPointers:

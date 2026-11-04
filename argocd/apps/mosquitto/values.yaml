@@ -15,7 +15,7 @@ mosquitto:
     # Chart-Default-Repo ist docker.io/library/eclipse-mosquitto; nur der Tag
     # wird hier gepinnt, daher braucht Renovate den depName-Hinweis.
     # renovate: datasource=docker depName=eclipse-mosquitto
-    tag: "2.0.22"
+    tag: "2.1.2"
 
   broker:
     replicaCount: 1
