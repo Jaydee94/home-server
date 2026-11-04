@@ -56,23 +56,50 @@ jobs:
       images: ${{ steps.collect.outputs.images }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: azure/setup-helm@v5
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
+      - name: Set up chart-testing
+        uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
       - name: Install PyYAML
         run: pip install pyyaml
-      - name: Render every chart under argocd/apps
+      - name: Determine which charts to scan
+        id: charts
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # On PRs: only scan images from charts that actually changed.
+            # Full scan on main push and weekly schedule (new CVE coverage).
+            changed="$(ct list-changed --config .github/ct.yaml)"
+            if [ -z "${changed}" ]; then
+              echo "No changed charts — skipping image scan."
+              echo "dirs=" >> "$GITHUB_OUTPUT"
+            else
+              echo "Changed charts:"
+              printf '  %s\n' ${changed}
+              echo "dirs=${changed}" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "Full scan (push/schedule)."
+            echo "dirs=all" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Render charts
+        if: steps.charts.outputs.dirs != ''
         run: |
           set -euo pipefail
           mkdir -p /tmp/rendered
-          for chart_dir in argocd/apps/*/; do
-            [ -f "${chart_dir}Chart.yaml" ] || continue
+          if [ "${{ steps.charts.outputs.dirs }}" = "all" ]; then
+            chart_list="$(find argocd/apps -maxdepth 1 -mindepth 1 -type d)"
+          else
+            chart_list="${{ steps.charts.outputs.dirs }}"
+          fi
+          for chart_dir in ${chart_list}; do
+            [ -f "${chart_dir}/Chart.yaml" ] || continue
             name="$(basename "${chart_dir%/}")"
-            if grep -q '^dependencies:' "${chart_dir}Chart.yaml"; then
-              # No Chart.lock is committed (gitignored) — `update` resolves
-              # dependencies straight from Chart.yaml, unlike `build` which
-              # requires a pre-existing lock file.
+            if grep -q '^dependencies:' "${chart_dir}/Chart.yaml"; then
               if ! helm dependency update "$chart_dir"; then
                 echo "::warning::helm dependency update failed for ${chart_dir} — its images may be missing from this scan"
               fi
@@ -86,10 +113,14 @@ jobs:
         id: collect
         run: |
           set -euo pipefail
-          python3 .github/scripts/discover_images.py /tmp/rendered > /tmp/images.txt
-          cat /tmp/images.txt
-          json="$(python3 -c 'import json,sys; print(json.dumps([l.strip() for l in open("/tmp/images.txt") if l.strip()]))')"
-          echo "images=$json" >> "$GITHUB_OUTPUT"
+          if [ "${{ steps.charts.outputs.dirs }}" = "" ] || [ ! -d /tmp/rendered ] || [ -z "$(ls -A /tmp/rendered 2>/dev/null)" ]; then
+            echo "images=[]" >> "$GITHUB_OUTPUT"
+          else
+            python3 .github/scripts/discover_images.py /tmp/rendered > /tmp/images.txt
+            cat /tmp/images.txt
+            json="$(python3 -c 'import json,sys; print(json.dumps([l.strip() for l in open("/tmp/images.txt") if l.strip()]))')"
+            echo "images=$json" >> "$GITHUB_OUTPUT"
+          fi
 
   trivy-image:
     name: trivy (image vulnerabilities)
