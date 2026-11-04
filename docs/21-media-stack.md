@@ -251,73 +251,17 @@ pro Namespace sind unkritisch, solange beide Seiten auf dieselben `movies/`- und
 > gesamte Stack UI-konfiguriert), nicht in Git. Nach einem Config-PVC-Verlust neu
 > anlegen.
 
-## 9. Deutsch erzwingen (Recyclarr, GitOps-verwaltet)
+## 9. Deutsch erzwingen (manuelle Quality-Profile)
 
-Sonarr und Radarr laden **ausschließlich deutsche bzw. German-(DL)-Releases**;
-bereits vorhandene englische Medien werden automatisch ersetzt, sobald eine
-deutsche Fassung auftaucht. Umgesetzt über einen **Recyclarr-CronJob**
-(`templates/recyclarr.yaml`, täglich 05:30), der die offiziellen
-TRaSH-Guide-German-Templates in beide Apps synct.
+Sonarr und Radarr laden **ausschließlich deutsche bzw. German-(DL)-Releases**.
+Die Quality-Profile **„[German] UHD Bluray + WEB"** und **„[German] HD Bluray + WEB"**
+sowie die German-Custom-Formats wurden initial per Recyclarr eingerichtet und
+existieren jetzt dauerhaft in beiden Apps (nicht mehr GitOps-verwaltet).
 
-### Funktionsweise
-
-- Recyclarr erstellt in Sonarr + Radarr das Quality-Profil
-  **„UHD Bluray + WEB (GER)"** samt German-Custom-Formats (Score-Set `german`):
-  `German DL` (deutsch+englische Tonspur) scort am höchsten, reines `German`
-  darunter, Low-Quality-German-Gruppen negativ.
-- Alle Qualitäten (2160p/1080p/720p, Bluray+WEB) liegen in **einer** gemergten
-  Gruppe („Merged QPs"): Upgrades entscheiden sich über den **Sprach-Score,
-  nicht die Auflösung**: ein deutsches 1080p schlägt ein englisches 2160p.
-- **`min_format_score: 10000`** macht englisch-only Releases ungrabbar
-  (strikte Durchsetzung, Upstream-Option „skip English Releases").
-- Upgrade-Kette: liegt ein englisches File vor (importiert bevor es eine
-  deutsche Fassung gab oder aus Altbestand), ersetzt *arr es automatisch via
-  RSS/Suche, sobald ein German-(DL)-Release verfügbar ist
-  (`upgrade until score: 35000`).
-- API-Keys bezieht der Job aus dem SealedSecret `media-api-keys`
-  (`sonarr-api-key`, `radarr-api-key`, Abschnitt 5, Pflicht).
-
-> ⚠️ **Das Profil gehört Git.** Manuelle UI-Änderungen an „UHD Bluray + WEB
-> (GER)" oder den German-Custom-Formats werden beim nächsten Sync
-> überschrieben (`reset_unmatched_scores` ist aktiv). Anpassungen ausschließlich
-> in `argocd/apps/media/templates/recyclarr.yaml`.
-
-> ⚠️ **Konsequenz der strikten Variante:** Bei brandneuen Releases ohne
-> deutsche Fassung wird **gar nichts** geladen; Seerr-Requests bleiben „in
-> Bearbeitung", bis eine deutsche Version erscheint. Wer stattdessen Englisch
-> als Zwischenlösung will: `min_format_score`-Zeilen in `recyclarr.yaml`
-> entfernen (dann greift Laden-und-später-upgraden).
-
-### Einmalige manuelle Schritte (nach dem ersten Sync)
-
-1. **Indexer-Check (Voraussetzung):** In Sonarr/Radarr *Interactive Search* auf
-   einen bekannten Titel → es müssen Releases mit `German DL`-Custom-Format
-   auftauchen. Falls nicht, in Prowlarr einen Indexer mit deutschem Content
-   ergänzen; sonst wird mit dem strikten Profil **nichts** mehr gegrabbt.
-2. **Profil zuweisen:** Sonarr → *Series → Mass Edit* → Quality Profile
-   „UHD Bluray + WEB (GER)" für alle Serien; Radarr → *Movies → Edit* analog.
-3. **Seerr-Defaults:** *Settings → Sonarr/Radarr → Quality Profile* auf das
-   German-Profil stellen, damit neue Requests es automatisch bekommen.
-4. **Bestand upgraden:** Radarr *Movies → Select All → Search Selected* bzw.
-   Sonarr *Series Mass-Search*, in Batches (Indexer-API-Limits, Bandbreite).
-   Alles mit verfügbarer deutscher Fassung wird ersetzt; der Rest bleibt liegen
-   und wird via RSS nachgezogen.
-5. **Jellyfin-Tonspur:** pro Benutzer *Einstellungen → Wiedergabe →
-   Bevorzugte Audiosprache = Deutsch*; German-DL-Files enthalten beide
-   Tonspuren, so startet automatisch die deutsche.
-
-### Sync manuell anstoßen / prüfen
-
-```sh
-# --ignore-not-found macht den Aufruf wiederholbar (Job-Namen sind unique)
-ssh jaydee@192.168.178.127 'sudo kubectl -n media delete job recyclarr-manual --ignore-not-found && \
-  sudo kubectl -n media create job --from=cronjob/recyclarr recyclarr-manual'
-ssh jaydee@192.168.178.127 'sudo kubectl -n media logs -f job/recyclarr-manual'
-```
-
-Quellen: [TRaSH-Guides German Quality Profiles](https://trash-guides.info/Sonarr/sonarr-setup-quality-profiles-german-en/),
-[Recyclarr config-templates](https://github.com/recyclarr/config-templates)
-(`german-uhd-bluray-web`-Templates).
+> Recyclarr wurde entfernt (2026-11-04): der upstream `config-templates`-Repo
+> verursacht einen SIGSEGV-Crash in allen recyclarr-Versionen ≤ 8.8.1 (v8-Branch
+> gelöscht, master-Branch nicht kompatibel). Manuelle Pflege der Profile ist
+> praktikabler als das Debuggen externer Abhängigkeiten.
 
 ## Troubleshooting
 
