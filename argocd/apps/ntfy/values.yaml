@@ -53,6 +53,16 @@ config:
   # Allow anonymous read and publish (home network only, no public exposure)
   authDefaultAccess: "read-write"
 
+# HTTPS NodePort — ntfy terminiert TLS selbst.
+# Zertifikat enthält IP SAN 192.168.178.127, damit die ntfy-App ohne
+# Hostname (kein DNS nötig) verbinden kann: https://192.168.178.127:30981
+tls:
+  enabled: true
+  serverIp: "192.168.178.127"
+  targetPort: 8443
+  # Zugriff im Heimnetz: https://192.168.178.127:30981
+  nodePort: 30981
+
 resources:
   requests:
     cpu: 10m
