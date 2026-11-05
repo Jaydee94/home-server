@@ -1,0 +1,57 @@
+---
+replicaCount: 1
+
+image:
+  # renovate: datasource=docker depName=binwiederhier/ntfy
+  repository: binwiederhier/ntfy
+  pullPolicy: IfNotPresent
+  tag: "v2.11.0"
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+  # Zugriff im Heimnetz ohne DNS: http://192.168.178.127:30980
+  nodePort: 30980
+
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    - host: ntfy.homeserver
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 1Gi
+  accessMode: ReadWriteOnce
+
+# ntfy server configuration — written to /etc/ntfy/server.yml
+config:
+  # Public base URL (used for click-through links in notifications)
+  # NodePort 30980 is the IP-based access path; DNS alias ntfy.homeserver works in-network too.
+  baseUrl: "http://192.168.178.127:30980"
+  # ntfy.sh as Firebase/APNs relay: the Android/iOS app receives push
+  # notifications even when the phone is outside the home network and
+  # Tailscale is not active.
+  upstreamBaseUrl: "https://ntfy.sh"
+  # Cache location for messages (allows clients to catch up on missed msgs)
+  cacheFile: "/var/lib/ntfy/cache.db"
+  # 12h message retention
+  cacheDuration: "12h"
+  # Auth DB (access control)
+  authFile: "/var/lib/ntfy/user.db"
+  # Allow anonymous read and publish (home network only, no public exposure)
+  authDefaultAccess: "read-write"
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
