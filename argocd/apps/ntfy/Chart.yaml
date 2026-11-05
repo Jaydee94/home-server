@@ -1,0 +1,16 @@
+---
+apiVersion: v2
+name: ntfy
+description: Self-hosted ntfy push-notification server.
+type: application
+version: 0.1.0
+appVersion: "v2.11.0"
+keywords:
+  - ntfy
+  - notifications
+  - push
+home: https://ntfy.sh
+sources:
+  - https://github.com/binwiederhier/ntfy
+maintainers:
+  - name: home-server-admin

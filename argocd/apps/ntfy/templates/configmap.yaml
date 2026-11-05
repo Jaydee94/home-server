@@ -1,0 +1,17 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ntfy-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ntfy.labels" . | nindent 4 }}
+data:
+  server.yml: |
+    base-url: {{ .Values.config.baseUrl | quote }}
+    upstream-base-url: {{ .Values.config.upstreamBaseUrl | quote }}
+    listen-http: ":{{ .Values.service.targetPort }}"
+    cache-file: {{ .Values.config.cacheFile | quote }}
+    cache-duration: {{ .Values.config.cacheDuration | quote }}
+    auth-file: {{ .Values.config.authFile | quote }}
+    auth-default-access: {{ .Values.config.authDefaultAccess | quote }}
