@@ -5,7 +5,7 @@ image:
   # renovate: datasource=docker depName=binwiederhier/ntfy
   repository: binwiederhier/ntfy
   pullPolicy: IfNotPresent
-  tag: "v2.11.0"
+  tag: "v2.37.2"
 
 service:
   type: NodePort
