@@ -17,12 +17,17 @@ service:
 ingress:
   enabled: true
   className: traefik
+  annotations:
+    cert-manager.io/cluster-issuer: homeserver-ca-issuer
   hosts:
     - host: ntfy.homeserver
       paths:
         - path: /
           pathType: Prefix
-  tls: []
+  tls:
+    - hosts:
+        - ntfy.homeserver
+      secretName: ntfy-tls
 
 persistence:
   enabled: true

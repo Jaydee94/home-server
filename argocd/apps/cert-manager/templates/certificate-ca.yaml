@@ -1,0 +1,24 @@
+---
+# Root-CA-Zertifikat für das Heimnetz.
+# Das TLS-Zertifikat aus homeserver-ca-secret muss einmalig auf
+# Geräten im Heimnetz installiert werden.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: homeserver-ca
+  namespace: cert-manager
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  isCA: true
+  commonName: Homeserver Root CA
+  secretName: homeserver-ca-secret
+  duration: 87600h  # 10 Jahre
+  renewBefore: 720h # 30 Tage vorher erneuern
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
