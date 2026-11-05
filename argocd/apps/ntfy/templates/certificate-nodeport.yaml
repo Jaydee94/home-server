@@ -1,0 +1,22 @@
+---
+# TLS-Zertifikat für den ntfy HTTPS-NodePort (192.168.178.127:30981).
+# Enthält die Server-IP als SAN damit die ntfy-App ohne Hostname verbinden kann.
+{{- if .Values.tls.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ntfy-tls-nodeport
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "ntfy.labels" . | nindent 4 }}
+spec:
+  secretName: ntfy-tls-nodeport
+  dnsNames:
+    - ntfy.homeserver
+  ipAddresses:
+    - {{ .Values.tls.serverIp | quote }}
+  issuerRef:
+    name: homeserver-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+{{- end }}

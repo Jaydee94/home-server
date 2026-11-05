@@ -16,5 +16,12 @@ spec:
       {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
       nodePort: {{ .Values.service.nodePort }}
       {{- end }}
+    {{- if .Values.tls.enabled }}
+    - port: 443
+      targetPort: https
+      protocol: TCP
+      name: https
+      nodePort: {{ .Values.tls.nodePort }}
+    {{- end }}
   selector:
     {{- include "ntfy.selectorLabels" . | nindent 4 }}

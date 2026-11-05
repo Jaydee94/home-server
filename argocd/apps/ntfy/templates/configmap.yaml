@@ -11,6 +11,11 @@ data:
     base-url: {{ .Values.config.baseUrl | quote }}
     upstream-base-url: {{ .Values.config.upstreamBaseUrl | quote }}
     listen-http: ":{{ .Values.service.targetPort }}"
+    {{- if .Values.tls.enabled }}
+    listen-https: ":{{ .Values.tls.targetPort }}"
+    key-file: "/etc/ntfy/tls/tls.key"
+    cert-file: "/etc/ntfy/tls/tls.crt"
+    {{- end }}
     cache-file: {{ .Values.config.cacheFile | quote }}
     cache-duration: {{ .Values.config.cacheDuration | quote }}
     auth-file: {{ .Values.config.authFile | quote }}

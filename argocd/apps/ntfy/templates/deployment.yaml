@@ -41,6 +41,11 @@ spec:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
+            {{- if .Values.tls.enabled }}
+            - name: https
+              containerPort: {{ .Values.tls.targetPort }}
+              protocol: TCP
+            {{- end }}
           livenessProbe:
             httpGet:
               path: /v1/health
@@ -65,10 +70,20 @@ spec:
               readOnly: true
             - name: data
               mountPath: /var/lib/ntfy
+            {{- if .Values.tls.enabled }}
+            - name: tls
+              mountPath: /etc/ntfy/tls
+              readOnly: true
+            {{- end }}
       volumes:
         - name: config
           configMap:
             name: ntfy-config
+        {{- if .Values.tls.enabled }}
+        - name: tls
+          secret:
+            secretName: ntfy-tls-nodeport
+        {{- end }}
         - name: data
           {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
