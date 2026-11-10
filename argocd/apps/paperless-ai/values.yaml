@@ -6,7 +6,7 @@ image:
   pullPolicy: IfNotPresent
   # Pinned for reproducibility. Bump to track upstream releases:
   # https://hub.docker.com/r/clusterzx/paperless-ai/tags
-  tag: "3.0.9"
+  tag: "4.0.0"
 
 nameOverride: ""
 fullnameOverride: ""
