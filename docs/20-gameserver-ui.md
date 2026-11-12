@@ -120,7 +120,7 @@ sendet, erscheint der Fehler in der Ausgabe des **nächsten** Befehls.
 
 `telnetCommand` (`src/lib/telnet.ts`) meldet sich deshalb per `exit` ab (der Server
 schließt den Socket selbst) und filtert Server-Logzeilen (ISO-Zeitstempel) via
-`stripServerLog()` aus der angezeigten Ausgabe. Tritt der Fehler erneut auf, prüfen
+`extractCommandOutput()` aus der angezeigten Ausgabe. Tritt der Fehler erneut auf, prüfen
 ob diese beiden Mechanismen noch greifen.
 
 ### Mod-Upload schlägt mit 502 fehl / Mods werden nicht geladen

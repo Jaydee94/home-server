@@ -1,10 +1,3 @@
-{{/*
-Expand the name of the chart.
-*/}}
-{{- define "ntfy.name" -}}
-{{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
-{{- end }}
-
 {{- define "ntfy.fullname" -}}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- end }}

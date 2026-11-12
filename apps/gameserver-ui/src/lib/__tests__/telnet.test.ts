@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
-import { parseLp, stripServerLog, extractCommandOutput, telnetCommand } from "@/lib/telnet";
+import { parseLp, extractCommandOutput, telnetCommand } from "@/lib/telnet";
 import type { SshClient } from "@/lib/ssh";
 
 describe("parseLp", () => {
@@ -18,29 +18,6 @@ describe("parseLp", () => {
 
   it("gibt leeres Array zurück wenn keine Spieler online", () => {
     expect(parseLp("Total of 0 in the game")).toEqual([]);
-  });
-});
-
-describe("stripServerLog", () => {
-  it("entfernt 7DTD-Server-Logzeilen mit Zeitstempel und behält nur das Befehlsergebnis", () => {
-    const raw = [
-      "2026-06-12T07:36:07 476.230 ERR IOException in TelnetClient_127.0.0.1:56120: Unable to write data to the transport connection: The socket has been shut down.",
-      "2026-06-12T07:36:07 476.231 INF Telnet connection closed: 127.0.0.1:56120",
-      "2026-06-12T07:36:07 476.342 INF Executing command 'gettime' by Telnet from 127.0.0.1:56128",
-      "Day 2, 05:53",
-    ].join("\n");
-    expect(stripServerLog(raw)).toBe("Day 2, 05:53");
-  });
-
-  it("behält mehrzeilige Befehlsausgaben ohne Zeitstempel (z. B. lp)", () => {
-    const raw = [
-      "2026-06-12T07:36:01 470.544 INF Executing command 'lp' by Telnet from 127.0.0.1:56120",
-      "Total of 1 in the game",
-      "0. id=171, Hans, pos=(100.0, 64.0, 200.0), rot=(0.0, 0.0, 0.0), remote=True, health=100, deaths=0, zombies=5, players=0, score=0, level=1, pltfmid=Steam_76561198000000001, crossid=EOS_abc123, ip=127.0.0.1, ping=0",
-    ].join("\n");
-    expect(stripServerLog(raw)).toBe(
-      "Total of 1 in the game\n0. id=171, Hans, pos=(100.0, 64.0, 200.0), rot=(0.0, 0.0, 0.0), remote=True, health=100, deaths=0, zombies=5, players=0, score=0, level=1, pltfmid=Steam_76561198000000001, crossid=EOS_abc123, ip=127.0.0.1, ping=0",
-    );
   });
 });
 

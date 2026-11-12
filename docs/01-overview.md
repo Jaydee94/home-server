@@ -59,7 +59,7 @@ High-Level-Architektur des Home-Server-Setups.
 │  │  │  │    mosquitto, media (Sonarr/Radarr/…),       │   │   │   │
 │  │  │  │    kubevirt, gameserver, gameserver-ui,      │   │   │   │
 │  │  │  │    remedy, rps-arena,                        │   │   │   │
-│  │  │  │    csi-driver-smb, example-whoami            │   │   │   │
+│  │  │  │    csi-driver-smb                            │   │   │   │
 │  │  │  └─────────────────────────────────────────────┘   │   │   │
 │  │  │                                                      │   │   │
 │  │  │  ┌──────────────────────────────────────────────┐   │   │   │
@@ -80,8 +80,7 @@ High-Level-Architektur des Home-Server-Setups.
 │                                                                     │
 │   home-server/                                                      │
 │   └── argocd/apps/          ← ArgoCD beobachtet dieses Verzeichnis │
-│       ├── example-whoami/   ← Jedes Unterverzeichnis = eine App    │
-│       ├── metallb/                                                 │
+│       ├── metallb/          ← Jedes Unterverzeichnis = eine App    │
 │       ├── pihole/                                                  │
 │       ├── monitoring/                                              │
 │       ├── monitoring-dashboards/                                    │

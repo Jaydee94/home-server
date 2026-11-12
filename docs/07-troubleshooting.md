@@ -115,7 +115,7 @@ kubectl logs -n argocd deployment/argocd-applicationset-controller --tail=100
 
 # Apps und Status
 kubectl get applications -n argocd
-kubectl describe application example-whoami -n argocd
+kubectl describe application gotify -n argocd
 
 # ApplicationSet
 kubectl get applicationsets -n argocd
@@ -177,10 +177,10 @@ kubectl describe pod -n argocd -l app.kubernetes.io/name=argocd-server
 
 ```bash
 # Per CLI
-argocd app sync example-whoami --force
+argocd app sync gotify --force
 
 # Per kubectl (Annotation triggert Refresh)
-kubectl patch application example-whoami -n argocd \
+kubectl patch application gotify -n argocd \
   --type merge \
   -p '{"metadata": {"annotations": {"argocd.argoproj.io/refresh": "hard"}}}'
 ```
