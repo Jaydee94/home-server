@@ -47,7 +47,6 @@ spec:
 
 | Namespace | Zusätzliche Allow-Regel(n) | Grund |
 |---|---|---|
-| `example-whoami` | – | nur Traefik |
 | `gameserver-ui` | – | nur Traefik |
 | `gotify` | – | nur Traefik |
 | `headlamp` | – | nur Traefik |

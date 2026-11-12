@@ -132,7 +132,6 @@ generators:
 ```
 argocd/apps/
 ├── csi-driver-smb/      → SMB-CSI-Driver (NAS-Mounts)
-├── example-whoami/      → Referenz-Helm-Chart als Wiring-Test
 ├── gameserver/          → 7 Days to Die (KubeVirt VM, Tailscale only)
 ├── gameserver-ui/       → Web-Oberfläche für die 7DTD-VM (gameserver.homeserver)
 ├── gotify/              → Push-Notification-Server (Android/iOS-Client)
@@ -333,37 +332,37 @@ argocd context
 argocd app list
 
 # Details
-argocd app get example-whoami
+argocd app get gotify
 
 # Manuell syncen
-argocd app sync example-whoami
+argocd app sync gotify
 
 # Sync mit Prune (überflüssige Resources entfernen)
-argocd app sync example-whoami --prune
+argocd app sync gotify --prune
 
 # Spezifische Resource syncen
-argocd app sync example-whoami --resource apps:Deployment:whoami
+argocd app sync gotify --resource apps:Deployment:gotify
 
 # Auf Sync warten
-argocd app wait example-whoami --sync
+argocd app wait gotify --sync
 
 # Logs
-argocd app logs example-whoami
+argocd app logs gotify
 
 # Diff (was würde sich ändern)
-argocd app diff example-whoami
+argocd app diff gotify
 
 # Rollback auf vorherige Revision
-argocd app rollback example-whoami 1   # Revision-Nummer aus der Historie
+argocd app rollback gotify 1   # Revision-Nummer aus der Historie
 
 # Historie
-argocd app history example-whoami
+argocd app history gotify
 
 # App löschen (löscht Default-mäßig KEINE Cluster-Resources)
-argocd app delete example-whoami
+argocd app delete gotify
 
 # App UND Cluster-Resources löschen
-argocd app delete example-whoami --cascade
+argocd app delete gotify --cascade
 ```
 
 **Repositories:**
