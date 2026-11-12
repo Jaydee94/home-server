@@ -36,19 +36,25 @@ make lint           # yamllint + ansible-lint + helm lint
 make vault-edit     # Vault-verschlüsselte Vars editieren
 
 # Einzelne Rollen
-make common | dnsmasq | tailscale | k3s | argocd | scanner | semaphore
+make common | host-dns | tailscale | k3s | argocd | scanner | semaphore
+make semaphore-targets | semaphore-bootstrap | semaphore-bootstrap-local
+
+# UGREEN NAS (eigenes Playbook ansible/ugreen-nas.yml)
+make nas            # NAS-Services deployen
+make nas-check      # Dry-run des NAS-Playbooks
 ```
 
 ### Rollen-Reihenfolge in `ansible/site.yml`
 
-`common → dnsmasq → tailscale → k3s → argocd → scanner → semaphore_secrets`,
+`common → host_dns → tailscale → k3s → argocd → scanner → semaphore_secrets`,
 danach separate Plays `semaphore_targets` und `semaphore_bootstrap`.
 
 ### ArgoCD-Apps unter `argocd/apps/`
 
-`example-whoami, gotify, headlamp, kubeseal-webgui, monitoring,
-sealed-secrets, semaphore` — jede Unterordner wird automatisch zu einer
-ArgoCD-`Application` im gleichnamigen Namespace.
+Jeder Unterordner von `argocd/apps/` wird automatisch zu einer
+ArgoCD-`Application` im gleichnamigen Namespace. Die aktuelle Liste der Apps
+ergibt sich aus dem Verzeichnis selbst (`ls argocd/apps`); Kurzbeschreibungen
+stehen im Abschnitt „Repository-Layout" der [`README.md`](README.md).
 
 ## Pflicht-Skills (für AI-Agenten)
 

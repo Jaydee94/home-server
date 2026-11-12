@@ -8,6 +8,7 @@ import { mkdirSync, createWriteStream, existsSync, unlinkSync, renameSync } from
 import { join } from "path";
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
+import type { ReadableStream as NodeReadableStream } from "stream/web";
 
 const backupDir = () =>
   join(process.env.NAS_MOUNT_PATH ?? "/mnt/gameserver-data", "backups");
@@ -39,7 +40,7 @@ export async function POST() {
     const partialPath = destPath + ".partial";
     try {
       const sshStream = ssh.stream("sudo tar czf - /opt/7dtd/data/Saves 2>/dev/null");
-      await pipeline(Readable.fromWeb(sshStream as any), createWriteStream(partialPath));
+      await pipeline(Readable.fromWeb(sshStream as NodeReadableStream<Uint8Array>), createWriteStream(partialPath));
       renameSync(partialPath, destPath);
     } catch (err) {
       if (existsSync(partialPath)) unlinkSync(partialPath);

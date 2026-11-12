@@ -40,14 +40,6 @@ export interface TelnetOptions {
 // Clients — landet sonst Verbindungs-/Fehler-Rauschen in der Ausgabe.
 const SERVER_LOG_LINE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\s/;
 
-export function stripServerLog(output: string): string {
-  return output
-    .split("\n")
-    .filter((line) => !SERVER_LOG_LINE.test(line))
-    .join("\n")
-    .trim();
-}
-
 function escapeRegExp(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

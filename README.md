@@ -49,7 +49,7 @@ Am Ende druckt das Playbook die ArgoCD-URL und das Admin-Passwort. Fertig.
 | Kubernetes-UI    | **Headlamp**                           | Browser-Dashboard für den Cluster                                      |
 | Secrets          | **Sealed Secrets + kubeseal-webgui**   | Verschlüsselte Secrets in Git, nur im Cluster entschlüsselbar          |
 | Dokumenten-Scan  | **scanbd + Fujitsu USB-Scanner**       | Bare-Metal-Scan-Daemon → CIFS → Paperless-NGX auf der NAS              |
-| Notifications    | **Gotify**                             | Self-hosted Push-Notifications (Android/iOS-Client)                    |
+| Notifications    | **ntfy** + **Gotify**                  | ntfy: Alertmanager-Alerts als Push; Gotify: Scanner-Benachrichtigungen |
 | Remote-Access    | **Tailscale**                          | WireGuard-Mesh-VPN — keine Portfreigaben, keine öffentliche IP         |
 | Media-Server     | **Jellyfin** (+ csi-driver-smb)        | Streamt Medien vom NAS via SMB; deutsches Live-TV (M3U+EPG)            |
 | Home Automation  | **Home Assistant**                     | Solakon-ONE Solar (Modbus TCP), Zigbee ZHA (Sonoff MG24 Dongle)        |
@@ -160,10 +160,12 @@ home-server/
 │   ├── 22-ha-mcp.md                  # Home Assistant MCP-Server
 │   ├── 23-network-policies.md        # Namespace-Isolation via NetworkPolicies
 │   ├── 24-remedy.md                  # KI-Operator für Alerts
+│   ├── 25-rps-arena.md               # Rock-Paper-Scissors Browser-Game
 │   ├── gotchas.md                    # Fallstricke & Lösungen
 │   └── assets/banner.svg
 ├── ansible/
 │   ├── site.yml                      # Entry-Point
+│   ├── ugreen-nas.yml                # Playbook für die UGREEN NAS (make nas)
 │   ├── requirements.yml              # Galaxy-Collections
 │   ├── ansible.cfg                   # Defaults
 │   ├── inventory/hosts.yml           # Eigener Server (+ semaphore_targets)
@@ -177,14 +179,19 @@ home-server/
 │       ├── scanner/                  # Fujitsu-USB-Scanner + scanbd + SMB
 │       ├── semaphore_secrets/        # Bootstrap-Secret für den Semaphore-Pod
 │       ├── semaphore_targets/        # SSH-Pubkey auf Managed-Hosts pushen
-│       └── semaphore_bootstrap/      # Projects/Inventories/Templates per API
+│       ├── semaphore_bootstrap/      # Projects/Inventories/Templates per API
+│       ├── portainer/                # NAS: Portainer (docker-compose)
+│       ├── paperless/                # NAS: Paperless-NGX (docker-compose) + Backup-Skript
+│       ├── node_exporter_nas/        # NAS: node-exporter + cAdvisor (docker-compose)
+│       └── jellyfin_media/           # NAS: Medien-Unterordner im SMB-Share "media"
 └── argocd/
     ├── bootstrap/
     │   ├── root-applicationset.yaml        # Erkennt jedes Verzeichnis darunter
     │   └── bootstrap-app.yaml              # ArgoCD-Selbstverwaltung des bootstrap/-Ordners
     └── apps/                               # Ein Ordner pro ArgoCD-Application
+        ├── blackbox-exporter/              # HTTP-Blackbox-Probes für die Homeserver-Services
+        ├── cert-manager/                   # cert-manager mit lokaler self-signed CA (TLS im Heimnetz)
         ├── csi-driver-smb/                 # SMB-CSI-Driver (NAS-Mounts)
-        ├── example-whoami/                 # Referenz-Helm-Chart
         ├── gameserver/                     # 7 Days to Die (KubeVirt VM, Tailscale only)
         ├── gameserver-ui/                  # Gameserver-Web-UI (Next.js)
         ├── gotify/                         # Push-Notifications
@@ -200,6 +207,7 @@ home-server/
         ├── monitoring/                     # VictoriaMetrics + Grafana
         ├── monitoring-dashboards/          # Extra Grafana-Dashboards als ConfigMaps
         ├── mosquitto/                      # MQTT-Broker (MetalLB .4) für Nuki Smart Lock
+        ├── ntfy/                           # Self-hosted ntfy Push-Notification-Server
         ├── paperless-ai/                   # KI-Dokumentenanalyse für Paperless-NGX
         ├── pihole/                         # DNS + netzwerkweiter Adblock
         ├── remedy/                         # KI-Operator für Alerts
@@ -221,8 +229,9 @@ Ein schlanker VictoriaMetrics-+-Grafana-Stack lebt unter
 - **Host-Metriken:** `prometheus-node-exporter` als DaemonSet auf dem Ubuntu-Host.
 - **Cluster-Metriken:** kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS.
   Scheduler/Controller-Manager/etcd-Scrapes sind deaktiviert — k3s vereint sie in einem Prozess.
-- **Alerts:** Default-kube-prometheus-Rules, geroutet auf einen `blackhole`-Receiver,
-  bis Discord/Slack/Gotify in `values.yaml` verdrahtet ist.
+- **Alerts:** Default-kube-prometheus-Rules; Alertmanager routet `critical`/`warning`
+  per Webhook an die `ntfy-alertmanager`-Bridge (Push via ntfy), `info`-Alerts landen
+  auf einem `blackhole`-Receiver.
 - **Dashboards:** Node Exporter Full, VictoriaMetrics + Kubernetes „Views / Global, Namespaces, Nodes, Pods" von grafana.com.
 
 Grafana öffnen unter **http://grafana.homeserver** (LAN + Tailnet, via Pi-hole).
