@@ -207,6 +207,18 @@ scanner_paperless_api_token: !vault |
           61313965376535326338353436646139666132353638636338306265646639383163393739653738
           6338383235633938363437306462623836336561323761383066
 
+# ---- Backup (restic → UGREEN NAS) -------------------------
+# Nightly backup of k3s datastore, Sealed-Secrets keys and all local-path
+# volumes (role: backup, docs/26-backup.md). The role is SKIPPED until the
+# repository password is set here. Generate a long random one, keep a copy
+# OUTSIDE this server (password manager) and vault-encrypt it:
+#   ansible-vault encrypt_string "$(openssl rand -base64 32)" \
+#     --name 'backup_restic_password'
+# backup_restic_password: !vault | ...
+#
+# Optional push on failure (full ntfy topic URL):
+# backup_ntfy_url: "http://ntfy.homeserver/<topic>"
+
 # ---- UGREEN NAS --------------------------------------------
 vault_nas_become_password: !vault |
           $ANSIBLE_VAULT;1.1;AES256

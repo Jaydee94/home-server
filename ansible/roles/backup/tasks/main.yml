@@ -1,0 +1,134 @@
+---
+# ============================================================
+# backup role — nightly restic backup to the UGREEN NAS
+# ============================================================
+# Backs up the k3s datastore, the Sealed-Secrets private keys, all local-path
+# volumes and the Semaphore bootstrap secrets. See defaults/main.yml for the
+# knobs and docs/26-backup.md for the restore procedure.
+# ============================================================
+
+# Deliberately a skip instead of an assert: site.yml runs unattended every
+# morning via Semaphore and must not turn red just because the backup
+# password has not been added to the vault yet.
+- name: Skip backup role until backup_restic_password is set
+  ansible.builtin.debug:
+    msg: >-
+      backup_restic_password is not defined — the backup role is SKIPPED and
+      this host has NO backup. Add the vault-encrypted variable to
+      ansible/group_vars/all.yml (see docs/26-backup.md).
+  when: backup_restic_password is not defined
+
+- name: Configure nightly backup
+  when: backup_restic_password is defined
+  block:
+    - name: Install backup packages
+      ansible.builtin.apt:
+        name:
+          - restic
+          - sqlite3
+          - cifs-utils
+          - curl
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create backup directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - "{{ backup_config_dir }}"
+        - "{{ backup_state_dir }}"
+        - "{{ backup_smb_credentials_path | dirname }}"
+
+    - name: Create backup mountpoint
+      ansible.builtin.file:
+        path: "{{ backup_mountpoint }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Deploy restic repository password
+      ansible.builtin.copy:
+        content: "{{ backup_restic_password }}\n"
+        dest: "{{ backup_config_dir }}/restic-password"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Deploy SMB credentials file
+      ansible.builtin.copy:
+        content: |
+          username={{ backup_smb_username }}
+          password={{ backup_smb_password }}
+          domain=WORKGROUP
+        dest: "{{ backup_smb_credentials_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+
+    - name: Mount NAS backup share (CIFS, automount)
+      ansible.posix.mount:
+        state: mounted
+        fstype: cifs
+        src: "{{ backup_smb_share }}"
+        path: "{{ backup_mountpoint }}"
+        opts: "credentials={{ backup_smb_credentials_path }},{{ backup_smb_mount_options }}"
+
+    - name: Deploy backup script
+      ansible.builtin.template:
+        src: homeserver-backup.sh.j2
+        dest: /usr/local/bin/homeserver-backup.sh
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Create homeserver-backup systemd service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/homeserver-backup.service
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Nightly restic backup of home-server state to the NAS
+          After=network-online.target k3s.service
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/bin/homeserver-backup.sh
+          Nice=10
+          IOSchedulingClass=idle
+          StandardOutput=journal
+          StandardError=journal
+
+    - name: Create homeserver-backup systemd timer
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/homeserver-backup.timer
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Nightly home-server backup timer
+
+          [Timer]
+          OnCalendar={{ backup_on_calendar }}
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+
+    - name: Enable and start homeserver-backup timer
+      ansible.builtin.systemd:
+        name: homeserver-backup.timer
+        enabled: true
+        state: started
+        daemon_reload: true
