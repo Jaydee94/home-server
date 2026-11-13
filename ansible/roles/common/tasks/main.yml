@@ -196,6 +196,35 @@
     - {key: "vm.swappiness", value: "0"}
   notify: Reload sysctl
 
+# ---- AppArmor: keep container signals working ----------------
+# Ubuntu 26.04 ships kernel.apparmor_restrict_unprivileged_unconfined=1
+# (/usr/lib/sysctl.d/10-apparmor.conf). With it, the profile change runc does
+# when it starts a container process is "converted to stacking": the process
+# ends up labelled "cri-containerd.apparmor.d//&unconfined" instead of
+# "cri-containerd.apparmor.d". containerd's default profile only allows
+# signals to the unstacked label, so EVERY signal between processes/threads
+# of the same container is denied (dmesg: apparmor="DENIED" operation="signal"
+# peer="cri-containerd.apparmor.d//&unconfined").
+#
+# Effects seen here: .NET apps (Sonarr/Radarr) abort silently in a loop,
+# vmagent/vmalert cannot SIGHUP themselves, QEMU cannot kick its vCPU threads,
+# Postgres loses its SIGURG wake-ups (~25k denials a day).
+#
+# Verified on this host with throwaway pods: with the sysctl at 0 a new pod is
+# labelled "cri-containerd.apparmor.d" and kill(2) inside the container works;
+# back at 1 it is stacked again and kill fails with EPERM. Containers stay
+# confined by the containerd profile either way — this only stops the
+# stacking. Only affects processes started afterwards: reboot (or restart all
+# pods) once after the first rollout. See docs/gotchas.md → AppArmor.
+- name: Allow containerd's AppArmor profile transition without stacking
+  ansible.posix.sysctl:
+    name: kernel.apparmor_restrict_unprivileged_unconfined
+    value: "0"
+    sysctl_file: /etc/sysctl.d/99-apparmor-containers.conf
+    reload: true
+    state: present
+  notify: Reload sysctl
+
 # ---- NIC Tuning (e1000e TX-Ring / TSO-Fix) ------------------
 # The Intel e1000e NIC (eno1) triggers "Hardware Unit Hang" kernel panics under
 # high pod-network load when the TX ring is at its default size of 256.
