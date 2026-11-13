@@ -467,3 +467,115 @@ spec:
               ist nicht Ready
             description: >-
               cert-manager kann das Zertifikat seit >30 min nicht ausstellen.
+
+    # ── Disk / SMART ─────────────────────────────────────────────────────────
+    # Metrics from smartctl-exporter v0.15.0 (argocd/apps/smartctl-exporter),
+    # names taken from its metrics.go. The host has one disk, a Samsung PM981a
+    # NVMe (`device="nvme0"`).
+    - name: homeserver.disk
+      rules:
+        - alert: DiskSmartStatusFailed
+          expr: smartctl_device_smart_status != 1
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              SMART-Status von
+              {{`{{ $labels.device }}`}}
+              ist nicht mehr „passed“
+            description: >-
+              Das Laufwerk meldet selbst einen Fehler. Backup prüfen
+              (docs/26-backup.md) und den Tausch planen.
+
+        # Bitmask from the NVMe health log: spare below threshold, temperature
+        # out of range, reliability degraded, read-only, volatile backup failed.
+        - alert: DiskCriticalWarning
+          expr: smartctl_device_critical_warning != 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              NVMe
+              {{`{{ $labels.device }}`}}
+              meldet critical_warning =
+              {{`{{ $value }}`}}
+            description: >-
+              Der Controller hat ein Critical-Warning-Bit gesetzt (Bit 0 Spare,
+              1 Temperatur, 2 Zuverlässigkeit, 3 read-only, 4 Backup).
+              Details in Grafana → Explore: `smartctl_device_available_spare`,
+              `smartctl_device_temperature`.
+
+        - alert: DiskWearHigh
+          expr: smartctl_device_percentage_used > 80
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              NVMe
+              {{`{{ $labels.device }}`}}
+              hat
+              {{`{{ $value | printf "%.0f" }}`}}%
+              ihrer Schreib-Lebensdauer verbraucht
+            description: >-
+              `percentage_used` ist die Herstellerschätzung der verbrauchten
+              Lebensdauer (kann über 100 steigen). Ab 80% Ersatz einplanen.
+
+        # Lifetime counter of unrecovered data-integrity errors: once it is
+        # above 0 this stays firing until the disk is replaced. That is
+        # intended; silence it in Alertmanager after it has been looked at.
+        - alert: DiskMediaErrors
+          expr: smartctl_device_media_errors > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: >-
+              NVMe
+              {{`{{ $labels.device }}`}}
+              hat
+              {{`{{ $value | printf "%.0f" }}`}}
+              Media-Errors
+            description: >-
+              Der Controller konnte Daten nicht fehlerfrei lesen oder schreiben
+              (unkorrigierbare ECC-/CRC-Fehler). Backup prüfen, Laufwerk tauschen.
+
+        # Composite temperature. Its 30-day maximum on this host was 59 °C
+        # (node_hwmon_temp_celsius, 2026-11-13); the drive's own warning
+        # threshold is 84 °C (hwmon temp1_max).
+        - alert: DiskTemperatureHigh
+          expr: smartctl_device_temperature{temperature_type="current"} > 70
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              NVMe
+              {{`{{ $labels.device }}`}}
+              ist seit 30 min über 70 °C
+              ({{`{{ $value | printf "%.0f" }}`}} °C)
+            description: >-
+              Üblich sind hier 54–59 °C; die Warnschwelle des Laufwerks selbst
+              liegt bei 84 °C. Luftstrom und Last (Downloads, VM) prüfen.
+
+        # `up` alone is not enough: if smartctl cannot read the device, the
+        # exporter stays up and exports no device metrics. Not covered: if
+        # reads start failing after a first success, the exporter keeps
+        # serving the last good result (readjson.go only replaces its cache
+        # on success) and exports no age for it.
+        - alert: SmartctlExporterDown
+          expr: >-
+            up{job="monitoring/smartctl-exporter"} == 0
+            or absent(up{job="monitoring/smartctl-exporter"})
+            or absent(smartctl_device_smart_status)
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "smartctl-exporter liefert keine SMART-Daten"
+            description: >-
+              Der Exporter ist nicht erreichbar oder liest das Laufwerk nicht.
+              Die Disk-Alerts sind damit blind. Prüfe
+              `kubectl -n smartctl-exporter get pods` und die Pod-Logs.
