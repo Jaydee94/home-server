@@ -55,7 +55,7 @@
     rule: allow
     port: "53"
     proto: "{{ item }}"
-    src: "100.64.0.0/10"
+    src: "{{ tailscale_cidr }}"
   loop:
     - tcp
     - udp

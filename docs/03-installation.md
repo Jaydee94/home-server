@@ -78,7 +78,11 @@ $EDITOR ansible/group_vars/all.yml
 | Variable                    | Default       | Hinweis                                                                |
 |-----------------------------|---------------|------------------------------------------------------------------------|
 | `auto_upgrade`              | `true`        | OS + alle Komponenten bei jedem Run auf neuesten Stable halten         |
-| `auto_reboot_if_required`   | `true`        | Auto-Reboot, wenn APT `/var/run/reboot-required` setzt                 |
+| `auto_reboot_if_required`   | `true`        | Auto-Reboot am Ende der `common`-Rolle, wenn APT `/var/run/reboot-required` setzt (nicht bei Läufen aus Semaphore) |
+| `unattended_reboot_enabled` / `unattended_reboot_time` | `true` / `05:00` | `unattended-upgrades` rebootet bei ausstehendem Reboot zur angegebenen Uhrzeit |
+| `ssh_hardening_enabled`     | `true`        | sshd-Drop-in: nur Key-Login, kein Root-Login, kein X11. Wird übersprungen, wenn der Ansible-User keinen Key in `authorized_keys` hat |
+| `journald_system_max_use` / `journald_max_retention` | `500M` / `1month` | Größen- und Alterslimit des Journals                  |
+| `tailscale_cidr`            | `100.64.0.0/10` | Quellnetz der Tailnet-Peers für die UFW-Regeln                       |
 | `k3s_version`               | gepinnt       | Per Renovate-PR aktualisiert. Leer ⇒ `k3s_channel` folgen              |
 | `k3s_channel`               | `stable`      | Wird genutzt, wenn `k3s_version` leer ist                              |
 | `helm_version`              | gepinnt       | Helm 3, per Renovate-PR aktualisiert. Leer ⇒ neuestes Helm 3           |

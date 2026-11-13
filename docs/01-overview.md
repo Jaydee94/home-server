@@ -132,8 +132,10 @@ Das Fundament des ganzen Stacks. Konfiguriert durch die Ansible-Rolle `common`:
 
 - Vollständiges `apt dist-upgrade` bei jedem Ansible-Run (gesteuert über `auto_upgrade`)
 - `unattended-upgrades` aktiv für tägliche Sicherheits-Patches im Hintergrund
-- Automatischer Reboot, wenn `/var/run/reboot-required` existiert
-- UFW-Firewall mit minimal offenen Ports
+- Automatischer Reboot, wenn `/var/run/reboot-required` existiert (manuelle Läufe sofort, sonst durch `unattended-upgrades` um `unattended_reboot_time`)
+- UFW-Firewall mit minimal offenen Ports (SSH nur aus LAN, Tailnet und Pod-Netz)
+- SSH nur per Key, kein Root-Login (`/etc/ssh/sshd_config.d/10-hardening.conf`)
+- journald auf 500 MB / 1 Monat begrenzt
 - Kernel-Module für Container-Netzwerk (`br_netfilter`, `overlay`)
 - sysctl-Tuning für Kubernetes-Anforderungen
 - Chrony für NTP-Zeitsync

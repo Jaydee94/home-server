@@ -16,8 +16,33 @@ timezone: Europe/Berlin                # CHANGE: your timezone
 auto_upgrade: true
 
 # Reboot the server at the end of the `common` role if a kernel/libc update
-# placed `/var/run/reboot-required` on disk.
+# placed `/var/run/reboot-required` on disk. Only effective for runs started
+# from a workstation: inside Semaphore the reboot is skipped (it would kill the
+# pod executing the playbook), so the scheduled daily run never reboots.
 auto_reboot_if_required: true
+
+# That gap is closed by unattended-upgrades: when a reboot is pending it
+# schedules one for the next occurrence of `unattended_reboot_time`.
+# 05:00 sits between the nightly jobs: after the backup (04:00,
+# homeserver-backup.timer) has had an hour to finish, and well before the
+# Recyclarr CronJob (05:30) and the daily Semaphore run (06:00), which then
+# meets a freshly booted host. Set `unattended_reboot_enabled: false` to go
+# back to manual reboots.
+unattended_reboot_enabled: true
+unattended_reboot_time: "05:00"
+
+# ---- journald ----------------------------------------------
+# Upper bound for the persistent journal (systemd default: 10 % of the
+# filesystem, max. 4 GB) and maximum age of entries.
+journald_system_max_use: "500M"
+journald_max_retention: "1month"
+
+# ---- SSH hardening -----------------------------------------
+# Deploys /etc/ssh/sshd_config.d/10-hardening.conf: key-only logins, no root
+# login, no X11 forwarding. Skipped automatically (with a warning) when the
+# connecting user has no key in ~/.ssh/authorized_keys. Setting this to false
+# stops managing the file; it does not remove an already deployed one.
+ssh_hardening_enabled: true
 
 # ---- k3s ---------------------------------------------------
 # Pinned. Renovate raises a PR for new releases (customManager for this file in
@@ -70,6 +95,9 @@ tailscale_hostname: "{{ hostname }}"
 
 # ---- Local network ----------------------------------------
 local_subnet: "192.168.178.0/24"
+# Tailscale's CGNAT range — source network of every Tailnet peer. Used for the
+# UFW rules in the common and host_dns roles.
+tailscale_cidr: "100.64.0.0/10"
 
 # ---- Semaphore UI -----------------------------------------
 # Master Ansible-Vault password — same value you type when running
