@@ -47,5 +47,11 @@ paperless_db_name: paperless
 paperless_db_uid: 70
 paperless_db_gid: 70
 
+# Docker Engine installation. Default false: the role expects a working Docker
+# engine with the Compose v2 plugin (the UGREEN NAS has one) and only runs a
+# pre-flight check. Set to true only on a plain Debian/Ubuntu host without
+# Docker; never on the NAS (see tasks/install_docker.yml).
+paperless_install_docker: false
+
 # Compose file name
 paperless_compose_file: docker-compose.yml
