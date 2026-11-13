@@ -70,7 +70,7 @@ Ziel-Hardware: kleine Box mit ≥ 4 GB RAM und ≥ 20 GB Disk. Referenz-Build: I
 - **k3s** — gepinnt über `k3s_version`; Renovate öffnet für neue Releases einen PR. (Leer ⇒ folgt `k3s_channel`.)
 - **Helm** — gepinnt über `helm_version` (Helm 3), per Renovate-PR aktualisiert.
 - **ArgoCD** — Chart-Version gepinnt über `argocd_version`, per Renovate-PR aktualisiert.
-- **Reboot-if-required** — wenn APT `/var/run/reboot-required` setzt, rebootet das Playbook den Host und wartet, bis er wieder oben ist (Toggle via `auto_reboot_if_required`).
+- **Reboot-if-required** — wenn APT `/var/run/reboot-required` setzt, rebootet das Playbook den Host und wartet, bis er wieder oben ist (Toggle via `auto_reboot_if_required`). Läufe aus Semaphore überspringen diesen Reboot (er würde den ausführenden Pod beenden); dort übernimmt `unattended-upgrades` den Neustart um `unattended_reboot_time` (Default 05:00, Toggle via `unattended_reboot_enabled`).
 
 Für reproduzierbare Builds `auto_upgrade: false` in `ansible/group_vars/all.yml` setzen.
 
@@ -261,7 +261,8 @@ Details: **[docs/05-argocd.md](docs/05-argocd.md)**.
 ## Networking & Security
 
 - **Keine öffentlichen Ports.** Internet-Zugriff geht ausschließlich über Tailscale.
-- **UFW** erlaubt nur, was der Stack braucht: SSH, HTTP/HTTPS, k3s-API, ArgoCD-NodePort, kubelet, Flannel VXLAN, Tailscale-UDP, plus volles Trust für LAN, Tailnet, Pod- und Service-CIDRs.
+- **UFW** öffnet für beliebige Quellen nur HTTP/HTTPS und Tailscale-UDP. SSH ist auf LAN, Tailnet und Pod-CIDR (Semaphore) beschränkt; k3s-API, kubelet, Flannel VXLAN und die ArgoCD-NodePorts haben keine eigene Regel mehr und sind über das volle Trust für LAN, Tailnet, Pod- und Service-CIDRs erreichbar.
+- **SSH** nur per Key: kein Passwort-Login, kein Root-Login, kein X11 (`/etc/ssh/sshd_config.d/10-hardening.conf`, Toggle via `ssh_hardening_enabled`).
 - **Ansible-Vault** verschlüsselt sensitive Secrets at rest.
 - **ArgoCD** hat ausschließlich Read-Access auf das Git-Repo.
 
