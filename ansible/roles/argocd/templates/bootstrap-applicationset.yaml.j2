@@ -62,7 +62,7 @@ spec:
       # as defaults to StatefulSet — ignore these immutable/defaulted fields to prevent
       # drift loops. KubeVirt VM runStrategy is managed by scheduled CronJobs, not ArgoCD.
       # KubeVirt also injects domain.machine (q35) and domain.firmware (uuid) at admission.
-      # Kubernetes adds spec.conversion to CRDs — ignore to suppress CDI CRD drift.
+      # CRD rules are limited to the two operator CRDs the kubevirt app ships (see below).
       ignoreDifferences:
         - group: apps
           kind: StatefulSet
@@ -103,11 +103,27 @@ spec:
             # VictoriaMetrics operator injects record: "" into every alert rule at admission;
             # this field is absent in YAML templates — ignore to prevent drift loops.
             - .spec.groups[].rules[].record
+        # CDI/KubeVirt operators continuously reconcile the CRDs of their own install
+        # resources (cdis.cdi.kubevirt.io: generation > 28000); ArgoCD cannot win
+        # against the operator — ignore to stop the drift loop.
+        # Scoped by `name` (exact match, no globs) to the only two CRDs the kubevirt
+        # app manages. Do NOT widen this to every CustomResourceDefinition: together
+        # with RespectIgnoreDifferences=true it keeps spec.versions out of the sync,
+        # so CRD schema updates of every other chart (VictoriaMetrics operator,
+        # MetalLB, sealed-secrets, cert-manager) would never be applied while the
+        # app still reports Synced. /spec/conversion and /status stay ignored for
+        # all CRDs through argocd-cm (ansible/roles/argocd/templates/argocd-values.yaml.j2).
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
+          name: cdis.cdi.kubevirt.io
           jsonPointers:
             - /spec/conversion
             - /status
-            # CDI/KubeVirt operators continuously reconcile CRD versions (generation > 28000);
-            # ArgoCD cannot win against the operator — ignore to stop the drift loop.
+            - /spec/versions
+        - group: apiextensions.k8s.io
+          kind: CustomResourceDefinition
+          name: kubevirts.kubevirt.io
+          jsonPointers:
+            - /spec/conversion
+            - /status
             - /spec/versions
