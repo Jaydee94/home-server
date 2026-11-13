@@ -12,6 +12,13 @@ metallb:
   loadBalancerClass: "metallb.universe.tf/metallb"
 
   # L2 (ARP) mode — no BGP, no FRR. Single-node home cluster.
+  # frr-k8s is the chart's default BGP backend (frrk8s.enabled: true) and is
+  # NOT covered by speaker.frr.enabled below. Left on, it deploys a hostNetwork
+  # FRR DaemonSet plus a statuscleaner Deployment whose fixed host port makes
+  # every RollingUpdate deadlock on a single node (new pod Pending forever).
+  frrk8s:
+    enabled: false
+
   speaker:
     frr:
       enabled: false
