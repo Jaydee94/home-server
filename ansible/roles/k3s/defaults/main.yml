@@ -1,0 +1,25 @@
+---
+# ============================================================
+# k3s role defaults
+# ============================================================
+
+# ---- kubelet resource reserves ----------------------------
+# Passed to the kubelet as `kubelet-arg` in /etc/rancher/k3s/config.yaml.
+# Sized for the single node this repo runs on (6 cores, 30 GiB RAM, 466 GB
+# NVMe). Changing any of them restarts k3s once (handler "Restart k3s").
+
+# Held back for everything outside Kubernetes (sshd, tailscaled, journald,
+# scanner services, ...). Without it the scheduler may hand the whole node to
+# pods and the OS is the first thing to starve.
+k3s_kubelet_system_reserved: "cpu=250m,memory=1Gi"
+
+# Evict pods before the node itself runs out of memory or disk. This flag
+# REPLACES k3s' built-in thresholds (imagefs.available<5%, nodefs.available<5%)
+# as a whole, so imagefs is repeated here to keep it.
+k3s_kubelet_eviction_hard: "memory.available<500Mi,nodefs.available<10%,imagefs.available<5%"
+
+# Image garbage collection: start deleting unused images above the high
+# threshold (percent of disk used) and stop once usage is below the low one.
+# kubelet defaults are 85 / 80.
+k3s_kubelet_image_gc_high_threshold: 75
+k3s_kubelet_image_gc_low_threshold: 65

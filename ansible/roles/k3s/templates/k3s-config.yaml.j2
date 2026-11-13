@@ -8,3 +8,8 @@ tls-san:
 cluster-cidr: "{{ k3s_pod_cidr }}"
 service-cidr: "{{ k3s_service_cidr }}"
 node-name: "{{ hostname }}"
+kubelet-arg:
+  - "system-reserved={{ k3s_kubelet_system_reserved }}"
+  - "eviction-hard={{ k3s_kubelet_eviction_hard }}"
+  - "image-gc-high-threshold={{ k3s_kubelet_image_gc_high_threshold }}"
+  - "image-gc-low-threshold={{ k3s_kubelet_image_gc_low_threshold }}"
