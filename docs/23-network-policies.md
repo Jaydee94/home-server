@@ -36,7 +36,7 @@ spec:
   Port-scharf); Apps mit mehreren zusammenspielenden Komponenten im
   selben Namespace (z. B. der VictoriaMetrics-Stack aus
   VMSingle/VMAgent/VMAlert/Alertmanager/Grafana,
-  Recyclarr → Sonarr/Radarr im `media`-Namespace) funktionieren dadurch
+  `media-api-exporter` → Sonarr/Radarr im `media`-Namespace) funktionieren dadurch
   unverändert weiter, ohne dass jede interne Verbindung einzeln
   nachvollzogen werden musste.
 - **`kubernetes.io/metadata.name`** ist seit Kubernetes 1.21 ein
@@ -54,6 +54,7 @@ spec:
 | `kubeseal-webgui` | – | nur Traefik |
 | `media` | `monitoring`, `homepage` | vmagent scraped `media-api-exporter`; Homepage-Widgets rufen Seerr/Sonarr/Radarr/Prowlarr/SABnzbd direkt per ClusterIP-DNS auf |
 | `monitoring` | `homepage`, `gameserver-ui`, `remedy` | Homepage-Grafana-Widget; gameserver-ui fragt VictoriaMetrics direkt ab (`vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428`); Remedy liest den Alertmanager (`vmalertmanager-monitoring-victoria-metrics-k8s-stack.monitoring.svc:9093`) |
+| `paperless-ai` | – | nur Traefik (Paperless-API-Token und AI-Provider-Key liegen im PVC; kein anderer Namespace ruft die App auf, sie selbst spricht nur ausgehend mit Paperless auf dem NAS und dem AI-Provider) |
 | `rps-arena` | – | nur Traefik (interner app↔redis-Traffic über `podSelector: {}`) |
 | `semaphore` | – | nur Traefik |
 

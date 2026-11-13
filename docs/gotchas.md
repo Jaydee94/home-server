@@ -66,11 +66,10 @@ Verweis aus CLAUDE.md: hier die vollständige Liste.
 - **Semaphore bootstrap ist vollständig selbstheilend**: Keys, Templates und Projekte bei jedem Run reconciliert. Vault-Password rotieren: `make vault-edit` + `make semaphore-bootstrap`.
 - **Ansible-Templates: Jinja2 `trim_blocks` + `{% raw %}`**: `{% endraw %}` immer auf eigener Zeile platzieren.
 
-## Media-Stack / Recyclarr
+## Media-Stack
 
 - **Media-Stack: ein gemeinsamer SMB-Mount + cifs uid/gid 1001**: Downloads und Bibliothek im selben Mount → Imports sind serverseitige Moves. Hardlinks gehen über SMB nicht. Jellyfin-PV mountet denselben Share mit `uid=0`. Details: `docs/21-media-stack.md`.
-- **Media-Stack: Sprach-Profile sind Recyclarr-managed**: Recyclarr-CronJob täglich 05:30. Deutsch strikt (`min_format_score: 10000`). Manuelle UI-Änderungen werden überschrieben.
-- **Recyclarr: Kein doppelter trash_id in quality_profiles**: Zwei Einträge mit demselben `trash_id` + unterschiedlichem `qualities:`-Override → Recyclarr überspringt stillschweigend die gesamte Service-Sektion. Fix: Zweites Profil als `name:`-only definieren.
+- **Media-Stack: Sprach-Profile werden von Hand gepflegt (kein Recyclarr mehr)**: Recyclarr wurde am 04.11.2026 entfernt (SIGSEGV mit dem upstream `config-templates`-Repo); es gibt keinen CronJob mehr, der Profile synct. Die Quality-Profile „[German] …" und die German-Custom-Formats liegen nur noch in den SQLite-Datenbanken von Sonarr/Radarr auf den `*-config`-PVCs: UI-Änderungen bleiben bestehen, nach einem PVC-Verlust müssen sie neu angelegt werden. Details: `docs/21-media-stack.md` Abschnitt 9.
 
 ## Portainer / UGREEN NAS
 
