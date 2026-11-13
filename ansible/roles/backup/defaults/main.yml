@@ -1,0 +1,67 @@
+---
+# ============================================================
+# backup role defaults
+# ============================================================
+# Nightly restic backup of everything on the home-server that is NOT
+# reproducible from Git: the k3s datastore, the Sealed-Secrets private keys,
+# all local-path volumes and the Semaphore bootstrap secrets. Target is a
+# restic repository on an SMB share of the UGREEN NAS.
+# Restore procedure: docs/26-backup.md.
+# ============================================================
+
+# The role is a no-op until this is set (vault-encrypted) in
+# ansible/group_vars/all.yml — see the commented block there. Without this
+# password the repository cannot be decrypted, so it must NOT be generated on
+# the host itself (it would die together with the disk it protects).
+# backup_restic_password: !vault | ...
+
+# ---- SMB target -------------------------------------------
+# The whole share is mounted root-only; the restic repo lives in a subfolder
+# so the role can create it without touching the NAS by hand.
+backup_smb_share: "//192.168.178.118/personal_folder"
+backup_smb_username: "{{ scanner_smb_username }}"
+backup_smb_password: "{{ scanner_smb_password }}"
+backup_smb_credentials_path: "/etc/cifs-credentials/backup"
+backup_mountpoint: "/mnt/nas-backup"
+backup_smb_mount_options: >-
+  rw,vers=3.0,uid=root,gid=root,file_mode=0600,dir_mode=0700,_netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600
+backup_repo_subdir: "backups/homeserver/restic"
+
+# ---- Local paths ------------------------------------------
+backup_config_dir: "/etc/homeserver-backup"
+backup_state_dir: "/var/lib/homeserver-backup"
+
+# ---- What to back up --------------------------------------
+# The k3s SQLite datastore and the Sealed-Secrets keys are dumped into
+# {{ backup_state_dir }}/staging first and are always included.
+backup_paths:
+  - /var/lib/rancher/k3s/storage
+  - /var/lib/rancher/k3s/server/token
+  - /var/lib/rancher/k3s/server/tls
+  - /var/lib/rancher/k3s/server/cred
+  - /etc/rancher/k3s/config.yaml
+  - /etc/semaphore-secrets
+
+# restic --exclude patterns. Defaults skip data that is large and rebuildable:
+# the 7DTD VM OS disk (re-imported from the cloud image; save games live on
+# the NAS already) and SABnzbd's incomplete-downloads scratch volume.
+backup_excludes:
+  - "/var/lib/rancher/k3s/storage/*_gameserver_7dtd-os-disk"
+  - "/var/lib/rancher/k3s/storage/*_media_sabnzbd-incomplete"
+
+# ---- Schedule & retention ---------------------------------
+# 04:00 — after the Remedy Postgres dump CronJob (03:17) so the fresh dump is
+# included, and before the daily Semaphore run (06:00).
+backup_on_calendar: "*-*-* 04:00:00"
+backup_keep_daily: 7
+backup_keep_weekly: 4
+backup_keep_monthly: 6
+# Day of week (1 = Monday … 7 = Sunday) on which `restic check` verifies the
+# repository structure after the backup.
+backup_check_weekday: 7
+
+# ---- Failure notification ---------------------------------
+# Full ntfy topic URL, e.g. "http://ntfy.homeserver/<topic>". The alert topic
+# is deliberately not in this public repo; set this (vault-encrypted if you
+# want to keep the topic private) in group_vars. Empty = journal only.
+backup_ntfy_url: ""

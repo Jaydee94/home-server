@@ -48,6 +48,10 @@ argocd: ## Run only the `argocd` role (GitOps controller).
 scanner: ## Run only the `scanner` role (Fujitsu + scanbd + SMB mount).
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags scanner $(VAULT_OPTS)
 
+.PHONY: backup
+backup: ## Run only the `backup` role (nightly restic backup to the NAS).
+	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags backup $(VAULT_OPTS)
+
 semaphore: ## Bootstrap Semaphore Secret on the home-server.
 	ansible-playbook -i $(INVENTORY) $(PLAYBOOK) --tags semaphore-secrets $(VAULT_OPTS)
 
