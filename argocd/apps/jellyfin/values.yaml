@@ -50,6 +50,10 @@ jellyfin:
       storageClass: local-path
       accessMode: ReadWriteOnce
       size: 15Gi
+      # Keep the claim when the Application is deleted or the claim drops out
+      # of the rendered manifests; local-path would otherwise wipe the data.
+      annotations:
+        argocd.argoproj.io/sync-options: Delete=false,Prune=false
 
     # Media library comes from the NAS via the static SMB PVC defined in
     # templates/media-pvc.yaml. Mounted by the chart at /media.
