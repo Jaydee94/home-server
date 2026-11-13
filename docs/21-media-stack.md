@@ -12,7 +12,6 @@ Usenet-basierter Media-Automations-Stack, der das **bestehende Jellyfin**
 | Radarr | http://radarr.homeserver | 7878 | Film-Automation |
 | Seerr | http://seerr.homeserver | 5055 | Request-UI (gegen Jellyfin) |
 | media-api-exporter | (intern) | 9108 | Prometheus-Metriken (VMServiceScrape) |
-| Recyclarr | (CronJob, keine UI) | — | Synct TRaSH-Guide German-Profile nach Sonarr/Radarr (Abschnitt 9) |
 
 Alle Web-UIs laufen als **ClusterIP + Traefik-Ingress** (kein MetalLB-IP nötig);
 Pi-hole löst `*.homeserver` per Wildcard auf `192.168.178.127` auf.
@@ -274,10 +273,6 @@ existieren jetzt dauerhaft in beiden Apps (nicht mehr GitOps-verwaltet).
   in dieselben Ordner schreiben, aus denen Jellyfin liest.
 - **Exporter-Metriken 0**: API-Keys in `media-api-keys` nicht gesetzt
   (Schritt 5); der Exporter meldet dann `media_exporter_scrape_success 0`.
-- **Recyclarr-Job schlägt fehl / `CreateContainerConfigError`**: Das
-  SealedSecret `media-api-keys` fehlt oder enthält `sonarr-api-key`/
-  `radarr-api-key` nicht (Abschnitt 5); die Keys sind für den Job Pflicht
-  (bewusst kein `optional:`). Logs: `sudo kubectl -n media logs job/<job-name>`.
 - **Sonarr/Radarr grabben nichts mehr**: Erwartetes Verhalten des strikten
   German-Profils, wenn der Indexer keine deutschen Releases führt —
   Abschnitt 9, Schritt 1 (Indexer-Check).

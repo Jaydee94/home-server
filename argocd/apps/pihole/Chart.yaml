@@ -11,7 +11,7 @@ description: |
   at 192.168.178.2 as the "Lokaler DNS-Server" (see docs/15-pihole.md).
 type: application
 version: 0.1.0
-appVersion: "2026.04.1"
+appVersion: "2026.11.0"
 keywords:
   - pihole
   - dns

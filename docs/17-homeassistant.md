@@ -10,7 +10,7 @@ und Renovate Updates automatisiert.
 |---|---|
 | URL | <http://homeassistant.homeserver> (LAN + Tailnet, von Pi-hole aufgelöst) |
 | Namespace | `home-assistant` |
-| Chart | `argocd/apps/home-assistant/` (pajikos `home-assistant` 0.3.64, App 2025.6) |
+| Chart | `argocd/apps/home-assistant/` (pajikos `home-assistant`, Version siehe `Chart.yaml`) |
 
 ## Erweiterungs-Architektur
 
@@ -25,11 +25,27 @@ k3s ─ home-assistant Pod
    └─ config-PVC (local-path, 10Gi) → /config  (DB, .storage, www, custom_components, themes)
 ```
 
-Jeder Init-Container nutzt `alpine:3.24`, lädt das **gepinnte** Release und kopiert
-es idempotent in den geteilten `/config`-PVC (Ziel wird vorher überschrieben bzw.
-gelöscht). Die `# renovate:`-Annotation über jedem Container sorgt dafür, dass
+Jeder Init-Container nutzt `alpine:3.24`, lädt das **gepinnte** Release nach `/tmp`
+und ersetzt das Ziel im geteilten `/config`-PVC erst nach erfolgreichem Download.
+Die installierte Version steht danach in `/config/.extension-versions/<name>`.
+Die `# renovate:`-Annotation über jedem Container sorgt dafür, dass
 Renovate (regex-Manager in `renovate.json`) bei neuen Releases automatisch PRs für
 das `VERSION=`-Pin öffnet.
+
+**Offline-Verhalten:** Home Assistant startet auch ohne Internet, GitHub oder DNS
+(Pi-hole läuft im selben Cluster, z. B. nach einem Stromausfall):
+
+| Zustand im PVC | Download | Ergebnis |
+|---|---|---|
+| Marker = gepinnte Version | wird nicht versucht | Init-Container endet sofort |
+| andere/keine Marker-Version, Kopie vorhanden | scheitert | Warnung im Log, alte Kopie bleibt, Pod startet; nächster Pod-Start versucht es erneut |
+| andere/keine Marker-Version | klappt | Ziel ersetzt, Marker geschrieben |
+| noch keine Kopie | scheitert | Init-Container schlägt fehl (`Init:Error`) |
+
+Welche Version läuft: `sudo kubectl -n home-assistant exec home-assistant-0 -- sh -c 'head /config/.extension-versions/*'`.
+Download erzwingen: Marker-Datei löschen und den Pod neu starten. Ein gescheiterter
+Download steht im Log des Init-Containers:
+`sudo kubectl -n home-assistant logs home-assistant-0 -c install-bubble-card`.
 
 **Update einer Erweiterung:** `VERSION` in `values.yaml` anheben (oder den
 Renovate-PR mergen) → push → ArgoCD synct → Pod startet neu → der Init-Container
