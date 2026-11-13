@@ -31,6 +31,8 @@ spec:
       labels:
         {{- include "media.labels" "sonarr" | nindent 8 }}
     spec:
+      securityContext:
+        {{- include "media.servarrPodSecurityContext" . | nindent 8 }}
       containers:
         - name: sonarr
           image: {{ .Values.images.sonarr }}

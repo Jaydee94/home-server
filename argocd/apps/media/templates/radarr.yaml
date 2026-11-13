@@ -31,6 +31,8 @@ spec:
       labels:
         {{- include "media.labels" "radarr" | nindent 8 }}
     spec:
+      securityContext:
+        {{- include "media.servarrPodSecurityContext" . | nindent 8 }}
       containers:
         - name: radarr
           image: {{ .Values.images.radarr }}

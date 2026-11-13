@@ -31,6 +31,8 @@ spec:
       labels:
         {{- include "media.labels" "prowlarr" | nindent 8 }}
     spec:
+      securityContext:
+        {{- include "media.servarrPodSecurityContext" . | nindent 8 }}
       containers:
         - name: prowlarr
           image: {{ .Values.images.prowlarr }}
