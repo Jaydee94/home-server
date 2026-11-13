@@ -9,6 +9,8 @@ on:
     # Weekly Monday 06:00 UTC — picks up new CVE/policy definitions even when
     # no code changed.
     - cron: "0 6 * * 1"
+  # Manual full scan of every deployed image (same scope as the weekly run).
+  workflow_dispatch: {}
 
 permissions:
   contents: read
@@ -40,20 +42,45 @@ jobs:
           format: sarif
           output: trivy-results.sarif
           version: v0.76.2
-          # Soft-launch: report findings to the Security tab, do not block PRs.
-          # Harden later with exit-code "1" + severity: HIGH,CRITICAL.
+          # Report only what is worth acting on. Without
+          # limit-severities-for-sarif the action drops the severity filter
+          # for SARIF output and uploads every LOW/MEDIUM finding as an alert.
+          severity: HIGH,CRITICAL
+          limit-severities-for-sarif: true
+          # This step only feeds the Security tab; the gate below decides
+          # whether the job fails.
           exit-code: "0"
       - name: Upload Trivy SARIF to the Security tab
         if: always()
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: trivy-results.sarif
+      # Blocking part: any HIGH/CRITICAL misconfiguration or secret that is
+      # not listed in the baseline fails the job. The baseline holds the
+      # hardening debt that already existed (per file), so new workloads and
+      # new kinds of findings are caught while the old ones stay visible in
+      # the Security tab. To make the scan report-only again, set exit-code
+      # to "0" here.
+      - name: Trivy gate (new HIGH/CRITICAL findings fail the job)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: misconfig,secret
+          format: table
+          version: v0.76.2
+          severity: HIGH,CRITICAL
+          trivyignores: .github/trivy-gate-baseline.yaml
+          # The SARIF report written above is not source code.
+          skip-files: trivy-results.sarif
+          exit-code: "1"
 
   discover-images:
     name: discover deployed images
     runs-on: ubuntu-latest
     outputs:
       images: ${{ steps.collect.outputs.images }}
+      categories: ${{ steps.collect.outputs.categories }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -68,62 +95,104 @@ jobs:
         run: pip install pyyaml
       - name: Determine which charts to scan
         id: charts
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            # On PRs: only scan images from charts that actually changed.
-            # Full scan on main push and weekly schedule (new CVE coverage).
-            changed="$(ct list-changed --config .github/ct.yaml)"
-            if [ -z "${changed}" ]; then
-              echo "No changed charts — skipping image scan."
-              echo "dirs=" >> "$GITHUB_OUTPUT"
-            else
-              echo "Changed charts:"
-              # shellcheck disable=SC2086  # intentional word-splitting: one chart per line
-              printf '  %s\n' ${changed}
-              # GITHUB_OUTPUT does not allow newlines in key=value format;
-              # replace them with spaces (word-splitting in the render step handles both).
-              changed_oneline="$(echo "${changed}" | tr '\n' ' ')"
-              echo "dirs=${changed_oneline}" >> "$GITHUB_OUTPUT"
-            fi
+          # Pull requests and pushes to main: only the charts that changed.
+          # Every deployed image is scanned by the weekly schedule and by a
+          # manual run (new CVEs for unchanged images) — a full scan on every
+          # push meant ~55 jobs per merge for images that had not changed.
+          case "${EVENT_NAME}" in
+            pull_request)
+              changed="$(ct list-changed --config .github/ct.yaml)"
+              ;;
+            push)
+              # ct compares against the target branch, which on main is HEAD
+              # itself — diff the pushed range instead. A merge commit's range
+              # covers everything the pull request brought in.
+              base="${PUSH_BEFORE}"
+              if ! git cat-file -e "${base}^{commit}" 2>/dev/null; then
+                base="HEAD^"
+              fi
+              changed="$(git diff --name-only "${base}" HEAD -- argocd/apps \
+                | awk -F/ 'NF > 3 { print $1 "/" $2 "/" $3 }' | sort -u)"
+              ;;
+            *)
+              echo "Full scan (${EVENT_NAME})."
+              echo "dirs=all" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          if [ -z "${changed}" ]; then
+            echo "No changed charts — skipping image scan."
+            echo "dirs=" >> "$GITHUB_OUTPUT"
           else
-            echo "Full scan (push/schedule)."
-            echo "dirs=all" >> "$GITHUB_OUTPUT"
+            echo "Changed charts:"
+            # shellcheck disable=SC2086  # intentional word-splitting: one chart per line
+            printf '  %s\n' ${changed}
+            # GITHUB_OUTPUT does not allow newlines in key=value format;
+            # replace them with spaces (word-splitting in the render step handles both).
+            changed_oneline="$(echo "${changed}" | tr '\n' ' ')"
+            echo "dirs=${changed_oneline}" >> "$GITHUB_OUTPUT"
           fi
       - name: Render charts
         if: steps.charts.outputs.dirs != ''
+        env:
+          CHART_DIRS: ${{ steps.charts.outputs.dirs }}
         run: |
           set -euo pipefail
           mkdir -p /tmp/rendered
-          if [ "${{ steps.charts.outputs.dirs }}" = "all" ]; then
+          if [ "${CHART_DIRS}" = "all" ]; then
             chart_list="$(find argocd/apps -maxdepth 1 -mindepth 1 -type d)"
           else
-            chart_list="${{ steps.charts.outputs.dirs }}"
+            chart_list="${CHART_DIRS}"
           fi
+          # A chart that cannot be rendered drops out of the scan without a
+          # trace, and the run would still look complete. Fail instead — but
+          # only after trying every chart, so one log shows all broken ones.
+          failed=""
           for chart_dir in ${chart_list}; do
+            # Skips non-chart apps (kustomize, raw YAML) and, on push, the
+            # directory of a chart that this push deleted.
             [ -f "${chart_dir}/Chart.yaml" ] || continue
             name="$(basename "${chart_dir%/}")"
             if grep -q '^dependencies:' "${chart_dir}/Chart.yaml"; then
               if ! helm dependency update "$chart_dir"; then
-                echo "::warning::helm dependency update failed for ${chart_dir} — its images may be missing from this scan"
+                echo "::error::helm dependency update failed for ${chart_dir}"
+                failed="${failed} ${name}"
+                continue
               fi
             fi
             if ! helm template "$name" "$chart_dir" > "/tmp/rendered/${name}.yaml" 2>/tmp/rendered/"${name}.stderr"; then
-              echo "::warning::helm template failed for ${chart_dir} — its images may be missing from this scan"
+              echo "::error::helm template failed for ${chart_dir}"
               cat "/tmp/rendered/${name}.stderr" >&2
+              rm -f "/tmp/rendered/${name}.yaml"
+              failed="${failed} ${name}"
             fi
           done
+          if [ -n "${failed}" ]; then
+            echo "Charts that could not be rendered:${failed}" >&2
+            exit 1
+          fi
       - name: Extract unique container images from rendered manifests
         id: collect
+        env:
+          CHART_DIRS: ${{ steps.charts.outputs.dirs }}
         run: |
           set -euo pipefail
-          if [ "${{ steps.charts.outputs.dirs }}" = "" ] || [ ! -d /tmp/rendered ] || [ -z "$(ls -A /tmp/rendered 2>/dev/null)" ]; then
+          if [ "${CHART_DIRS}" = "" ] || [ ! -d /tmp/rendered ] || [ -z "$(ls -A /tmp/rendered 2>/dev/null)" ]; then
             echo "images=[]" >> "$GITHUB_OUTPUT"
+            echo "categories={}" >> "$GITHUB_OUTPUT"
           else
-            python3 .github/scripts/discover_images.py /tmp/rendered > /tmp/images.txt
-            cat /tmp/images.txt
-            json="$(python3 -c 'import json,sys; print(json.dumps([l.strip() for l in open("/tmp/images.txt") if l.strip()]))')"
-            echo "images=$json" >> "$GITHUB_OUTPUT"
+            # {image: SARIF category}; the category is derived from the image
+            # name without tag (see the script) so it survives version bumps.
+            python3 .github/scripts/discover_images.py --categories /tmp/rendered > /tmp/categories.json
+            python3 -c 'import json; [print(c, i) for i, c in sorted(json.load(open("/tmp/categories.json")).items())]'
+            images="$(python3 -c 'import json; print(json.dumps(sorted(json.load(open("/tmp/categories.json")))))')"
+            echo "images=${images}" >> "$GITHUB_OUTPUT"
+            echo "categories=$(cat /tmp/categories.json)" >> "$GITHUB_OUTPUT"
           fi
 
   trivy-image:
@@ -155,8 +224,14 @@ jobs:
           format: sarif
           output: trivy-image-results.sarif
           version: v0.76.2
-          # Soft-launch, same as the fs scan: report to the Security tab,
-          # don't block PRs yet. Harden later alongside the fs scan.
+          # Only findings that can be acted on: HIGH/CRITICAL with a fix
+          # available. limit-severities-for-sarif makes the severity filter
+          # apply to SARIF output too (the action drops it otherwise).
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          limit-severities-for-sarif: true
+          # Report-only: CVEs in third-party images are fixed by upstream
+          # releases (Renovate), not by failing this repository's PRs.
           exit-code: "0"
       - name: Warn on scan error
         if: steps.scan.outcome == 'failure'
@@ -168,4 +243,6 @@ jobs:
         uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: trivy-image-results.sarif
-          category: trivy-image-${{ strategy.job-index }}
+          # Stable per image name — not the matrix index, which shifts as
+          # soon as an image is added or removed.
+          category: ${{ fromJson(needs.discover-images.outputs.categories)[matrix.image] }}
