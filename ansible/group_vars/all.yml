@@ -9,10 +9,10 @@ hostname: homeserver
 timezone: Europe/Berlin                # CHANGE: your timezone
 
 # ---- Upgrade strategy --------------------------------------
-# When true (default), every Ansible run keeps the OS and all installed
-# components on the latest available stable version, and enables
-# unattended-upgrades for background security patches between runs.
-# Set to false to pin everything for reproducibility/CI.
+# When true (default), every Ansible run keeps the OS packages on the latest
+# available version and enables unattended-upgrades for background security
+# patches between runs. k3s, Helm and the ArgoCD chart are NOT covered by this
+# any more: they are pinned below and updated through Renovate PRs.
 auto_upgrade: true
 
 # Reboot the server at the end of the `common` role if a kernel/libc update
@@ -20,25 +20,30 @@ auto_upgrade: true
 auto_reboot_if_required: true
 
 # ---- k3s ---------------------------------------------------
-# When `k3s_version` is empty, the role follows `k3s_channel` (always latest
-# release in that channel). Set to a concrete version like "v1.30.2+k3s1" to pin.
-# See https://github.com/k3s-io/k3s/releases and
-# https://update.k3s.io/v1-release/channels for available channels.
-k3s_version: ""
+# Pinned. Renovate raises a PR for new releases (customManager for this file in
+# renovate.json), so a k3s upgrade goes through CI and a merge instead of
+# happening unannounced during the unattended daily run. The role only runs the
+# upstream installer when the installed version differs from this value.
+# Emptying the value switches back to "follow k3s_channel on every run".
+# renovate: datasource=github-releases depName=k3s-io/k3s versioning=regex:^v(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)\+k3s(?<build>\d+)$
+k3s_version: "v1.37.2+k3s1"
 k3s_channel: stable
 k3s_server_ip: "{{ ansible_default_ipv4.address }}"
 k3s_pod_cidr: "10.42.0.0/16"
 k3s_service_cidr: "10.43.0.0/16"
 
 # ---- Helm --------------------------------------------------
-# Empty = always install the latest Helm 3 release. Pin to e.g. "v3.16.0" if needed.
-helm_version: ""
+# Pinned and tracked by Renovate (Helm 3 only — the role uses the get-helm-3
+# installer; major updates are disabled in renovate.json). Empty = latest Helm 3.
+# renovate: datasource=github-releases depName=helm/helm
+helm_version: "v3.22.1"
 
 # ---- ArgoCD ------------------------------------------------
-# Argo Helm chart version. Empty + auto_upgrade=true ⇒ chart is upgraded to
-# latest on every run. Pin to a concrete chart version (e.g. "7.3.11") for
-# reproducibility — see https://artifacthub.io/packages/helm/argo/argo-cd
-argocd_version: ""
+# Argo Helm chart version (NOT the ArgoCD app version). Pinned and tracked by
+# Renovate; empty ⇒ the latest chart is installed on every run.
+# See https://artifacthub.io/packages/helm/argo/argo-cd
+# renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
+argocd_version: "10.18.0"
 argocd_namespace: argocd
 argocd_server_insecure: true
 # Git repo ArgoCD pulls from. Must be reachable by argocd-repo-server pod.
