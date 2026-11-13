@@ -1,0 +1,47 @@
+---
+# Baseline for the blocking Trivy step ("Trivy gate") in
+# .github/workflows/security.yml.
+#
+# The gate fails on every HIGH/CRITICAL misconfiguration or secret EXCEPT the
+# known findings listed here. This is hardening debt that existed when the
+# gate was introduced (2026-11), not a list of false positives: each entry
+# still shows up in the Security tab, because the SARIF report step does not
+# read this file.
+#
+# - Fixed a workload? Delete its path below.
+# - New workload trips the gate? Fix it (securityContext) rather than adding
+#   it here.
+# - Real false positive? That belongs in /.trivyignore, with a reason.
+misconfigurations:
+  - id: KSV-0014
+    statement: >-
+      Baseline: container does not set securityContext.readOnlyRootFilesystem.
+      Not yet evaluated per app (several of these images write to their root
+      filesystem at start-up).
+    paths:
+      - "argocd/apps/gameserver/templates/cronjobs.yaml"
+      - "argocd/apps/gotify/templates/deployment.yaml"
+      - "argocd/apps/media/templates/media-api-exporter.yaml"
+      - "argocd/apps/media/templates/prowlarr.yaml"
+      - "argocd/apps/media/templates/radarr.yaml"
+      - "argocd/apps/media/templates/sabnzbd.yaml"
+      - "argocd/apps/media/templates/seerr.yaml"
+      - "argocd/apps/media/templates/sonarr.yaml"
+      - "argocd/apps/monitoring/templates/ntfy-alertmanager.yaml"
+      - "argocd/apps/monitoring/templates/pihole-exporter.yaml"
+      - "argocd/apps/ntfy/templates/deployment.yaml"
+      - "argocd/apps/paperless-ai/templates/deployment.yaml"
+      - "argocd/apps/semaphore/templates/deployment.yaml"
+  - id: KSV-0118
+    statement: >-
+      Baseline: pod or container runs with the default security context
+      (no securityContext set at all).
+    paths:
+      - "argocd/apps/gameserver/templates/cronjobs.yaml"
+      - "argocd/apps/media/templates/media-api-exporter.yaml"
+      - "argocd/apps/media/templates/prowlarr.yaml"
+      - "argocd/apps/media/templates/radarr.yaml"
+      - "argocd/apps/media/templates/sabnzbd.yaml"
+      - "argocd/apps/media/templates/seerr.yaml"
+      - "argocd/apps/media/templates/sonarr.yaml"
+      - "argocd/apps/monitoring/templates/pihole-exporter.yaml"
