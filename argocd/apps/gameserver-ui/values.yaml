@@ -1,8 +1,14 @@
 ---
 image:
   repository: ghcr.io/jaydee94/gameserver-ui
-  tag: "stable"
-  pullPolicy: Always
+  # The floating "stable" tag is pinned to the digest of one specific build, so
+  # this file names exactly one image: a merge here is what rolls out, and
+  # reverting it rolls back. The gameserver-ui workflow moves "stable" after
+  # every build on main; Renovate (helm-values manager) then opens a PR that
+  # bumps the digest below. Do not drop the digest — without it nothing rolls
+  # out any more (pullPolicy is IfNotPresent).
+  tag: "stable@sha256:57b57e926b46771dfbc076c3e425d2ae102682bd7a6a0e754ccb487be25dcd4a"
+  pullPolicy: IfNotPresent
 
 ingress:
   host: gameserver.homeserver
