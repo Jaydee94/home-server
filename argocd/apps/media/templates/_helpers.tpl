@@ -68,3 +68,21 @@ Usage: {{ include "media.lsioEnv" (dict "theme" "sonarr" "root" $) | nindent 12 
   value: {{ .root.Values.theme.name | quote }}
 {{- end }}
 {{- end -}}
+
+{{/*
+Pod securityContext for the Servarr apps (Sonarr, Radarr, Prowlarr — all .NET).
+
+Ubuntu 26.04 / kernel 7.0 labels container processes
+"cri-containerd.apparmor.d//&unconfined" (stacked), but containerd's default
+profile only allows signals to peer "cri-containerd.apparmor.d". Every signal
+inside the container is therefore denied. The .NET runtime needs them: it
+suspends its own threads for GC with a realtime signal (dmesg: comm="Sonarr"
+signal=rtmin+3 DENIED) and then abort()s (signal=abrt DENIED). The process
+dies without a log line, s6 restarts it in a loop, and a crash during a write
+left Sonarr's config.xml empty. Same root cause and same fix as vmagent
+(argocd/apps/monitoring/values.yaml) and the KubeVirt VM: run unconfined.
+*/}}
+{{- define "media.servarrPodSecurityContext" -}}
+appArmorProfile:
+  type: Unconfined
+{{- end -}}
