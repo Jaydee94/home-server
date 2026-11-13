@@ -19,6 +19,7 @@
     owner: root
     group: root
     mode: '0644'
+  notify: Restart k3s
 
 # ---- k3s Installation ---------------------------------------
 # Strategy:
@@ -81,6 +82,12 @@
     enabled: true
     daemon_reload: true
 
+# A changed config.yaml only takes effect after a restart. Do it here rather
+# than at the end of the play, so the waits below and every later role see the
+# cluster in its final state.
+- name: Restart k3s now if its configuration changed
+  ansible.builtin.meta: flush_handlers
+
 - name: Wait for k3s API server to be reachable (port 6443)
   ansible.builtin.wait_for:
     host: 127.0.0.1
@@ -89,12 +96,25 @@
     delay: 5
     timeout: 120
 
+# The port opens before the API server has finished starting. Later tasks
+# (kubectl, helm) would otherwise hit it too early after a restart.
+- name: Wait for the k3s API server to report ready
+  ansible.builtin.command: kubectl get --raw /readyz
+  register: k3s_api_readyz
+  retries: 30
+  delay: 5
+  until: k3s_api_readyz.rc == 0
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  changed_when: false
+
 - name: Wait for k3s node to be in Ready state
   ansible.builtin.command: kubectl get nodes --no-headers
   register: k3s_nodes_status
   retries: 30
   delay: 10
-  until: "'Ready' in k3s_nodes_status.stdout"
+  # Match the STATUS column as a word — "NotReady" contains "Ready" too.
+  until: k3s_nodes_status.stdout is search('\\sReady\\b')
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   changed_when: false
