@@ -34,6 +34,13 @@ Verweis aus CLAUDE.md: hier die vollständige Liste.
 - **Grafana sidecar + dashboards conflict**: Setting both `grafana.sidecar.dashboards.enabled: true` and `grafana.dashboards:` causes a Helm template error. Use the sidecar only; default dashboards via labeled ConfigMaps.
 - **Grafana fresh DB**: If Grafana crashes with `no such column: is_service_account`, delete `grafana.db` from the PVC and restart. PVC path: `/var/lib/rancher/k3s/storage/<pvc-name>_monitoring_monitoring-grafana/`.
 
+## AppArmor / Container-Signale
+
+- **Ursache aller „Signal DENIED“-Probleme auf Ubuntu 26.04:** `kernel.apparmor_restrict_unprivileged_unconfined=1` (Ubuntu-Default) macht aus dem Profilwechsel beim Container-Start ein gestapeltes Label `cri-containerd.apparmor.d//&unconfined`. Das containerd-Profil erlaubt Signale nur an `cri-containerd.apparmor.d` → jedes Signal innerhalb eines Containers wird verweigert. Betroffen waren QEMU (KubeVirt), vmagent/vmalert (SIGHUP), Sonarr/Radarr (.NET bricht lautlos ab, Sonarrs `config.xml` wurde dabei geleert) und Postgres (SIGURG).
+- **Fix:** Die `common`-Rolle setzt den Sysctl auf `0` (`/etc/sysctl.d/99-apparmor-containers.conf`). Wirkt nur auf neu gestartete Prozesse → nach dem ersten Ausrollen einmal rebooten.
+- **Diagnose:** `sudo journalctl -k | grep 'apparmor="DENIED".*operation="signal"'` und das Label eines Container-Prozesses: `sudo cat /proc/<pid>/attr/current`. Schnelltest: `kubectl run t --rm -i --restart=Never --image=<alpine-image> --command -- sh -c 'cat /proc/self/attr/current; sleep 20 & kill -USR1 $!; echo rc=$?'`.
+- **Die `Unconfined`-Ausnahmen** (KubeVirt-VM, vmagent, vmalert, Sonarr/Radarr/Prowlarr) stammen aus der Zeit vor diesem Fix. Sie können entfernt werden, sobald nach dem Reboot keine Signal-Denials mehr im Kernel-Log stehen.
+
 ## KubeVirt / Gameserver
 
 - **KubeVirt: Bare-Metal-Voraussetzung**: Benötigt `/dev/kvm`. Vor erstem Sync `virt-host-validate` ausführen. Ohne KVM: `useEmulation: true` in `kubevirt-cr.yaml` (langsam, nicht für 7DTD empfohlen).
