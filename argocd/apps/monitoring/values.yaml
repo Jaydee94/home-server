@@ -108,13 +108,15 @@ victoria-metrics-k8s-stack:
           container.apparmor.security.beta.kubernetes.io/vmalert: unconfined
 
   # ---- Alertmanager ----------------------------------------
-  # Routes critical/warning alerts to ntfy-alertmanager (monitoring namespace),
-  # which formats and forwards them to ntfy.sh as push notifications.
-  # Info-severity alerts are silently dropped.
+  # Routes critical/warning alerts to ntfy-alertmanager (monitoring namespace,
+  # templates/ntfy-alertmanager.yaml), which formats them and forwards them to
+  # the self-hosted ntfy (argocd/apps/ntfy) as push notifications.
+  # Info-severity alerts, Watchdog and InfoInhibitor go to `blackhole`.
   #
-  # To configure your topic: edit configmap-ntfy-alertmanager.yaml, replace
-  # "homeserver-alerts-change-me" with a random string, subscribe to the
-  # same topic in the ntfy app on your phone, then push — ArgoCD syncs in ~3 min.
+  # The ntfy server URL and topic are not in this file: they live in the
+  # SealedSecret `ntfy-alertmanager-topic`
+  # (templates/sealedsecret-ntfy-alertmanager-topic.yaml, which also describes
+  # how to re-seal it) and are included by configmap-ntfy-alertmanager.yaml.
   alertmanager:
     enabled: true
     spec:
@@ -161,20 +163,73 @@ victoria-metrics-k8s-stack:
             - alertname
 
   # ---- Default alert rules ---------------------------------
+  # The chart no longer renders the default VMRules and dashboards with Helm.
+  # Its `sync-job` (a post-install/post-upgrade hook, so an ArgoCD PostSync
+  # hook) downloads them at sync time and creates the VMRules and dashboard
+  # ConfigMaps in the cluster. The chart default points every source at a
+  # moving branch (kube-prometheus `main`, VictoriaMetrics `master`, ...), so
+  # KubePodCrashLooping & co. could change or disappear with any sync and
+  # without a commit in this repo.
+  #
+  # Every source below is therefore pinned to a commit SHA (the branch heads
+  # of 2026-11-13, which is what the last unpinned sync had fetched). Only
+  # `url` is set per source, so the chart's `enabled` expression for each one
+  # stays in effect (Helm merges maps key by key).
+  #
+  # To update: replace the SHA of ONE upstream repo in all of its URLs (rules
+  # and dashboards), merge, then read the job log:
+  #   kubectl -n monitoring logs job/monitoring-victoria-metrics-k8s-stack-sync-job
+  # Renovate does not track these URLs. A source key that a chart bump adds
+  # arrives unpinned: compare `helm show values` on a bump and pin it here.
+  # The job still needs raw.githubusercontent.com at sync time. If a download
+  # fails, the hook and with it the ArgoCD sync fail.
   defaultRules:
-    create: true
-    # Disable rules for components k3s does not expose as separate pods:
-    # controller-manager, scheduler, and etcd all run inside the single
-    # k3s server process. kubeProxy is also baked in.
+    enabled: true
+    # Rules for components k3s does not run as separate pods (scheduler,
+    # controller-manager, kube-proxy, etcd) need no entry here: the chart ties
+    # the groups `kube-scheduler.rules`, `kubernetes-system-scheduler` and
+    # `kubernetes-system-controller-manager` and the `etcd` source to the
+    # `kubeScheduler` / `kubeControllerManager` / `kubeEtcd` `.enabled`
+    # switches at the bottom of this file. Group keys must be the upstream
+    # group names; `etcd` is one and stays as an explicit second guard.
     groups:
       etcd:
-        create: false
-      kubeScheduler:
-        create: false
-      kubernetesSystemScheduler:
-        create: false
-      kubernetesSystemControllerManager:
-        create: false
+        enabled: false
+    sources:
+      etcd:
+        url: https://raw.githubusercontent.com/monitoring-mixins/website/78a5095803c6147986df98fa69c7581231a28153/assets/etcd/alerts.yaml
+      alertmanager:
+        url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/d88939bfbe7ffa368a62dcc1ff477b1c19fa9674/manifests/alertmanager-prometheusRule.yaml
+      kubernetes-control-plane:
+        url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/d88939bfbe7ffa368a62dcc1ff477b1c19fa9674/manifests/kubernetesControlPlane-prometheusRule.yaml
+      kubernetes:
+        url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/d88939bfbe7ffa368a62dcc1ff477b1c19fa9674/manifests/kubePrometheus-prometheusRule.yaml
+      kube-state-metrics:
+        url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/d88939bfbe7ffa368a62dcc1ff477b1c19fa9674/manifests/kubeStateMetrics-prometheusRule.yaml
+      node-exporter:
+        url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/d88939bfbe7ffa368a62dcc1ff477b1c19fa9674/manifests/nodeExporter-prometheusRule.yaml
+      vmhealth:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/deployment/docker/rules/alerts-health.yml
+      vmagent:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/deployment/docker/rules/alerts-vmagent.yml
+      vmalert:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/deployment/docker/rules/alerts-vmalert.yml
+      vmsingle:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/deployment/docker/rules/alerts-single-node.yml
+      vmcluster:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/deployment/docker/rules/alerts-cluster.yml
+      vmoperator:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/operator/a822c372541c681e863a0fe4332ee5f88a6c83fb/config/alerting/vmoperator-rules.yaml
+      vlhealth:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/4f5d1f3931bf1d08a517607bd9c4b712941c3183/deployment/docker/rules/alerts-health.yml
+      vlagent:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/4f5d1f3931bf1d08a517607bd9c4b712941c3183/deployment/docker/rules/alerts-vlagent.yml
+      victorialogs:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/4f5d1f3931bf1d08a517607bd9c4b712941c3183/deployment/docker/rules/alerts-vlogs.yml
+      victoriatraces:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaTraces/761466effb072ab56412408da97a40cf85b0ef34/deployment/docker/rules/alerts-vtraces.yml
+      vthealth:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaTraces/761466effb072ab56412408da97a40cf85b0ef34/deployment/docker/rules/alerts-health.yml
 
   # ---- Default dashboards (cluster, nodes, VM components) ---
   defaultDashboards:
@@ -187,6 +242,49 @@ victoria-metrics-k8s-stack:
         enabled: true
       victoriametrics-operator:
         enabled: true
+    # Pinned to commit SHAs like `defaultRules.sources` above (same reasons,
+    # same update procedure).
+    sources:
+      victoriatraces-cluster:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaTraces/761466effb072ab56412408da97a40cf85b0ef34/dashboards/victoriatraces-cluster.json
+      victoriatraces-single-node:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaTraces/761466effb072ab56412408da97a40cf85b0ef34/dashboards/victoriatraces.json
+      victorialogs-cluster:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/4f5d1f3931bf1d08a517607bd9c4b712941c3183/dashboards/victorialogs-cluster.json
+      victorialogs-single-node:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/4f5d1f3931bf1d08a517607bd9c4b712941c3183/dashboards/victorialogs.json
+      victorialogs-vlagent:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaLogs/4f5d1f3931bf1d08a517607bd9c4b712941c3183/dashboards/vlagent.json
+      victoriametrics-single-node:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/dashboards/victoriametrics.json
+      victoriametrics-vmagent:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/dashboards/vmagent.json
+      victoriametrics-cluster:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/dashboards/victoriametrics-cluster.json
+      victoriametrics-vmalert:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/dashboards/vmalert.json
+      victoriametrics-operator:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/dashboards/operator.json
+      victoriametrics-backupmanager:
+        url: https://raw.githubusercontent.com/VictoriaMetrics/VictoriaMetrics/4c2457ded123442972ca39dcb1b61526d18d39a3/dashboards/backupmanager.json
+      kubernetes-views-global:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/ad7c41e8f967ba788c9f090de537519bd376fd4e/dashboards/k8s-views-global.json
+      kubernetes-views-namespaces:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/ad7c41e8f967ba788c9f090de537519bd376fd4e/dashboards/k8s-views-namespaces.json
+      kubernetes-views-pods:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/ad7c41e8f967ba788c9f090de537519bd376fd4e/dashboards/k8s-views-pods.json
+      kubernetes-views-nodes:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/ad7c41e8f967ba788c9f090de537519bd376fd4e/dashboards/k8s-views-nodes.json
+      kubernetes-system-api-server:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/ad7c41e8f967ba788c9f090de537519bd376fd4e/dashboards/k8s-system-api-server.json
+      kubernetes-system-coredns:
+        url: https://raw.githubusercontent.com/dotdc/grafana-dashboards-kubernetes/ad7c41e8f967ba788c9f090de537519bd376fd4e/dashboards/k8s-system-coredns.json
+      node-exporter-full:
+        url: https://raw.githubusercontent.com/rfmoz/grafana-dashboards/b07d8a90d8fadd112e9ac841b777ee863cda850b/prometheus/node-exporter-full.json
+      etcd:
+        url: https://raw.githubusercontent.com/monitoring-mixins/website/78a5095803c6147986df98fa69c7581231a28153/assets/etcd/dashboards/etcd.json
+      kube-prometheus:
+        url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/d88939bfbe7ffa368a62dcc1ff477b1c19fa9674/manifests/grafana-dashboardDefinitions.yaml
 
   # ---- Grafana --------------------------------------------
   # Exposed at http://grafana.homeserver via Traefik. Admin password is
