@@ -124,28 +124,10 @@ spec:
     # ── Kubernetes ──────────────────────────────────────────────────────────
     - name: homeserver.kubernetes
       rules:
-        - alert: PodCrashLooping
-          expr: >-
-            increase(kube_pod_container_status_restarts_total[15m]) > 3
-          for: 0m
-          labels:
-            severity: warning
-          annotations:
-            summary: >-
-              Pod
-              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.pod }}`}}
-              is crash-looping
-              ({{`{{ $value | printf "%.0f" }}`}}
-              restarts in 15 min)
-            description: >-
-              Container
-              {{`{{ $labels.container }}`}}
-              in pod
-              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.pod }}`}}
-              restarted
-              {{`{{ $value | printf "%.0f" }}`}}
-              times in the last 15 min.
-
+        # Crash loops and unschedulable pods are covered by the default rules
+        # KubePodCrashLooping and KubePodNotReady. The former custom
+        # PodCrashLooping (increase[15m] > 3, for: 0m) flapped with every
+        # back-off cycle and was the single noisiest alert.
         - alert: PodOOMKilled
           expr: >-
             kube_pod_container_status_last_terminated_reason{reason="OOMKilled"} == 1
@@ -217,20 +199,6 @@ spec:
               {{`{{ $labels.namespace }}`}}/{{`{{ $labels.persistentvolumeclaim }}`}}
               has less than 10% free space.
 
-        - alert: PodUnschedulable
-          expr: kube_pod_status_unschedulable == 1
-          for: 10m
-          labels:
-            severity: warning
-          annotations:
-            summary: >-
-              Pod
-              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.pod }}`}}
-              kann nicht scheduled werden
-            description: >-
-              Der Pod ist seit 10 min unschedulable (kein passender Node).
-              Prüfe `kubectl describe pod -n {{`{{ $labels.namespace }}`}} {{`{{ $labels.pod }}`}}`.
-
     # ── ArgoCD ──────────────────────────────────────────────────────────────
     - name: homeserver.argocd
       rules:
@@ -250,6 +218,26 @@ spec:
               (project:
               {{`{{ $labels.project }}`}})
               has been in Degraded health for >5 min.
+
+        # Progressing / Missing / Unknown are not "Degraded", so an app can hang
+        # there forever without the alert above firing (mosquitto did for a week).
+        - alert: ArgoCDAppNotHealthy
+          expr: argocd_app_info{health_status!~"Healthy|Suspended|Degraded"} == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              ArgoCD app
+              {{`{{ $labels.name }}`}}
+              hängt in
+              {{`{{ $labels.health_status }}`}}
+            description: >-
+              ArgoCD application
+              {{`{{ $labels.name }}`}}
+              ist seit >30 min im Zustand
+              {{`{{ $labels.health_status }}`}}.
+              Prüfe `kubectl -n {{`{{ $labels.dest_namespace }}`}} get pods`.
 
         - alert: ArgoCDAppOutOfSync
           expr: argocd_app_info{sync_status="OutOfSync"} == 1
@@ -372,7 +360,12 @@ spec:
               is unreachable. Media-stack health data is missing.
 
         - alert: MosquittoDown
-          expr: up{namespace="mosquitto"} == 0
+          # There is no scrape target in the mosquitto namespace, so the former
+          # up{namespace="mosquitto"} == 0 could never fire. Use kube-state-metrics;
+          # the absent() arm also covers a deleted StatefulSet.
+          expr: >-
+            kube_statefulset_status_replicas_ready{namespace="mosquitto", statefulset="mosquitto"} < 1
+            or absent(kube_statefulset_status_replicas_ready{namespace="mosquitto", statefulset="mosquitto"})
           for: 5m
           labels:
             severity: critical
@@ -427,8 +420,8 @@ spec:
     - name: homeserver.blackbox
       rules:
         - alert: ServiceEndpointDown
-          expr: probe_success{job="homeserver-blackbox"} == 0
-          for: 2m
+          expr: probe_success{job=~"homeserver-blackbox.*"} == 0
+          for: 5m
           labels:
             severity: critical
           annotations:
@@ -437,8 +430,40 @@ spec:
               {{`{{ $labels.instance }}`}}
               antwortet nicht
             description: >-
-              HTTP-Probe von
+              Probe von
               {{`{{ $labels.instance }}`}}
-              schlägt seit 2 min fehl.
-              Prüfe Traefik-Logs und Pod-Status.
+              schlägt seit 5 min fehl.
+              Prüfe Traefik-Logs und Pod-Status (bzw. NAS / MetalLB bei TCP-Zielen).
 
+    # ── cert-manager ─────────────────────────────────────────────────────────
+    - name: homeserver.certificates
+      rules:
+        - alert: CertificateExpiringSoon
+          expr: >-
+            certmanager_certificate_expiration_timestamp_seconds - time() < 14 * 86400
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              Zertifikat
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.name }}`}}
+              läuft in
+              {{`{{ $value | humanizeDuration }}`}}
+              ab
+            description: >-
+              cert-manager hat das Zertifikat nicht rechtzeitig erneuert.
+              Prüfe `kubectl -n {{`{{ $labels.namespace }}`}} describe certificate {{`{{ $labels.name }}`}}`.
+
+        - alert: CertificateNotReady
+          expr: certmanager_certificate_ready_status{condition="False"} == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              Zertifikat
+              {{`{{ $labels.namespace }}`}}/{{`{{ $labels.name }}`}}
+              ist nicht Ready
+            description: >-
+              cert-manager kann das Zertifikat seit >30 min nicht ausstellen.

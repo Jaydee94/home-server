@@ -9,6 +9,10 @@ prometheus-blackbox-exporter:
           valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
           valid_status_codes: []  # defaults to 2xx
           follow_redirects: true
+      # Plain TCP connect — for things that do not speak HTTP (SMB, MQTT).
+      tcp_connect:
+        prober: tcp
+        timeout: 5s
   resources:
     requests:
       cpu: 10m
