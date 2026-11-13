@@ -10,6 +10,7 @@ A fully automated, GitOps-driven home server. Ansible provisions the host (Ubunt
 make deps / ping / check / install          # Galaxy deps, connectivity, dry-run, full provision
 make common / tailscale / k3s / argocd      # Individual Ansible roles
 make host-dns / scanner / semaphore         # DNS, scanner, Semaphore secret
+make backup                                 # Nightly restic backup to NAS (docs/26-backup.md)
 make semaphore-targets / semaphore-bootstrap / semaphore-bootstrap-local
 make nas / nas-check                        # UGREEN NAS deploy / dry-run
 make lint / vault-edit / clean              # Lint, edit vault vars, cleanup
@@ -18,7 +19,7 @@ make lint / vault-edit / clean              # Lint, edit vault vars, cleanup
 ## Architecture
 
 ```
-Ansible → ansible/site.yml (common → host_dns → tailscale → k3s → argocd → scanner → semaphore_secrets)
+Ansible → ansible/site.yml (common → host_dns → tailscale → k3s → argocd → scanner → semaphore_secrets → backup)
           ansible/group_vars/all.yml  ← ALL config knobs + vault secrets
 k3s     → single-node; bundles Traefik v2, CoreDNS, local-path-provisioner
 ArgoCD  → argocd/bootstrap/root-applicationset.yaml

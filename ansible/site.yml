@@ -29,6 +29,8 @@
       tags: [scanner, paperless]
     - role: semaphore_secrets
       tags: [semaphore, semaphore-secrets]
+    - role: backup
+      tags: [backup]
 
   post_tasks:
     - name: Display setup summary

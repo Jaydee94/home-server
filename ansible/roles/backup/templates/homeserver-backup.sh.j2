@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# Managed by Ansible (role: backup) — do not edit manually.
+#
+# Nightly restic backup of the non-reproducible state of the home-server to
+# the NAS. Restore procedure: docs/26-backup.md.
+set -euo pipefail
+umask 077
+
+MOUNTPOINT="{{ backup_mountpoint }}"
+STAGING="{{ backup_state_dir }}/staging"
+STATUS_FILE="{{ backup_state_dir }}/last-success"
+NTFY_URL="{{ backup_ntfy_url }}"
+
+export RESTIC_REPOSITORY="{{ backup_mountpoint }}/{{ backup_repo_subdir }}"
+export RESTIC_PASSWORD_FILE="{{ backup_config_dir }}/restic-password"
+export RESTIC_CACHE_DIR="{{ backup_state_dir }}/cache"
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+
+log() { echo "[homeserver-backup] $*"; }
+
+notify_failure() {
+  local msg="$1"
+  log "FAILED: ${msg}"
+  if [ -n "${NTFY_URL}" ]; then
+    curl -fsS --max-time 15 \
+      -H "Title: Home-Server Backup fehlgeschlagen" \
+      -H "Priority: high" \
+      -H "Tags: rotating_light" \
+      -d "${msg}" "${NTFY_URL}" >/dev/null || log "ntfy notification failed too"
+  fi
+}
+
+STEP="startup"
+trap 'rc=$?; rm -rf "${STAGING}"; if [ "${rc}" -ne 0 ]; then notify_failure "Schritt \"${STEP}\" (exit ${rc}). Details: journalctl -u homeserver-backup"; fi' EXIT
+
+# ---- 1. Target must be the NAS, never the local disk ------
+# Touching the path triggers the systemd automount. If the NAS is down the
+# directory still exists locally (empty mountpoint) — restic would then
+# happily fill the root disk, so verify the filesystem type explicitly.
+STEP="NAS-Mount prüfen"
+ls "${MOUNTPOINT}" >/dev/null 2>&1 || true
+if [ "$(findmnt -n -o FSTYPE --target "${MOUNTPOINT}" | tail -1)" != "cifs" ]; then
+  log "${MOUNTPOINT} is not a CIFS mount — NAS unreachable?"
+  exit 1
+fi
+mkdir -p "${RESTIC_REPOSITORY}" "${RESTIC_CACHE_DIR}"
+
+STEP="restic-Repository öffnen"
+if ! restic cat config >/dev/null 2>&1; then
+  if [ -e "${RESTIC_REPOSITORY}/config" ]; then
+    log "repository exists but cannot be opened (wrong password or damaged)"
+    exit 1
+  fi
+  log "initialising new restic repository at ${RESTIC_REPOSITORY}"
+  restic init
+fi
+
+# ---- 2. Consistent dumps into staging ---------------------
+rm -rf "${STAGING}"
+mkdir -p "${STAGING}"
+
+# k3s datastore: SQLite online backup — safe while k3s is running, unlike a
+# plain copy of state.db + WAL.
+STEP="k3s-Datastore sichern"
+sqlite3 /var/lib/rancher/k3s/server/db/state.db \
+  ".timeout 30000" ".backup '${STAGING}/k3s-state.db'"
+
+# Sealed-Secrets private keys. The controller rotates them every 30 days and
+# keeps all old ones; every one of them is needed to decrypt the
+# SealedSecrets committed while it was active.
+STEP="Sealed-Secrets-Keys exportieren"
+k3s kubectl get secret -A \
+  -l sealedsecrets.bitnami.com/sealed-secrets-key \
+  -o yaml > "${STAGING}/sealed-secrets-keys.yaml"
+grep -q "tls.key" "${STAGING}/sealed-secrets-keys.yaml"
+
+# ---- 3. Backup --------------------------------------------
+STEP="restic backup"
+rc=0
+restic backup \
+  --tag nightly \
+  --host "{{ hostname }}" \
+{% for pattern in backup_excludes %}
+  --exclude "{{ pattern }}" \
+{% endfor %}
+  "${STAGING}" \
+{% for path in backup_paths %}
+  "{{ path }}" \
+{% endfor %}
+  || rc=$?
+# Exit 3 = snapshot created, but some files could not be read (they changed
+# or vanished while being read — expected for live volumes such as
+# VictoriaMetrics). Anything else is a real failure.
+if [ "${rc}" -eq 3 ]; then
+  log "WARNING: snapshot is incomplete, some files changed during the backup"
+elif [ "${rc}" -ne 0 ]; then
+  exit "${rc}"
+fi
+
+# ---- 4. Retention -----------------------------------------
+STEP="restic forget/prune"
+restic forget --prune \
+  --tag nightly \
+  --host "{{ hostname }}" \
+  --keep-daily {{ backup_keep_daily }} \
+  --keep-weekly {{ backup_keep_weekly }} \
+  --keep-monthly {{ backup_keep_monthly }}
+
+# ---- 5. Weekly integrity check ----------------------------
+if [ "$(date +%u)" -eq {{ backup_check_weekday }} ]; then
+  STEP="restic check"
+  restic check
+fi
+
+STEP="done"
+date --iso-8601=seconds > "${STATUS_FILE}"
+log "backup finished"
