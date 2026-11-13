@@ -4,7 +4,10 @@ const getStatus = vi.fn();
 const execMock = vi.fn();
 
 vi.mock("@/lib/k8s", () => ({ VmClient: { inCluster: () => ({ getStatus }) } }));
-vi.mock("@/lib/ssh", () => ({ SshClient: { fromEnv: () => ({ exec: execMock }) } }));
+vi.mock("@/lib/ssh", () => ({
+  SshClient: { fromEnv: () => ({ exec: execMock }) },
+  LONG_EXEC_TIMEOUT_MS: 300000,
+}));
 vi.mock("fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("fs")>();
   return { ...actual, existsSync: vi.fn().mockReturnValue(false), writeFileSync: vi.fn(), mkdirSync: vi.fn() };
@@ -37,7 +40,7 @@ describe("/api/config", () => {
       method: "PUT", body: JSON.stringify({ xml }),
     }));
     expect(res.status).toBe(200);
-    expect(execMock).toHaveBeenCalledWith(expect.stringContaining("docker restart"));
+    expect(execMock).toHaveBeenCalledWith(expect.stringContaining("docker restart"), expect.anything());
   });
 
   it("PUT ohne xml gibt 400", async () => {

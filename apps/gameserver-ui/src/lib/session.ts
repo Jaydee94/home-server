@@ -1,5 +1,6 @@
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import { timingSafeEqual, createHash } from "crypto";
 
 export interface SessionData {
@@ -15,6 +16,15 @@ export const sessionOptions: SessionOptions = {
 
 export async function getSession() {
   return getIronSession<SessionData>(await cookies(), sessionOptions);
+}
+
+// Session-Prüfung direkt in einer API-Route: liefert die fertige 401-Antwort oder
+// `null`, wenn der Aufrufer angemeldet ist. Pflicht für Routen, die vom matcher der
+// Middleware ausgenommen sind.
+export async function requireSession(): Promise<NextResponse | null> {
+  const session = await getSession();
+  if (session.loggedIn) return null;
+  return NextResponse.json({ error: "Nicht angemeldet" }, { status: 401 });
 }
 
 export function verifyPassword(input: string, expected: string): boolean {

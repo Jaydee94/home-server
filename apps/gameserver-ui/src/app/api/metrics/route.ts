@@ -3,14 +3,21 @@ import { NextResponse } from "next/server";
 const VICTORIA_URL = process.env.VICTORIA_URL
   ?? "http://vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428";
 
+// VictoriaMetrics antwortet im Cluster in Millisekunden; ohne Timeout bliebe jede
+// Dashboard-Abfrage hängen, wenn der Dienst nicht reagiert.
+const QUERY_TIMEOUT_MS = 5000;
+
+const query = (q: string) =>
+  fetch(`${VICTORIA_URL}/api/v1/query?query=${q}`, { signal: AbortSignal.timeout(QUERY_TIMEOUT_MS) });
+
 export async function GET() {
   try {
     const vm = process.env.VM_NAME ?? "7dtd-server";
 
     const [cpuRes, memRes, memTotalRes] = await Promise.all([
-      fetch(`${VICTORIA_URL}/api/v1/query?query=rate(kubevirt_vmi_vcpu_seconds_total%7Bname%3D%22${vm}%22%7D%5B5m%5D)*100`),
-      fetch(`${VICTORIA_URL}/api/v1/query?query=kubevirt_vmi_memory_resident_bytes%7Bname%3D%22${vm}%22%7D`),
-      fetch(`${VICTORIA_URL}/api/v1/query?query=kubevirt_vm_resource_requests%7Bname%3D%22${vm}%22%2Cresource%3D%22memory%22%2Csource%3D%22guest%22%7D`),
+      query(`rate(kubevirt_vmi_vcpu_seconds_total%7Bname%3D%22${vm}%22%7D%5B5m%5D)*100`),
+      query(`kubevirt_vmi_memory_resident_bytes%7Bname%3D%22${vm}%22%7D`),
+      query(`kubevirt_vm_resource_requests%7Bname%3D%22${vm}%22%2Cresource%3D%22memory%22%2Csource%3D%22guest%22%7D`),
     ]);
 
     const cpu = cpuRes.ok ? (await cpuRes.json()).data?.result?.[0]?.value?.[1] ?? null : null;
