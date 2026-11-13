@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mosquitto-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "mosquitto.labels" . | nindent 4 }}
+data:
+  # Wird vom Init-Container nach /work kopiert; die Passwortdatei entsteht
+  # daneben im selben emptyDir (siehe statefulset.yaml).
+  mosquitto.conf.tmpl: |
+    persistence true
+    persistence_location /mosquitto/data/
+    log_dest stdout
+    allow_anonymous false
+    listener 1883
+    protocol mqtt
+    global_plugin /usr/lib/mosquitto_password_file.so
+    plugin_opt_password_file /mosquitto/config/generated/passwordfile
