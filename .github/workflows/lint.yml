@@ -22,8 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v7
         with:
           python-version: "3.x"
@@ -33,24 +31,12 @@ jobs:
           key: pip-yamllint-${{ runner.os }}-${{ hashFiles('.github/workflows/lint.yml') }}
       - name: Install yamllint
         run: pip install yamllint
-      - name: Detect changed YAML files
-        id: changed
-        uses: step-security/changed-files@2e07db73e5ccdb319b9a6c7766bd46d39d304bad # v47.0.5
-        with:
-          files: |
-            **/*.yml
-            **/*.yaml
-          files_ignore: |
-            argocd/apps/*/templates/**
-      - name: Run yamllint on changed files
-        if: steps.changed.outputs.any_changed == 'true'
-        run: |
-          set -euo pipefail
-          printf '  %s\n' ${{ steps.changed.outputs.all_changed_files }}
-          yamllint -c .yamllint ${{ steps.changed.outputs.all_changed_files }}
-      - name: No YAML changes
-        if: steps.changed.outputs.any_changed != 'true'
-        run: echo "No changed YAML files — nothing to lint."
+      # Lint the whole repo, not just changed files: a pre-existing error in an
+      # untouched file otherwise stays invisible until an unrelated PR (usually
+      # Renovate) happens to touch that file and turns red for it. Takes seconds.
+      # Keep the paths in sync with the "lint" target in the Makefile.
+      - name: Run yamllint
+        run: yamllint -c .yamllint ansible/ argocd/ .github/
 
   ansible-lint:
     name: ansible-lint

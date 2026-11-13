@@ -71,7 +71,7 @@ nas-check: ## Dry-run the NAS playbook (no changes applied).
 
 .PHONY: lint
 lint: ## Lint YAML, Ansible, and ALL Helm charts.
-	yamllint -c .yamllint ansible/ argocd/
+	yamllint -c .yamllint ansible/ argocd/ .github/
 	ansible-lint $(ANSIBLE_DIR)/
 	@if command -v helm >/dev/null; then \
 	    for chart in argocd/apps/*/; do \
