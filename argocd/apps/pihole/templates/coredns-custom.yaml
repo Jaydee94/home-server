@@ -1,0 +1,33 @@
+{{- if .Values.clusterDns.enabled }}
+# In-cluster resolution of *.homeserver.
+#
+# k3s' CoreDNS forwards everything outside cluster.local to the node's
+# resolv.conf, which lists Pi-hole AND the FritzBox. CoreDNS picks an upstream
+# at random, and the FritzBox answers NXDOMAIN for *.homeserver — so pods
+# resolved these names only about one time in three (blackbox probes, Homepage
+# widgets, Semaphore API calls all flapped).
+#
+# k3s imports /etc/coredns/custom/*.server from the optional ConfigMap
+# "coredns-custom" in kube-system. This server block answers the zone directly
+# with the Traefik node IP — the same wildcard Pi-hole serves to the LAN
+# (pihole.dnsmasq.customDnsEntries), but without depending on Pi-hole being up.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/part-of: pihole
+data:
+  homeserver.server: |
+    homeserver:53 {
+        errors
+        template IN A homeserver {
+            answer "{{ `{{ .Name }}` }} 60 IN A {{ .Values.clusterDns.homeserverIp }}"
+        }
+        template IN ANY homeserver {
+            rcode NOERROR
+        }
+    }
+{{- end }}

@@ -125,8 +125,16 @@ victoria-metrics-k8s-stack:
         group_by: ["alertname", "namespace"]
         group_wait: 30s
         group_interval: 5m
-        repeat_interval: 4h
+        # Reminder cadence for alerts that keep firing. 4h meant six pushes a
+        # day per open alert — the real ones drowned in repeats.
+        repeat_interval: 12h
         routes:
+          # Always-firing meta alerts, not actionable on the phone. Watchdog is
+          # the hook for an external dead-man's switch: route it to a heartbeat
+          # receiver here once one exists (see docs/gotchas.md → Alerting).
+          - receiver: blackhole
+            matchers:
+              - alertname=~"Watchdog|InfoInhibitor"
           - receiver: blackhole
             matchers:
               - severity="info"

@@ -21,6 +21,14 @@ Verweis aus CLAUDE.md: hier die vollständige Liste.
 - **Pi-hole NICHT auf die Node-IP `:53` legen**: k3s' Klipper-ServiceLB würde hostPort `0.0.0.0:53` binden und den Host-Resolver lahmlegen. Deshalb dedizierte MetalLB-IP `.2`.
 - **Pi-hole IP muss außerhalb des FritzBox-DHCP-Bereichs liegen**: `192.168.178.2` darf nicht vom DHCP vergeben werden (sonst ARP-Konflikt). Andere IP nötig? An vier Stellen ändern: `metallb/templates/ipaddresspool.yaml`, `pihole/values.yaml`, `group_vars/all.yml`, FritzBox.
 
+## Alerting
+
+- **`*.homeserver` aus Pods:** CoreDNS leitet an die resolv.conf des Nodes weiter (Pi-hole **und** FritzBox) und wählt zufällig — die FritzBox antwortet NXDOMAIN, Pods lösten die Namen nur in ~⅓ der Fälle auf. Fix: ConfigMap `coredns-custom` in `kube-system` (`argocd/apps/pihole/templates/coredns-custom.yaml`) beantwortet die Zone direkt. Neue Blackbox-Ziele immer per `kubectl get --raw …/proxy/probe?module=http_2xx&debug=true&target=…` testen.
+- **`Watchdog` / `InfoInhibitor`** gehen in den `blackhole`-Receiver — sie feuern absichtlich dauerhaft. Es gibt (noch) keinen Dead-Man's-Switch: fällt der Node aus, kommt keine Meldung. Dafür `Watchdog` auf einen eigenen Webhook-Receiver zu einem externen Heartbeat-Dienst routen (`argocd/apps/monitoring/values.yaml`, Route-Kommentar).
+- **Eigene Regeln nicht doppelt zu den Default-Regeln:** CrashLoops und Pending-Pods decken `KubePodCrashLooping` / `KubePodNotReady` ab. Eine eigene Regel mit `for: 0m` auf `increase(restarts[15m])` flattert bei jedem Back-off.
+- **`up{namespace="…"} == 0` feuert nie, wenn es im Namespace kein Scrape-Target gibt** (so war `MosquittoDown` wirkungslos). Für Workloads ohne Metrik-Endpoint kube-state-metrics (`kube_statefulset_status_replicas_ready`) oder einen Blackbox-TCP-Probe nutzen.
+- **Backup-Fehler** melden sich über `SystemdUnitFailed` (`homeserver-backup.service`) und, falls gesetzt, direkt per `backup_ntfy_url`.
+
 ## Grafana
 
 - **Grafana sidecar + dashboards conflict**: Setting both `grafana.sidecar.dashboards.enabled: true` and `grafana.dashboards:` causes a Helm template error. Use the sidecar only; default dashboards via labeled ConfigMaps.

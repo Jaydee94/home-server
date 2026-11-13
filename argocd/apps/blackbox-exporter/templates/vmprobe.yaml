@@ -22,3 +22,30 @@ spec:
         - http://192.168.178.127:30080           # ArgoCD
         - http://jellyfin.homeserver
         - http://homeassistant.homeserver
+        - http://semaphore.homeserver
+        - http://ntfy.homeserver/v1/health       # the alert path itself
+        - http://gotify.homeserver/health
+        - http://remedy.homeserver
+        - http://192.168.178.118:8000            # Paperless-NGX on the NAS
+---
+# TCP reachability of the two non-HTTP dependencies whose loss is otherwise
+# silent: the NAS SMB service behind every CIFS volume (media, jellyfin,
+# gameserver backups, nightly backup target) and the MQTT LAN endpoint the
+# Nuki lock talks to (also proves MetalLB still announces 192.168.178.4).
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMProbe
+metadata:
+  name: homeserver-tcp
+  namespace: monitoring
+spec:
+  jobName: homeserver-blackbox-tcp
+  vmProberSpec:
+    url: blackbox-exporter-prometheus-blackbox-exporter.blackbox-exporter.svc.cluster.local:9115
+    path: /probe
+    scheme: http
+  module: tcp_connect
+  targets:
+    static:
+      targets:
+        - 192.168.178.118:445                    # UGREEN NAS SMB
+        - 192.168.178.4:1883                     # Mosquitto (MetalLB LAN IP)
