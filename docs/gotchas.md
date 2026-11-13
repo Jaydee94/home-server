@@ -41,6 +41,14 @@ Verweis aus CLAUDE.md: hier die vollständige Liste.
 - **Diagnose:** `sudo journalctl -k | grep 'apparmor="DENIED".*operation="signal"'` und das Label eines Container-Prozesses: `sudo cat /proc/<pid>/attr/current`. Schnelltest: `kubectl run t --rm -i --restart=Never --image=<alpine-image> --command -- sh -c 'cat /proc/self/attr/current; sleep 20 & kill -USR1 $!; echo rc=$?'`.
 - **Die `Unconfined`-Ausnahmen** (KubeVirt-VM, vmagent, vmalert, Sonarr/Radarr/Prowlarr) stammen aus der Zeit vor diesem Fix. Sie können entfernt werden, sobald nach dem Reboot keine Signal-Denials mehr im Kernel-Log stehen.
 
+## Disk / SMART
+
+- **Die NVMe wird über `smartctl-exporter` überwacht** (`argocd/apps/smartctl-exporter`, DaemonSet im gleichnamigen Namespace; Scrape und Alerts liegen in `argocd/apps/monitoring/templates/`, Gruppe `homeserver.disk`). Auf dem Host selbst sind weder `smartctl` noch `nvme-cli` installiert; Werte ansehen: `kubectl -n smartctl-exporter exec ds/smartctl-exporter-prometheus-smartctl-exporter-0 -- /usr/sbin/smartctl -a /dev/nvme0` oder in Grafana → Explore `{__name__=~"smartctl_device_.*"}`.
+- **Der Exporter-Container ist `privileged`** (im Chart fest verdrahtet, und ohne das kommt ein Container nicht an `/dev/nvme0`). Privilegierte Container laufen hier mit dem AppArmor-Label `unconfined`, die Signal-Denials aus dem Abschnitt oben betreffen ihn deshalb nicht.
+- **Nur `/dev/nvme0` ist konfiguriert** (`config.devices`). Eine zweite Platte taucht nicht von selbst auf, sie muss dort eingetragen werden.
+- **`SmartctlExporterDown` erkennt keine veralteten Daten:** Schlägt `smartctl` erst nach einem erfolgreichen Lauf fehl, liefert der Exporter weiter das letzte gute Ergebnis. Nach Kernel- oder Firmware-Updates einmal ins Pod-Log schauen (`S.M.A.R.T. output reading`).
+- **`DiskMediaErrors` bleibt dauerhaft aktiv**, sobald der Zähler über 0 ist (Lebenszeit-Zähler des Controllers). Nach der Diagnose im Alertmanager stummschalten, bis die Platte getauscht ist.
+
 ## KubeVirt / Gameserver
 
 - **KubeVirt: Bare-Metal-Voraussetzung**: Benötigt `/dev/kvm`. Vor erstem Sync `virt-host-validate` ausführen. Ohne KVM: `useEmulation: true` in `kubevirt-cr.yaml` (langsam, nicht für 7DTD empfohlen).

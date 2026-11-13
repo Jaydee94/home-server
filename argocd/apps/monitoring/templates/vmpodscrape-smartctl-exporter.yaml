@@ -1,0 +1,19 @@
+apiVersion: operator.victoriametrics.com/v1beta1
+kind: VMPodScrape
+metadata:
+  name: smartctl-exporter
+  namespace: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - smartctl-exporter
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: prometheus-smartctl-exporter
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      # The exporter runs smartctl at most every 120 s and serves the cached
+      # result in between; scraping faster only repeats the same values.
+      interval: 60s
+      scrapeTimeout: 30s
