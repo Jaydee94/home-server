@@ -63,13 +63,13 @@ Ziel-Hardware: kleine Box mit ≥ 4 GB RAM und ≥ 20 GB Disk. Referenz-Build: I
 
 ### Immer aktuell
 
-`auto_upgrade: true` (Default) hält bei jedem Playbook-Run den gesamten Stack aktuell:
+`auto_upgrade: true` (Default) hält bei jedem Playbook-Run die OS-Pakete aktuell; k3s, Helm und ArgoCD sind gepinnt und kommen per Renovate-PR:
 
 - **APT-Pakete** — `apt dist-upgrade` bei jedem Run, plus `unattended-upgrades` für tägliche Sicherheits-Patches im Hintergrund.
 - **Tailscale** — `state: latest` für das `tailscale`-Paket.
-- **k3s** — folgt `k3s_channel` (Default `stable`), der Upstream-Installer zieht jeweils den neuesten Release. Pin via `k3s_version`.
-- **Helm** — Re-Run des offiziellen Installers ersetzt das Binary, wenn ein neuerer Helm-3-Release existiert.
-- **ArgoCD** — `helm upgrade --install` ohne `--version` zieht das neueste Chart. Pin via `argocd_version`.
+- **k3s** — gepinnt über `k3s_version`; Renovate öffnet für neue Releases einen PR. (Leer ⇒ folgt `k3s_channel`.)
+- **Helm** — gepinnt über `helm_version` (Helm 3), per Renovate-PR aktualisiert.
+- **ArgoCD** — Chart-Version gepinnt über `argocd_version`, per Renovate-PR aktualisiert.
 - **Reboot-if-required** — wenn APT `/var/run/reboot-required` setzt, rebootet das Playbook den Host und wartet, bis er wieder oben ist (Toggle via `auto_reboot_if_required`).
 
 Für reproduzierbare Builds `auto_upgrade: false` in `ansible/group_vars/all.yml` setzen.

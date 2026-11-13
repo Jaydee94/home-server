@@ -79,10 +79,10 @@ $EDITOR ansible/group_vars/all.yml
 |-----------------------------|---------------|------------------------------------------------------------------------|
 | `auto_upgrade`              | `true`        | OS + alle Komponenten bei jedem Run auf neuesten Stable halten         |
 | `auto_reboot_if_required`   | `true`        | Auto-Reboot, wenn APT `/var/run/reboot-required` setzt                 |
-| `k3s_version`               | `""` (leer)   | Leer ⇒ `k3s_channel` folgen. Pin auf z. B. `v1.30.2+k3s1`              |
+| `k3s_version`               | gepinnt       | Per Renovate-PR aktualisiert. Leer ⇒ `k3s_channel` folgen              |
 | `k3s_channel`               | `stable`      | Wird genutzt, wenn `k3s_version` leer ist                              |
-| `helm_version`              | `""` (leer)   | Leer ⇒ neuestes Helm 3                                                 |
-| `argocd_version`            | `""` (leer)   | Leer ⇒ neuestes Argo-Helm-Chart                                        |
+| `helm_version`              | gepinnt       | Helm 3, per Renovate-PR aktualisiert. Leer ⇒ neuestes Helm 3           |
+| `argocd_version`            | gepinnt       | Argo-Helm-Chart, per Renovate-PR aktualisiert. Leer ⇒ neuestes Chart   |
 | `hostname`                  | `homeserver`  | Hostname des Servers                                                   |
 | `pihole_dns_ip`             | `192.168.178.2` | MetalLB-IP für Pi-hole DNS, muss außerhalb des FritzBox-DHCP-Bereichs liegen  |
 | `semaphore_vault_password`  | Vault-Block   | Ansible-Vault-Passwort, das Semaphore zur Laufzeit zum Decrypten nutzt |

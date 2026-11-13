@@ -166,13 +166,22 @@
     path: /usr/local/bin/helm
   register: k3s_helm_binary
 
+- name: Get current Helm version (if installed)
+  ansible.builtin.command: /usr/local/bin/helm version --short
+  register: k3s_helm_current_version
+  changed_when: false
+  failed_when: false
+  when: k3s_helm_binary.stat.exists
+
+# With a pinned helm_version the installer only runs when the installed binary
+# differs — no daily download of the install script from the Helm main branch.
 - name: Decide whether to (re)install Helm
   ansible.builtin.set_fact:
     k3s_install_helm: >-
       {{
         (not k3s_helm_binary.stat.exists)
-        or (helm_version | length > 0)
-        or (auto_upgrade | bool)
+        or (helm_version | length > 0 and helm_version not in (k3s_helm_current_version.stdout | default('')))
+        or (helm_version | length == 0 and auto_upgrade | bool)
       }}
 
 - name: Download Helm install script

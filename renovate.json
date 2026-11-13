@@ -34,6 +34,14 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+?)(?: versioning=(?<versioning>\\S+))?\\n\\s*[\\w.-]+: [\"']?[\\w./-]+:(?<currentValue>[a-zA-Z0-9][\\w.-]*)[\"']?",
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+?)(?: versioning=(?<versioning>\\S+))?\\n\\s*[\\w.-]+: [\"']?(?<currentValue>v?\\d[\\w.-]*)[\"']?"
       ]
+    },
+    {
+      "description": "Pinned k3s, Helm and ArgoCD chart versions in the Ansible group_vars ('# renovate:' annotation directly above 'key: \"version\"'). Separate from the generic manager because k3s versions contain '+' and carry their own regex versioning.",
+      "customType": "regex",
+      "managerFilePatterns": ["/ansible/group_vars/all\\.yml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+?)(?: registryUrl=(?<registryUrl>\\S+?))?(?: versioning=(?<versioning>\\S+))?\\n\\w+: \"(?<currentValue>[^\"]+)\""
+      ]
     }
   ],
   "packageRules": [
@@ -48,6 +56,13 @@
       "description": "Postgres major version upgrades require a manual pg_upgrade of the data directory — never auto-merge them.",
       "matchDatasources": ["docker"],
       "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
+      "description": "The k3s role installs Helm with the get-helm-3 script, which cannot install Helm 4. Moving to Helm 4 is a manual change of the role.",
+      "matchDatasources": ["github-releases"],
+      "matchPackageNames": ["helm/helm"],
       "matchUpdateTypes": ["major"],
       "enabled": false
     }
