@@ -13,7 +13,7 @@ eigene ArgoCD-App **`mosquitto`** deployt und ist im LAN über eine dedizierte
 
 | | |
 |---|---|
-| Broker | Eclipse Mosquitto, `argocd/apps/mosquitto/` (helmforgedev/mosquitto) |
+| Broker | Eclipse Mosquitto, `argocd/apps/mosquitto/` (eigene Templates) |
 | Namespace | `mosquitto` |
 | Broker-Endpoint (LAN) | `192.168.178.4:1883` (MetalLB, für das Nuki-Schloss) |
 | Broker-Endpoint (Cluster) | `mosquitto.mosquitto.svc.cluster.local:1883` (für HA) |
@@ -29,7 +29,7 @@ Nuki Smart Lock Pro (WLAN, 192.168.178.x)
         ▼
 192.168.178.4  ← MetalLB L2 (IPAddressPool "mosquitto")
         │
-k3s ─ mosquitto Pod (helmforgedev/mosquitto)
+k3s ─ mosquitto Pod (StatefulSet, eigene Templates)
    ├─ ConfigMap  → /mosquitto/config/mosquitto.conf  (allow_anonymous false)
    ├─ SealedSecret "mosquitto-auth" → Credentials (username/password)
    └─ PVC (local-path, 1Gi) → /mosquitto/data  (retained Discovery-Messages)
@@ -51,7 +51,7 @@ beschränkt nur Ingress auf 8123).
 
 ## Broker-Credentials erzeugen & versiegeln
 
-Der helmforgedev-Chart generiert die `mosquitto_passwd`-Datei intern per Init-Container —
+Der Init-Container des StatefulSets generiert die `mosquitto_passwd`-Datei intern —
 kein lokales Docker oder `mosquitto_passwd` nötig.
 
 Zwei Keys per **kubeseal-webgui** (<http://kubeseal-webgui.homeserver>) versiegeln:
