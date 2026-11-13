@@ -125,7 +125,7 @@ ob diese beiden Mechanismen noch greifen.
 
 ### Mod-Upload schlägt mit 502 fehl / Mods werden nicht geladen
 
-`POST /api/mods` entpackt die Zip auf der VM (`sudo unzip -o … -d /opt/7dtd/mods`)
+`POST /api/mod-upload` entpackt die Zip auf der VM (`sudo unzip -o … -d /opt/7dtd/mods`)
 und 7DTD lädt aus `serverfiles/Mods`. Zwei VM-seitige Voraussetzungen müssen
 erfüllt sein (in `docs/19-gameserver.md` cloud-init verankert):
 
@@ -136,6 +136,13 @@ erfüllt sein (in `docs/19-gameserver.md` cloud-init verankert):
    aber nie im Container an. Volume ergänzen, dann `cd /opt/7dtd && sudo docker
    compose up -d` (Recreate, nicht nur `restart`; neue Mounts greifen erst beim
    Recreate). Mod-Pfad laut vinanrra „Manual Mods": `serverfiles/Mods/<ModName>/`.
+
+Die Zip wird als roher Request-Body hochgeladen (`POST /api/mod-upload?filename=<name>.zip`)
+und per SFTP auf die VM gestreamt. Limit: **100 MB** (`MAX_MOD_UPLOAD_BYTES` in
+`src/lib/mods.ts`), darüber antwortet die Route mit `413`; größere Mods per `scp`
+direkt nach `/opt/7dtd/mods` kopieren. Die Route ist bewusst vom Middleware-`matcher`
+ausgenommen (Next.js würde den Body sonst komplett im RAM puffern) und prüft die
+Session selbst (`requireSession()`).
 
 Verifikation: Upload → `200`, Mod in der Liste, im Container sichtbar via
 `docker exec 7dtd-server ls /home/sdtdserver/serverfiles/Mods`.

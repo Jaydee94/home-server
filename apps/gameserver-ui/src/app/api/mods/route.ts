@@ -5,6 +5,8 @@ import { isProtectedMod } from "@/lib/mods";
 
 const MODS_DIR = "/opt/7dtd/mods";
 
+// Der Upload liegt unter /api/mod-upload (eigene Route, weil sie von der
+// Middleware ausgenommen ist — siehe dort).
 export async function GET() {
   try {
     const status = await VmClient.inCluster().getStatus();
@@ -19,42 +21,6 @@ export async function GET() {
       .filter(Boolean)
       .map((name) => ({ name, sizeBytes: 0, protected: isProtectedMod(name) }));
     return NextResponse.json({ mods });
-  } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 502 });
-  }
-}
-
-export async function POST(req: Request) {
-  try {
-    const status = await VmClient.inCluster().getStatus();
-    if (status.vmiPhase !== "Running" || !status.ipAddress) {
-      return NextResponse.json({ error: "VM läuft nicht" }, { status: 503 });
-    }
-
-    const formData = await req.formData();
-    const file = formData.get("file") as File | null;
-    if (!file) return NextResponse.json({ error: "Kein File-Field" }, { status: 400 });
-    if (!file.name.endsWith(".zip")) {
-      return NextResponse.json({ error: "Nur .zip-Dateien erlaubt" }, { status: 400 });
-    }
-
-    const ssh = SshClient.fromEnv(status.ipAddress);
-    const bytes = Buffer.from(await file.arrayBuffer());
-
-    try {
-      await ssh.sftpPut(bytes, "/tmp/mod_upload.zip");
-      // Zip-Slip-Prüfung vor Extraktion: Python3 ist auf Ubuntu immer verfügbar
-      await ssh.exec(
-        `python3 -c "import zipfile,sys; z=zipfile.ZipFile('/tmp/mod_upload.zip'); bad=[n for n in z.namelist() if n.startswith('/') or '..' in n.split('/')]; sys.exit(1) if bad else sys.exit(0)"`
-      );
-      await ssh.exec(
-        `sudo mkdir -p ${MODS_DIR} && sudo unzip -o /tmp/mod_upload.zip -d ${MODS_DIR}`
-      );
-    } finally {
-      await ssh.exec(`rm -f /tmp/mod_upload.zip`).catch(() => undefined);
-    }
-
-    return NextResponse.json({ ok: true, name: file.name.replace(".zip", "") });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 502 });
   }

@@ -38,13 +38,22 @@ export class VmClient {
     private batchApi: k8s.BatchV1Api
   ) {}
 
+  private static instance: VmClient | null = null;
+
+  // Ein Client pro Prozess statt pro Request: KubeConfig laden und API-Clients
+  // bauen kostet jedes Mal Datei-I/O und Objekte, und die UI pollt den VM-Status
+  // alle 5 s (Sidebar + Dashboard). Das ServiceAccount-Token wird vom Client selbst periodisch
+  // neu aus der Datei gelesen, läuft also auch im Singleton nicht ab.
   static inCluster(): VmClient {
-    const kc = new k8s.KubeConfig();
-    kc.loadFromDefault();
-    return new VmClient(
-      kc.makeApiClient(k8s.CustomObjectsApi),
-      kc.makeApiClient(k8s.BatchV1Api)
-    );
+    if (!VmClient.instance) {
+      const kc = new k8s.KubeConfig();
+      kc.loadFromDefault();
+      VmClient.instance = new VmClient(
+        kc.makeApiClient(k8s.CustomObjectsApi),
+        kc.makeApiClient(k8s.BatchV1Api)
+      );
+    }
+    return VmClient.instance;
   }
 
   async getStatus(): Promise<VmStatus> {

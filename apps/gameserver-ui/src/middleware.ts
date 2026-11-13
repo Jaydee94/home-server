@@ -15,5 +15,8 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!login|api/login|_next/static|_next/image|favicon.ico).*)"],
+  // api/mod-upload ist bewusst ausgenommen: Für von der Middleware erfasste Requests
+  // puffert Next.js den kompletten Body im RAM. Die Route prüft die Session selbst
+  // (requireSession). Weitere Ausnahmen nur mit eigener Session-Prüfung ergänzen.
+  matcher: ["/((?!login|api/login|api/mod-upload|_next/static|_next/image|favicon.ico).*)"],
 };

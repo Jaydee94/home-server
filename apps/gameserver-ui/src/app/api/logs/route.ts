@@ -4,7 +4,11 @@ import { buildContainerLogsCommand } from "@/lib/logs";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+// Schutz gegen eine Endlos-"Zeile" ohne Zeilenumbruch: ab dieser Länge wird der
+// Puffer als eigene Zeile ausgeliefert, statt weiter zu wachsen.
+const MAX_LINE_CHARS = 64 * 1024;
+
+export async function GET(req: Request) {
   let status;
   try {
     status = await VmClient.inCluster().getStatus();
@@ -16,28 +20,67 @@ export async function GET() {
     return new Response("VM läuft nicht", { status: 503 });
   }
 
-  const ssh = SshClient.fromEnv(status.ipAddress);
-  const vmStream = ssh.stream(buildContainerLogsCommand());
+  // Client ist schon weg → gar keine SSH-Session mehr aufbauen.
+  if (req.signal.aborted) return new Response(null, { status: 204 });
 
-  const body = new ReadableStream({
-    start(controller) {
-      const reader = vmStream.getReader();
-      const encoder = new TextEncoder();
-      const decoder = new TextDecoder();
-      function pump(): void {
-        reader.read().then(({ done, value }) => {
-          if (done) { controller.close(); return; }
-          const lines = decoder.decode(value).split("\n");
-          for (const line of lines) {
-            if (line.trim()) controller.enqueue(encoder.encode(`data: ${line}\n\n`));
+  const ssh = SshClient.fromEnv(status.ipAddress);
+  const reader = ssh.stream(buildContainerLogsCommand()).getReader();
+
+  // Der VM-Stream ist durch den Reader gesperrt — abgebrochen wird deshalb über
+  // den Reader (vmStream.cancel() würde mit "ReadableStream is locked" scheitern).
+  // Das beendet in SshClient.stream die SSH-Verbindung samt `docker logs -f`.
+  const stop = () => {
+    req.signal.removeEventListener("abort", stop);
+    reader.cancel().catch(() => undefined);
+  };
+  req.signal.addEventListener("abort", stop);
+
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  let pending = ""; // angefangene Zeile, deren Rest im nächsten Chunk kommt
+  const sse = (line: string) => encoder.encode(`data: ${line}\n\n`);
+
+  const body = new ReadableStream<Uint8Array>({
+    // pull-basiert: gelesen wird nur, wenn der Client auch abnimmt (Backpressure
+    // bis in den SSH-Kanal statt unbegrenztem Puffern im Pod).
+    async pull(controller) {
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) {
+            pending += decoder.decode();
+            if (pending.trim()) controller.enqueue(sse(pending));
+            req.signal.removeEventListener("abort", stop);
+            controller.close();
+            return;
           }
-          pump();
-        }).catch(e => controller.error(e));
+          // {stream: true}: Multibyte-Zeichen über Chunk-Grenzen korrekt dekodieren.
+          const lines = (pending + decoder.decode(value, { stream: true })).split("\n");
+          pending = lines.pop() ?? "";
+          if (pending.length > MAX_LINE_CHARS) {
+            lines.push(pending);
+            pending = "";
+          }
+          let sent = false;
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            controller.enqueue(sse(line));
+            sent = true;
+          }
+          // Ohne ausgelieferte Zeile würde pull() nicht erneut aufgerufen.
+          if (sent) return;
+        }
+      } catch (e) {
+        stop();
+        try {
+          controller.error(e);
+        } catch {
+          /* Stream wurde bereits vom Client abgebrochen */
+        }
       }
-      pump();
     },
     cancel() {
-      vmStream.cancel();
+      stop();
     },
   });
 
