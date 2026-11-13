@@ -1,6 +1,6 @@
 ---
 
-# Tasks to install Docker, prepare directories, render templates and deploy paperless-ngx
+# Tasks to prepare directories, render templates and deploy paperless-ngx
 
 - name: Assert required paperless secrets are set
   ansible.builtin.assert:
@@ -14,19 +14,32 @@
       superuser silently falls back to admin/admin.
       See ansible/host_vars/ugreen-nas/vault.yml.example for instructions.
 
-- name: Gather facts (ensure we know package manager)
-  ansible.builtin.setup:
-    gather_subset:
-      - '!all'
-      - 'min'
+# Docker is NOT installed by default: the UGREEN NAS already runs Docker
+# (data-root on /volume1/@docker). The role only verifies that the Compose v2
+# plugin is usable and fails early with a clear message otherwise. Set
+# paperless_install_docker: true only for a plain Debian/Ubuntu host without
+# Docker — see tasks/install_docker.yml.
+- name: Install Docker Engine (opt-in, plain Debian/Ubuntu hosts only)
+  ansible.builtin.include_tasks: install_docker.yml
+  when: paperless_install_docker | bool
 
-- name: Set Docker apt architecture mapping for Debian/Ubuntu
-  ansible.builtin.set_fact:
-    docker_apt_arch: >-
-      {{ 'amd64' if ansible_facts['architecture'] in ['x86_64', 'i386', 'i686',
-      'amd64'] else ('arm64' if ansible_facts['architecture'] in ['aarch64',
-      'arm64'] else ansible_facts['architecture']) }}
-  when: ansible_facts['os_family'] == 'Debian'
+- name: Pre-flight — check that Docker Compose v2 is available
+  ansible.builtin.command: docker compose version
+  register: paperless_compose_preflight
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Pre-flight — fail early when Docker Compose is missing
+  ansible.builtin.assert:
+    that:
+      - paperless_compose_preflight.rc == 0
+    fail_msg: >-
+      `docker compose version` failed on {{ inventory_hostname }}:
+      {{ paperless_compose_preflight.msg | default(paperless_compose_preflight.stderr | default('')) }}
+      Install/enable Docker on the host or set paperless_install_docker: true
+      on a plain Debian/Ubuntu host.
+    quiet: true
 
 - name: Ensure group exists
   ansible.builtin.group:
@@ -42,72 +55,6 @@
     createhome: false
     shell: /usr/sbin/nologin
     state: present
-
-- name: Ensure apt directories exist (Debian/Ubuntu)
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: directory
-    owner: root
-    group: root
-    mode: '0755'
-  loop:
-    - /var/lib/apt/lists
-    - /var/lib/apt/lists/partial
-    - /var/cache/apt
-    - /var/cache/apt/archives
-    - /var/cache/apt/archives/partial
-  when: ansible_facts['os_family'] == 'Debian'
-
-- name: Install packages on Debian/Ubuntu
-  ansible.builtin.apt:
-    name:
-      - apt-transport-https
-      - ca-certificates
-      - curl
-      - gnupg
-      - lsb-release
-    state: present
-    update_cache: true
-  when: ansible_facts['os_family'] == 'Debian'
-
-- name: Add Docker GPG key (Debian)
-  ansible.builtin.apt_key:
-    url: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg"
-    state: present
-  when: ansible_facts['os_family'] == 'Debian'
-
-- name: Add Docker apt repo
-  ansible.builtin.apt_repository:
-    repo: >
-      deb [arch={{ docker_apt_arch }}]
-      https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}
-      {{ ansible_facts['distribution_release'] }} stable
-    state: present
-  when: ansible_facts['os_family'] == 'Debian'
-
-- name: Install docker packages (Debian)
-  ansible.builtin.apt:
-    name:
-      - docker-ce
-      - docker-ce-cli
-      - containerd.io
-      - docker-compose-plugin
-    state: present
-    update_cache: true
-  when: ansible_facts['os_family'] == 'Debian'
-
-- name: Install Docker on RedHat/CentOS (yum/dnf)
-  ansible.builtin.dnf:
-    name:
-      - docker
-    state: present
-  when: ansible_facts['os_family'] == 'RedHat'
-
-- name: Ensure docker service is started and enabled
-  ansible.builtin.service:
-    name: docker
-    state: started
-    enabled: true
 
 - name: Create paperless backup and export directories
   ansible.builtin.file:
@@ -173,6 +120,10 @@
     owner: "{{ paperless_user }}"
     group: "{{ paperless_group }}"
     mode: '0640'
+  # Contains DB password, admin password and secret key: never print the
+  # rendered file (`make nas-check` runs with --diff) or the task result.
+  no_log: true
+  diff: false
   notify: Restart paperless compose
 
 - name: Deploy docker-compose.yml
@@ -181,7 +132,11 @@
     dest: "{{ paperless_base_dir }}/{{ paperless_compose_file }}"
     owner: "{{ paperless_user }}"
     group: "{{ paperless_group }}"
-    mode: '0644'
+    mode: '0640'
+  # The template no longer holds secrets, but the copy currently deployed on
+  # the NAS still has POSTGRES_PASSWORD in plain text — a diff would print it
+  # as the "before" side.
+  diff: false
   notify: Restart paperless compose
 
 - name: Deploy paperless docker-compose stack

@@ -1,0 +1,73 @@
+---
+# Opt-in Docker Engine installation (paperless_install_docker: true).
+#
+# NOT used on the UGREEN NAS, which already runs Docker. Do not enable it
+# there: the NAS still carries an older apt source for download.docker.com
+# without `signed-by`; adding this one next to it makes apt fail with
+# "Conflicting values set for option Signed-By".
+#
+# Debian/Ubuntu only.
+
+- name: Assert a supported distribution for the Docker installation
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['os_family'] == 'Debian'
+    fail_msg: >-
+      paperless_install_docker only supports Debian/Ubuntu
+      (found os_family={{ ansible_facts['os_family'] | default('unknown') }}).
+      Install Docker manually and leave paperless_install_docker at false.
+    quiet: true
+
+- name: Install prerequisites for the Docker apt repository
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+    state: present
+    update_cache: true
+
+- name: Ensure the apt keyring directory exists
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Download the Docker apt signing key
+  ansible.builtin.get_url:
+    url: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg"
+    dest: /etc/apt/keyrings/docker.asc
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Add the Docker apt repository (signed-by)
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [arch={{ paperless_docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc]
+      https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}
+      {{ ansible_facts['distribution_release'] }} stable
+    filename: docker
+    state: present
+  vars:
+    paperless_docker_apt_arch: >-
+      {{ 'amd64' if ansible_facts['architecture'] in ['x86_64', 'amd64']
+      else ('arm64' if ansible_facts['architecture'] in ['aarch64', 'arm64']
+      else ansible_facts['architecture']) }}
+
+- name: Install Docker Engine and the Compose plugin
+  ansible.builtin.apt:
+    name:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+    state: present
+    update_cache: true
+
+- name: Ensure docker service is started and enabled
+  ansible.builtin.service:
+    name: docker
+    state: started
+    enabled: true
