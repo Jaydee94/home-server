@@ -16,52 +16,109 @@
   register: argocd_ns_apply
   changed_when: "'created' in argocd_ns_apply.stdout"
 
-# ---- Helm Repository ----------------------------------------
-- name: Add Argo Helm repository
-  ansible.builtin.command: helm repo add argo https://argoproj.github.io/argo-helm
-  register: argocd_helm_repo_add
-  changed_when: '"has been added" in argocd_helm_repo_add.stdout'
-  failed_when:
-    - argocd_helm_repo_add.rc != 0
-    - "'already exists' not in argocd_helm_repo_add.stderr"
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-
-- name: Update Helm repositories
-  ansible.builtin.command: helm repo update
+# ---- Compare the deployed release with the desired state ----
+# `helm upgrade --install` creates a new release revision on every call, even
+# when nothing changed. Read the deployed chart version and the user-supplied
+# values first and only upgrade when one of them differs.
+- name: Read the deployed ArgoCD Helm release
+  ansible.builtin.command: >
+    helm list
+    --namespace {{ argocd_namespace }}
+    --filter '^argocd$'
+    --all
+    --output json
+  register: argocd_helm_list
   changed_when: false
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
 
-# ---- ArgoCD Helm Values -------------------------------------
-- name: Template ArgoCD Helm values to /tmp
-  ansible.builtin.template:
-    src: argocd-values.yaml.j2
-    dest: /tmp/argocd-values.yaml
-    owner: root
-    group: root
-    mode: '0644'
-
-# ---- Install ArgoCD -----------------------------------------
-# When `argocd_version` is set, that exact chart is installed; when empty,
-# Helm pulls the latest chart from the repo (already refreshed above).
-- name: Install or upgrade ArgoCD via Helm
+- name: Read the values of the deployed ArgoCD release
   ansible.builtin.command: >
-    helm upgrade --install argocd argo/argo-cd
-    {% if argocd_version | length > 0 %}--version {{ argocd_version }}{% endif %}
+    helm get values argocd
     --namespace {{ argocd_namespace }}
-    --values /tmp/argocd-values.yaml
-    --wait
-    --timeout 10m
-    --create-namespace
-  register: argocd_helm_result
-  changed_when: "'deployed' in argocd_helm_result.stdout or 'upgraded' in argocd_helm_result.stdout"
+    --output json
+  register: argocd_helm_values
+  changed_when: false
+  failed_when: false
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: argocd_helm_list.stdout | from_json | length > 0
+
+# With an empty `argocd_version` the role follows the latest chart, so it has
+# to ask Helm on every run (the previous behaviour).
+- name: Decide whether ArgoCD needs a Helm install/upgrade
+  ansible.builtin.set_fact:
+    argocd_helm_upgrade_needed: >-
+      {{
+        (argocd_version | length == 0)
+        or (argocd_release | length == 0)
+        or (argocd_release.status | default('') != 'deployed')
+        or (argocd_release.chart | default('') != 'argo-cd-' ~ argocd_version)
+        or (argocd_helm_values.rc | default(1) != 0)
+        or ((argocd_helm_values.stdout | default('null', true) | from_json | default({}, true))
+            != (lookup('ansible.builtin.template', 'argocd-values.yaml.j2') | from_yaml))
+      }}
+  vars:
+    argocd_release: "{{ argocd_helm_list.stdout | from_json | first | default({}) }}"
+
+- name: Install or upgrade ArgoCD via Helm (only when chart version or values differ)
+  when: argocd_helm_upgrade_needed | bool
+  block:
+    # ---- Helm Repository ------------------------------------
+    - name: Add Argo Helm repository
+      ansible.builtin.command: helm repo add argo https://argoproj.github.io/argo-helm
+      register: argocd_helm_repo_add
+      changed_when: '"has been added" in argocd_helm_repo_add.stdout'
+      failed_when:
+        - argocd_helm_repo_add.rc != 0
+        - "'already exists' not in argocd_helm_repo_add.stderr"
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    - name: Update Helm repositories
+      ansible.builtin.command: helm repo update
+      changed_when: false
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
+    # ---- ArgoCD Helm Values ---------------------------------
+    - name: Template ArgoCD Helm values to /tmp
+      ansible.builtin.template:
+        src: argocd-values.yaml.j2
+        dest: /tmp/argocd-values.yaml
+        owner: root
+        group: root
+        mode: '0600'
+
+    # ---- Install ArgoCD -------------------------------------
+    # When `argocd_version` is set, that exact chart is installed; when empty,
+    # Helm pulls the latest chart from the repo (already refreshed above).
+    - name: Install or upgrade ArgoCD via Helm
+      ansible.builtin.command: >
+        helm upgrade --install argocd argo/argo-cd
+        {% if argocd_version | length > 0 %}--version {{ argocd_version }}{% endif %}
+        --namespace {{ argocd_namespace }}
+        --values /tmp/argocd-values.yaml
+        --wait
+        --timeout 10m
+        --create-namespace
+      register: argocd_helm_result
+      changed_when: true
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  always:
+    # Runs even when the upgrade fails, so the values file never stays behind.
+    - name: Remove temporary Helm values file
+      ansible.builtin.file:
+        path: /tmp/argocd-values.yaml
+        state: absent
 
 - name: Display Helm release status
   ansible.builtin.debug:
-    var: argocd_helm_result.stdout_lines
+    msg: >-
+      {{ argocd_helm_result.stdout_lines
+         if argocd_helm_upgrade_needed | bool
+         else 'ArgoCD release is up to date (chart ' ~ argocd_version ~ ', values unchanged) — no Helm upgrade.' }}
 
 # ---- Wait for ArgoCD Server ---------------------------------
 - name: Wait for ArgoCD server deployment to be available
@@ -217,9 +274,3 @@
 - name: Display Applications
   ansible.builtin.debug:
     msg: "{{ argocd_apps_list.stdout_lines | default(['No applications found yet — ArgoCD is polling Git']) }}"
-
-# ---- Clean up temp files -----------------------------------
-- name: Remove temporary Helm values file
-  ansible.builtin.file:
-    path: /tmp/argocd-values.yaml
-    state: absent

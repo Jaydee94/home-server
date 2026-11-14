@@ -1,10 +1,15 @@
 ---
+# Bounded to the major versions this repo is tested with, so a new major
+# release (which may remove modules or plugins, as community.general 12 did
+# with the "yaml" callback) is a deliberate change instead of a surprise.
+# The lower bounds are satisfied by the collections bundled in the Semaphore
+# image, so Semaphore does not download anything for the daily run.
 collections:
   - name: ansible.posix
-    version: ">=1.5.0"
+    version: ">=2.0.0,<3.0.0"
   - name: community.general
-    version: ">=7.0.0"
+    version: ">=12.0.0,<14.0.0"
   - name: kubernetes.core
-    version: ">=2.4.0"
+    version: ">=6.0.0,<7.0.0"
   - name: community.docker
-    version: ">=3.6.0"
+    version: ">=5.0.0,<6.0.0"

@@ -6,3 +6,12 @@
 # a known-good codename:
 #   tailscale_repo_codename: noble
 tailscale_repo_codename: "{{ ansible_distribution_release }}"
+
+# How long `tailscale up` may wait for the node to come up. Without a limit it
+# blocks forever when the login needs a browser (e.g. the auth key expired) —
+# and with it the whole unattended run.
+tailscale_up_timeout: "60s"
+
+# Root-only file the auth key is handed to `tailscale up` in. /run is a tmpfs;
+# the file only exists for the duration of the login task.
+tailscale_authkey_file: /run/tailscale-authkey

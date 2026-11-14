@@ -159,9 +159,8 @@ nichts mehr klicken außer ▶ **Run**.
 
 ### Weitere Projekte hinzufügen
 
-`semaphore_projects` in `ansible/group_vars/all.yml` (oder direkt in der
-Default-Liste in `ansible/roles/semaphore_bootstrap/defaults/main.yml`)
-erweitern und `make semaphore-bootstrap` laufen lassen:
+`semaphore_projects` in `ansible/group_vars/all.yml` erweitern (einzige
+Quelle; der Role-Default ist leer) und `make semaphore-bootstrap` laufen lassen:
 
 ```yaml
 semaphore_projects:

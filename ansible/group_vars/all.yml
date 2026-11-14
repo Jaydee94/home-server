@@ -95,10 +95,10 @@ semaphore_vault_password: !vault |
 #   - ugreen-nas      (dieses Repo, ansible/ugreen-nas.yml,
 #                      deployed to the UGREEN NAS)
 #
-# To add a third project, copy/extend the `semaphore_projects` list from
-# ansible/roles/semaphore_bootstrap/defaults/main.yml here. The role only
-# creates resources that don't already exist — to change an existing one,
-# delete it in the UI and re-run `make semaphore-bootstrap`.
+# This list is the single source of truth (the role default is empty). To add
+# a third project, extend it here. `semaphore_default_environment` comes from
+# ansible/roles/semaphore_bootstrap/defaults/main.yml. Projects that are not
+# in this list are deleted by the role on the next run.
 
 semaphore_projects:
   - name: home-server

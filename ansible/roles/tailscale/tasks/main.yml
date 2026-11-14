@@ -50,6 +50,9 @@
     timeout: 30
 
 # ---- Check Existing Connection ------------------------------
+# `tailscale status --json` answers in every state; BackendState is "Running"
+# when connected and e.g. "NeedsLogin" when the node key expired or the node
+# was logged out.
 - name: Check current Tailscale connection status
   ansible.builtin.command: tailscale status --json
   register: tailscale_status_raw
@@ -65,36 +68,125 @@
         else false
       }}
 
+# Remembered separately: tailscale_connected is re-evaluated after a login.
+- name: Remember whether Tailscale was connected at the start of the run
+  ansible.builtin.set_fact:
+    tailscale_was_connected: "{{ tailscale_connected | bool }}"
+
 - name: Display current Tailscale state
   ansible.builtin.debug:
     msg: "Tailscale connected: {{ tailscale_connected }}"
 
 # ---- Connect to Tailscale -----------------------------------
-# Pass the auth key via the TS_AUTHKEY env var so the secret never ends up
-# in the process list (unlike --authkey=tskey-auth-... on the command line).
-- name: Connect to Tailscale and advertise the local subnet
-  ansible.builtin.command: >
-    tailscale up
-    --hostname={{ tailscale_hostname }}
-    --advertise-routes={{ local_subnet }}
-    --accept-dns=true
-    --accept-routes=false
-  environment:
-    TS_AUTHKEY: "{{ tailscale_auth_key }}"
-  register: tailscale_up_result
-  changed_when: tailscale_up_result.rc == 0
-  no_log: true
+# The auth key is handed over as `--auth-key=file:...`, so it never shows up in
+# the process list. (The `tailscale` CLI does not read TS_AUTHKEY from the
+# environment — that is a containerboot/tsnet convention. Passed that way the
+# key was silently ignored and `tailscale up` waited for a browser login.)
+#
+# A failed login must not fail the play: the key in the vault expires after at
+# most 90 days, and this role runs unattended every morning. `--timeout` bounds
+# the wait, errors are tolerated and reported as a warning further down.
+- name: Log in to Tailscale (only when not connected)
+  when: not tailscale_was_connected
+  block:
+    - name: Write the Tailscale auth key to a root-only file
+      ansible.builtin.copy:
+        content: "{{ tailscale_auth_key }}"
+        dest: "{{ tailscale_authkey_file }}"
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+
+    - name: Connect to Tailscale and advertise the local subnet
+      ansible.builtin.command: >
+        tailscale up
+        --auth-key=file:{{ tailscale_authkey_file }}
+        --timeout={{ tailscale_up_timeout }}
+        --hostname={{ tailscale_hostname }}
+        --advertise-routes={{ local_subnet }}
+        --accept-dns=true
+        --accept-routes=false
+      register: tailscale_up_result
+      changed_when: tailscale_up_result.rc == 0
+      failed_when: false
+      no_log: true
+      # Second line of defence in case `--timeout` does not end the command.
+      timeout: 180
+  rescue:
+    - name: Tailscale login attempt could not be carried out
+      ansible.builtin.debug:
+        msg: "WARNING: the Tailscale login attempt failed before `tailscale up` returned — see the task above."
+  always:
+    - name: Remove the Tailscale auth key file
+      ansible.builtin.file:
+        path: "{{ tailscale_authkey_file }}"
+        state: absent
+
+- name: Re-check Tailscale state after the login attempt
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_status_after_up
+  changed_when: false
+  failed_when: false
+  when: not tailscale_was_connected
+
+- name: Parse Tailscale status after the login attempt
+  ansible.builtin.set_fact:
+    tailscale_backend_state: "{{ (tailscale_status_after_up.stdout | from_json).BackendState | default('unknown') }}"
+    tailscale_connected: "{{ (tailscale_status_after_up.stdout | from_json).BackendState | default('') == 'Running' }}"
+  when:
+    - not tailscale_was_connected
+    - tailscale_status_after_up.rc == 0
+    - tailscale_status_after_up.stdout | length > 0
+
+- name: Tailscale is NOT connected — skipping the remaining Tailscale tasks
+  ansible.builtin.debug:
+    msg:
+      - "WARNING: Tailscale is not connected (state: {{ tailscale_backend_state | default('unknown') }})."
+      - "`tailscale up` said: {{ tailscale_up_result.stderr | default('no output', true) | regex_replace('tskey-[A-Za-z0-9_-]+', '<auth key>') }}"
+      - "Most likely the node key expired and the auth key in the vault is used up or expired too."
+      - "Fix: create a new auth key (https://login.tailscale.com/admin/settings/keys), store it with"
+      - "`ansible-vault encrypt_string ... --name tailscale_auth_key` and re-run — or log in once by hand:"
+      - "`sudo tailscale up --hostname={{ tailscale_hostname }} --advertise-routes={{ local_subnet }} --accept-dns=true --accept-routes=false`"
   when: not tailscale_connected
 
-- name: Refresh Tailscale options (already connected — update hostname/routes)
+# ---- Keep hostname / advertised routes in sync --------------
+# `tailscale set` reports nothing about whether it changed anything, so read
+# the current preferences and only call it when they differ. Not needed right
+# after `tailscale up`, which has just applied the same flags.
+- name: Read current Tailscale preferences
+  ansible.builtin.command: tailscale debug prefs
+  register: tailscale_prefs_raw
+  changed_when: false
+  failed_when: false
+  when: tailscale_was_connected
+
+# If the preferences cannot be read, fall back to calling `tailscale set`.
+- name: Decide whether Tailscale options need an update
+  ansible.builtin.set_fact:
+    tailscale_set_needed: >-
+      {{
+        (tailscale_prefs.Hostname | default('') != tailscale_hostname)
+        or ((tailscale_prefs.AdvertiseRoutes | default([], true) | sort) != [local_subnet])
+      }}
+  vars:
+    tailscale_prefs: >-
+      {{
+        tailscale_prefs_raw.stdout | from_json
+        if tailscale_prefs_raw.rc == 0 and (tailscale_prefs_raw.stdout | trim).startswith('{')
+        else {}
+      }}
+  when: tailscale_was_connected
+
+- name: Refresh Tailscale options (hostname or advertised routes differ)
   ansible.builtin.command: >
     tailscale set
     --hostname={{ tailscale_hostname }}
     --advertise-routes={{ local_subnet }}
-  register: tailscale_set_result
-  changed_when: tailscale_set_result.rc == 0
-  failed_when: false
-  when: tailscale_connected
+  changed_when: true
+  when:
+    - tailscale_was_connected
+    - tailscale_set_needed | bool
 
 # ---- IP Forwarding for Subnet Routing -----------------------
 # net.ipv4.ip_forward and net.ipv6.conf.all.forwarding (required for subnet
@@ -110,12 +202,14 @@
   retries: 6
   delay: 5
   until: tailscale_final_status.rc == 0
+  when: tailscale_connected
 
 - name: Get Tailscale IP address
   ansible.builtin.command: tailscale ip -4
   register: tailscale_ip
   changed_when: false
   failed_when: false
+  when: tailscale_connected
 
 - name: Display Tailscale connection info
   ansible.builtin.debug:
@@ -126,3 +220,4 @@
       - "Advertised subnet: {{ local_subnet }}"
       - "NOTE: Approve the advertised subnet route in the admin panel:"
       - "      https://login.tailscale.com/admin/machines"
+  when: tailscale_connected
