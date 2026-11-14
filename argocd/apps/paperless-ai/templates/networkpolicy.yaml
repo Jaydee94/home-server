@@ -1,0 +1,23 @@
+---
+# Namespace isolation: allow ingress from pods in this namespace and from
+# Traefik (kube-system); block everything else. The PVC holds the Paperless API
+# token and the AI provider key, and the web UI/API on :3000 was reachable from
+# every pod in the cluster. Nothing else in the cluster calls paperless-ai
+# (no Homepage widget, no scrape target); it only makes outgoing calls to
+# Paperless on the NAS and to the AI provider, and egress stays unrestricted.
+# See docs/23-network-policies.md.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: paperless-ai-namespace-isolation
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system

@@ -10,7 +10,19 @@ clusterDns:
   homeserverIp: "192.168.178.127"
 
 pihole:
-  # Pin the Pi-hole v6 image for reproducibility (chart appVersion 2026.04.1).
+  # Recreate instead of the chart default RollingUpdate (maxSurge 1): the PVC is
+  # ReadWriteOnce local-path with the FTL/gravity SQLite databases, and on a
+  # single node a surge pod mounts it next to the old one. Recreate stops the
+  # old pod first; DNS is down for the few seconds until the new pod is ready
+  # (clients fall back to their second resolver / retry).
+  strategyType: Recreate
+
+  # DHCP is served by the FritzBox, not by Pi-hole: do not render the
+  # pihole-dhcp Service (NodePort, UDP 67) the chart creates by default.
+  serviceDhcp:
+    enabled: false
+
+  # Pin the Pi-hole v6 image for reproducibility (independent of the chart's appVersion).
   image:
     repository: pihole/pihole
     tag: "2026.11.0"
