@@ -90,4 +90,23 @@ describe("/api/metrics", () => {
     const body = await res.json();
     expect(body.cpuPercent).toBe(12.3);
   });
+
+  it("begrenzt jede VictoriaMetrics-Abfrage mit einem Timeout-Signal", async () => {
+    fetchMock.mockResolvedValue(makeMetricResponse("1"));
+    await GET();
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(init?.signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+
+  it("liefert 502, wenn VictoriaMetrics nicht rechtzeitig antwortet", async () => {
+    const timeout = Object.assign(new Error("The operation was aborted due to timeout"), {
+      name: "TimeoutError",
+    });
+    fetchMock.mockRejectedValueOnce(timeout);
+    const res = await GET();
+    expect(res.status).toBe(502);
+    expect((await res.json()).error).toContain("timeout");
+  });
 });

@@ -1,17 +1,12 @@
 import { NextResponse } from "next/server";
 import { VmClient } from "@/lib/k8s";
-import { SshClient } from "@/lib/ssh";
+import { SshClient, LONG_EXEC_TIMEOUT_MS } from "@/lib/ssh";
 import { backupFilePath } from "@/lib/backups";
-import { existsSync, readFileSync } from "fs";
+import { createReadStream, existsSync } from "fs";
 import { join } from "path";
 
 const backupDir = () =>
   join(process.env.NAS_MOUNT_PATH ?? "/mnt/gameserver-data", "backups");
-
-// Limitierung: Restore über base64-Chunking via SSH.
-// Funktioniert zuverlässig für Saves bis ~200 MB; bei größeren Saves
-// wäre ein NFS-Mount der VM auf das NAS die skalierbarere Lösung.
-const CHUNK_SIZE = 65536; // 64 KB base64-Chunks (vermeidet ARG_MAX)
 
 export async function POST(
   _req: Request,
@@ -32,31 +27,25 @@ export async function POST(
     const ssh = SshClient.fromEnv(status.ipAddress);
 
     // Server stoppen
-    await ssh.exec("sudo docker stop 7dtd-server");
+    await ssh.exec("sudo docker stop 7dtd-server", { timeoutMs: LONG_EXEC_TIMEOUT_MS });
 
     try {
-      // Backup in Chunks als base64 in die VM übertragen
-      const fileContent = readFileSync(filePath);
-      const b64 = fileContent.toString("base64");
-
-      await ssh.exec("sudo rm -f /tmp/restore.b64");
-      for (let i = 0; i < b64.length; i += CHUNK_SIZE) {
-        const chunk = b64.slice(i, i + CHUNK_SIZE);
-        const op = i === 0 ? ">" : ">>";
-        // printf statt echo um Backslash-Interpretation zu vermeiden
-        await ssh.exec(`printf '%s' '${chunk}' ${op} /tmp/restore.b64`);
-      }
-
-      // Saves-Verzeichnis leeren und Archiv entpacken
+      // Archiv direkt vom NAS in den stdin EINES tar-Kommandos streamen — weder
+      // die Datei noch eine base64-Kopie liegen im RAM, und es gibt nur eine
+      // SSH-Verbindung statt einer pro 64-KB-Stück. Kein Kommando-Timeout: die
+      // Dauer hängt von der Größe der Welt ab.
       // Archive-Pfade: opt/7dtd/data/Saves/... → strip 3 Komponenten → -C /opt/7dtd/data
-      await ssh.exec(
-        "base64 -d /tmp/restore.b64 | sudo tar xzf - -C /opt/7dtd/data --strip-components=3 2>&1 && sudo rm -f /tmp/restore.b64",
-      );
+      await ssh.exec("sudo tar xzf - -C /opt/7dtd/data --strip-components=3", {
+        stdin: createReadStream(filePath),
+        timeoutMs: 0,
+      });
     } finally {
       // Server immer wieder starten, auch bei Fehler
-      await ssh.exec("sudo docker start 7dtd-server").catch((e: unknown) => {
-        console.error("[restore] docker start failed:", e);
-      });
+      await ssh
+        .exec("sudo docker start 7dtd-server", { timeoutMs: LONG_EXEC_TIMEOUT_MS })
+        .catch((e: unknown) => {
+          console.error("[restore] docker start failed:", e);
+        });
     }
 
     return NextResponse.json({ ok: true });

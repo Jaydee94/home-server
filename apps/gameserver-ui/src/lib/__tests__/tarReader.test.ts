@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseTarEntries } from "@/lib/tarReader";
+import { parseTarEntries, TarEntryParser } from "@/lib/tarReader";
 
 // Baut einen 512-Byte tar-Header mit Name + Oktal-Größe (reicht für unseren Parser).
 function header(name: string, size: number): Buffer {
@@ -41,5 +41,35 @@ describe("parseTarEntries", () => {
   });
   it("gibt leeres Array für leeres/Null-Archiv", () => {
     expect(parseTarEntries(Buffer.alloc(1024))).toEqual([]);
+  });
+});
+
+describe("TarEntryParser (streamend)", () => {
+  const entries = [
+    { name: "Saves/Navezgane/HomeGame/serverconfig.xml", size: 1787 },
+    { name: "Saves/Navezgane/HomeGame/Region/", size: 0 },
+    { name: "Saves/Navezgane/HomeGame/Region/r.0.0.7rg", size: 65536 },
+    { name: "Saves/Navezgane/HomeGame/players.xml", size: 1 },
+  ];
+  const tar = buildTar(entries);
+
+  // Header und Daten werden an beliebigen Stellen zerschnitten — das Ergebnis muss
+  // dem Parsen am Stück entsprechen.
+  for (const chunkSize of [1, 7, 511, 512, 513, 4096, 70000]) {
+    it(`liefert bei ${chunkSize}-Byte-Chunks alle Einträge`, () => {
+      const parser = new TarEntryParser();
+      for (let off = 0; off < tar.length; off += chunkSize) {
+        parser.push(tar.subarray(off, off + chunkSize));
+      }
+      expect(parser.entries).toEqual(entries);
+    });
+  }
+
+  it("ignoriert Daten nach dem Archiv-Ende", () => {
+    const parser = new TarEntryParser();
+    parser.push(buildTar([{ name: "a.txt", size: 3 }]));
+    parser.push(header("nach-dem-ende.txt", 0));
+    expect(parser.entries).toEqual([{ name: "a.txt", size: 3 }]);
+    expect(parser.done).toBe(true);
   });
 });
