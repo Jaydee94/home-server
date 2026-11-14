@@ -4,26 +4,15 @@
 #  * the top-level `smb:` block is consumed by THIS chart's own templates/
 #    (media-pv.yaml, media-pvc.yaml, smb-sealedsecret.yaml)
 jellyfin:
-  # No surge pod: the config volume is a ReadWriteOnce local-path PVC holding the
-  # SQLite databases. On a single node RWO does not stop a second pod from
-  # mounting it, so the chart default (RollingUpdate, maxSurge 25% = 1 extra pod)
-  # ran the old and the new Jellyfin on the same database files on every image
-  # bump. maxSurge 0 / maxUnavailable 1 removes the old pod first.
-  #
-  # This is step 1 of 2 on the way to `type: Recreate`. Switching directly fails:
-  # the live Deployment carries the API-defaulted rollingUpdate block, no field
-  # manager owns it, so ArgoCD's server-side apply cannot remove it and the API
-  # rejects the sync ("rollingUpdate: Forbidden: may not be specified when
-  # strategy type is 'Recreate'"). Once this explicit block is synced, ArgoCD
-  # owns rollingUpdate; a later change to
-  #   deploymentStrategy:
-  #     type: Recreate
-  # then drops it cleanly (Pi-hole made that switch the same way).
+  # Recreate: the config PVC is RWO and holds SQLite databases — never run two
+  # Jellyfin pods against it, not even briefly during an image bump.
+  # History: switching straight from the chart default failed under ArgoCD's
+  # server-side apply ("rollingUpdate: Forbidden … when strategy type is
+  # 'Recreate'") because nobody owned the API-server-defaulted rollingUpdate
+  # block. An intermediate sync with an explicit rollingUpdate (#626) handed
+  # ownership to ArgoCD, which can now drop the block.
   deploymentStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
+    type: Recreate
 
   image:
     pullPolicy: IfNotPresent
