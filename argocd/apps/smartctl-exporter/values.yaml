@@ -1,0 +1,46 @@
+---
+# SMART / NVMe health of the host's only disk (Samsung PM981a, /dev/nvme0).
+# Neither smartctl nor nvme-cli is installed on the host; the exporter image
+# brings its own smartctl and runs it every `collect_not_more_than_period`.
+#
+# Privileges: the chart hardcodes `privileged: true` + `runAsUser: 0` for the
+# container and offers no value to change it. Something close to it is needed
+# anyway: smartctl reads the NVMe health log with an admin ioctl on the
+# controller device (root-only, 0600 on the host), and without a device plugin
+# Kubernetes makes a host device usable in a container only by running it
+# privileged; a hostPath mount of the device node alone is blocked by the
+# device cgroup.
+# What is kept small instead: no hostNetwork, no hostPID, one explicit device
+# instead of a scan, no RBAC, ingress only from the monitoring namespace
+# (templates/networkpolicy.yaml), tight resource limits.
+#
+# Scrape config and alerts live in the monitoring app:
+#   argocd/apps/monitoring/templates/vmpodscrape-smartctl-exporter.yaml
+#   argocd/apps/monitoring/templates/vmrule-homeserver.yaml (homeserver.disk)
+prometheus-smartctl-exporter:
+  config:
+    # The controller device, not the namespace (nvme0n1): the health log is
+    # per controller. An explicit device turns off the periodic `--scan`.
+    # A second disk has to be added here to be monitored.
+    devices:
+      - /dev/nvme0
+
+  # The chart's only RBAC object is a RoleBinding to a PodSecurityPolicy
+  # ClusterRole ("unrestricted-psp"). PSP was removed in Kubernetes 1.25 and
+  # that ClusterRole does not exist here.
+  rbac:
+    create: false
+
+  resources:
+    requests:
+      cpu: 10m
+      memory: 24Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+  # VMPodScrape in the monitoring app does the scraping.
+  serviceMonitor:
+    enabled: false
+  prometheusRules:
+    enabled: false

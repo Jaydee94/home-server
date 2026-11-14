@@ -1,0 +1,12 @@
+---
+apiVersion: v2
+name: smartctl-exporter
+description: SMART / NVMe health metrics of the host disk via prometheus-smartctl-exporter
+type: application
+version: 0.1.0
+appVersion: "latest"
+dependencies:
+  # renovate: datasource=helm registryUrl=https://prometheus-community.github.io/helm-charts
+  - name: prometheus-smartctl-exporter
+    repository: https://prometheus-community.github.io/helm-charts
+    version: "0.19.2"

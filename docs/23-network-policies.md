@@ -57,6 +57,7 @@ spec:
 | `paperless-ai` | – | nur Traefik (Paperless-API-Token und AI-Provider-Key liegen im PVC; kein anderer Namespace ruft die App auf, sie selbst spricht nur ausgehend mit Paperless auf dem NAS und dem AI-Provider) |
 | `rps-arena` | – | nur Traefik (interner app↔redis-Traffic über `podSelector: {}`) |
 | `semaphore` | – | nur Traefik |
+| `smartctl-exporter` | nur `monitoring` (kein Traefik, kein eigener Namespace) | vmagent scraped den Exporter auf Port 9633; der Pod ist privilegiert und hat sonst keinen Konsumenten |
 
 Alle Cross-Namespace-Abhängigkeiten wurden vorher per
 `grep -rn "svc.cluster.local" argocd/apps/` verifiziert, nicht geraten;
