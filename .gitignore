@@ -45,6 +45,9 @@ kubeconfig
 # Claude Code local config (personal settings and memory)
 .claude/settings.local.json
 .claude/memory/
+# Data file of the "memory" MCP server (MEMORY_FILE_PATH in .mcp.json) —
+# per-machine agent state, not project content.
+.claude/memory.json
 
 # Playwright MCP browser session data
 .playwright-mcp/

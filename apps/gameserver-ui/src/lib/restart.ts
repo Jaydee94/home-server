@@ -1,4 +1,4 @@
-import type { SshClient } from "@/lib/ssh";
+import { LONG_EXEC_TIMEOUT_MS, type SshClient } from "@/lib/ssh";
 import { telnetCommand, parseLp, type TelnetOptions } from "@/lib/telnet";
 
 const CONTAINER = "7dtd-server";
@@ -27,5 +27,5 @@ export async function restartServer(ssh: SshClient, opts: TelnetOptions, deps: R
     await sleep(10_000);
   }
   await telnet(ssh, opts, "saveworld");
-  await ssh.exec(`sudo docker restart ${CONTAINER}`);
+  await ssh.exec(`sudo docker restart ${CONTAINER}`, { timeoutMs: LONG_EXEC_TIMEOUT_MS });
 }

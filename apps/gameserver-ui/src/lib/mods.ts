@@ -1,3 +1,7 @@
+// Obergrenze für hochgeladene Mod-Zips (durchgesetzt in /api/mod-upload). Größere
+// Mods gehören per scp auf die VM.
+export const MAX_MOD_UPLOAD_BYTES = 100 * 1024 * 1024;
+
 export interface ModInfo {
   name: string;
   sizeBytes: number;

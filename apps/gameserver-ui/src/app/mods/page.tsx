@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/feedback/ToastProvider";
 import { useConfirm } from "@/components/feedback/ConfirmProvider";
+import { MAX_MOD_UPLOAD_BYTES } from "@/lib/mods";
 
 interface ModInfo { name: string; sizeBytes: number; protected: boolean; }
 
@@ -22,9 +23,10 @@ export default function ModsPage() {
 
   async function upload(file: File) {
     if (!file.name.endsWith(".zip")) { toast("error", "Nur .zip-Dateien"); return; }
+    if (file.size > MAX_MOD_UPLOAD_BYTES) { toast("error", `Datei zu groß (max. ${MAX_MOD_UPLOAD_BYTES / 1024 / 1024} MB)`); return; }
     setBusy(true);
-    const form = new FormData(); form.append("file", file);
-    const r = await fetch("/api/mods", { method: "POST", body: form });
+    // Die Datei geht als roher Body raus (kein FormData), damit der Server sie streamen kann.
+    const r = await fetch(`/api/mod-upload?filename=${encodeURIComponent(file.name)}`, { method: "POST", headers: { "Content-Type": "application/zip" }, body: file });
     setBusy(false); toast(r.ok ? "ok" : "error", r.ok ? `${file.name} installiert` : "Upload fehlgeschlagen"); if (r.ok) load();
   }
   async function del(name: string) {

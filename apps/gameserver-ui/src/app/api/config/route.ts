@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { VmClient } from "@/lib/k8s";
-import { SshClient } from "@/lib/ssh";
+import { SshClient, LONG_EXEC_TIMEOUT_MS } from "@/lib/ssh";
 import { writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 
@@ -38,7 +38,7 @@ export async function PUT(req: Request) {
     await ssh.exec(`echo '${b64}' | base64 -d | sudo tee ${VM_CONFIG_PATH} > /dev/null`);
 
     // Docker-Container neu starten
-    await ssh.exec("sudo docker restart 7dtd-server");
+    await ssh.exec("sudo docker restart 7dtd-server", { timeoutMs: LONG_EXEC_TIMEOUT_MS });
 
     // Auf NAS persistieren wenn Mount verfügbar
     const nasDir = process.env.NAS_MOUNT_PATH ?? "/mnt/gameserver-data";

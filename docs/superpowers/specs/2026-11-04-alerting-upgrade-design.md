@@ -119,9 +119,9 @@ alertmanager:
     global:
       smtp_smarthost: "mail.gmx.net:587"
       smtp_require_tls: true
-      smtp_auth_username: "janherber@gmx.de"
+      smtp_auth_username: "user@example.com"
       smtp_auth_password_file: /etc/alertmanager/secrets/alertmanager-smtp/smtp-password
-      smtp_from: "janherber@gmx.de"
+      smtp_from: "user@example.com"
     route:
       receiver: email
       group_by: ["alertname", "namespace"]
@@ -135,7 +135,7 @@ alertmanager:
     receivers:
       - name: email
         email_configs:
-          - to: "janherber@gmx.de"
+          - to: "user@example.com"
             send_resolved: true
       - name: blackhole
 ```

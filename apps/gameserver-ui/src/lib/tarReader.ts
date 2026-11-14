@@ -3,21 +3,62 @@ export interface TarEntry {
   size: number;
 }
 
-// Liest die Einträge (Name + Größe) eines ENTPACKTEN tar-Buffers aus dem
+const BLOCK = 512;
+
+// Liest die Einträge (Name + Größe) eines ENTPACKTEN tar-Datenstroms im
 // POSIX/ustar-Format: 512-Byte-Header pro Eintrag (Name @0..100, Oktal-Größe
 // @124..136), gefolgt von den Daten (auf 512 aufgerundet). Ein Null-Block
 // (Name-Byte = 0) markiert das Archiv-Ende. Bewusst minimal — wir brauchen nur
 // die Datei-Liste, keine Inhalte/Validierung.
-export function parseTarEntries(tar: Buffer): TarEntry[] {
-  const entries: TarEntry[] = [];
-  let off = 0;
-  while (off + 512 <= tar.length) {
-    if (tar[off] === 0) break; // leerer Header → Archiv-Ende
-    const name = tar.toString("utf8", off, off + 100).replace(/\0.*$/, "");
-    const sizeOctal = tar.toString("ascii", off + 124, off + 136).replace(/[\0 ]/g, "");
-    const size = sizeOctal ? parseInt(sizeOctal, 8) : 0;
-    if (name) entries.push({ name, size });
-    off += 512 + Math.ceil(size / 512) * 512;
+//
+// Der Parser arbeitet streamend: `push()` nimmt Chunks beliebiger Größe an, im
+// Speicher liegt immer nur ein Header (512 Byte) — nie das ganze Archiv.
+export class TarEntryParser {
+  readonly entries: TarEntry[] = [];
+  /** true, sobald der Null-Block (Archiv-Ende) gelesen wurde. */
+  done = false;
+
+  private header = Buffer.alloc(BLOCK);
+  private headerFill = 0;
+  private skip = 0; // noch zu überspringende Datenbytes des aktuellen Eintrags
+
+  push(chunk: Uint8Array): void {
+    let off = 0;
+    while (off < chunk.length && !this.done) {
+      if (this.skip > 0) {
+        const n = Math.min(this.skip, chunk.length - off);
+        this.skip -= n;
+        off += n;
+        continue;
+      }
+      const n = Math.min(BLOCK - this.headerFill, chunk.length - off);
+      this.header.set(chunk.subarray(off, off + n), this.headerFill);
+      this.headerFill += n;
+      off += n;
+      if (this.headerFill === BLOCK) {
+        this.headerFill = 0;
+        this.readHeader();
+      }
+    }
   }
-  return entries;
+
+  private readHeader(): void {
+    const h = this.header;
+    if (h[0] === 0) { // leerer Header → Archiv-Ende
+      this.done = true;
+      return;
+    }
+    const name = h.toString("utf8", 0, 100).replace(/\0.*$/, "");
+    const sizeOctal = h.toString("ascii", 124, 136).replace(/[\0 ]/g, "");
+    const size = sizeOctal ? parseInt(sizeOctal, 8) : 0;
+    if (name) this.entries.push({ name, size });
+    this.skip = Math.ceil(size / BLOCK) * BLOCK;
+  }
+}
+
+// Variante für einen bereits vollständig vorliegenden Buffer.
+export function parseTarEntries(tar: Buffer): TarEntry[] {
+  const parser = new TarEntryParser();
+  parser.push(tar);
+  return parser.entries;
 }

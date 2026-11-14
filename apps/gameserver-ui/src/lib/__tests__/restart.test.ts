@@ -23,7 +23,7 @@ describe("restartServer", () => {
 
     const saveCall = f.telnet.mock.calls.findIndex((c) => c[2] === "saveworld");
     expect(saveCall).toBeGreaterThanOrEqual(0);
-    expect(f.execFn).toHaveBeenCalledWith("sudo docker restart 7dtd-server");
+    expect(f.execFn).toHaveBeenCalledWith("sudo docker restart 7dtd-server", expect.objectContaining({ timeoutMs: expect.any(Number) }));
     // saveworld (telnet) vor docker restart (ssh.exec)
     const saveOrder = f.telnet.mock.invocationCallOrder[saveCall];
     const restartOrder = f.execFn.mock.invocationCallOrder[0];
@@ -46,6 +46,6 @@ describe("restartServer", () => {
 
     expect(f.calls.filter((c) => c.startsWith("say ")).length).toBeGreaterThanOrEqual(2);
     expect(f.sleep).toHaveBeenCalled();
-    expect(f.execFn).toHaveBeenCalledWith("sudo docker restart 7dtd-server");
+    expect(f.execFn).toHaveBeenCalledWith("sudo docker restart 7dtd-server", expect.objectContaining({ timeoutMs: expect.any(Number) }));
   });
 });
