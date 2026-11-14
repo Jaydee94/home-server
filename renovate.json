@@ -160,6 +160,12 @@
         "argocd/apps/pihole/**", "argocd/apps/kubeseal-webgui/**"
       ],
       "automerge": false
+    },
+    {
+      "description": "typescript-6 is an alias for TypeScript 6 that only exists so typescript-eslint (peer typescript <6.1) keeps working next to TypeScript 7 (see apps/gameserver-ui/eslint-ts6-shim.mjs). Bumping it to 7 breaks `npm run lint` (happened with #643). Revisit when typescript-eslint supports TypeScript 7 — then drop the alias instead.",
+      "matchManagers": ["npm"],
+      "matchPackageNames": ["typescript-6"],
+      "enabled": false
     }
   ]
 }
