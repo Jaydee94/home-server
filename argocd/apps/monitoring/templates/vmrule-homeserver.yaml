@@ -199,6 +199,32 @@ spec:
               {{`{{ $labels.namespace }}`}}/{{`{{ $labels.persistentvolumeclaim }}`}}
               has less than 10% free space.
 
+        # For local-path PVCs the two alerts above do not measure the PVC: the
+        # kubelet reports the whole host filesystem (capacity 500 GB for every
+        # one of them, checked 2026-11-13), and local-path enforces no quota.
+        # Only the SMB volumes report their own size. So the 10Gi of the
+        # vmsingle PVC is a budget nothing watches; this compares what
+        # VictoriaMetrics itself has on disk with the PVC request.
+        - alert: VMSingleDataOverBudget
+          expr: >-
+            100 * sum by (namespace) (vm_data_size_bytes{namespace="monitoring"})
+              / on (namespace)
+            kube_persistentvolumeclaim_resource_requests_storage_bytes{namespace="monitoring", persistentvolumeclaim=~"vmsingle-.*"}
+            > 80
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: >-
+              VictoriaMetrics belegt
+              {{`{{ $value | printf "%.0f" }}`}}%
+              seines PVC-Budgets
+            description: >-
+              Die vmsingle-Daten liegen über 80% der im PVC angeforderten Größe.
+              local-path erzwingt das Limit nicht, es läuft also nichts voll;
+              Retention (`vmsingle.spec.retentionPeriod`) senken, Serien
+              reduzieren oder das Budget bewusst anheben.
+
     # ── ArgoCD ──────────────────────────────────────────────────────────────
     - name: homeserver.argocd
       rules:
