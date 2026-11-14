@@ -4,6 +4,7 @@ services:
     restart: unless-stopped
     pid: host
     volumes:
+      - "{{ node_exporter_textfile_dir }}:/textfile:ro"
       - "/proc:/host/proc:ro"
       - "/sys:/host/sys:ro"
       - "/:/rootfs:ro"
@@ -11,6 +12,7 @@ services:
       - '--path.procfs=/host/proc'
       - '--path.sysfs=/host/sys'
       - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+      - '--collector.textfile.directory=/textfile'
     ports:
       - "9100:9100"
 

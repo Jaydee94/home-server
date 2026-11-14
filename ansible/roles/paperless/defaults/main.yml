@@ -19,6 +19,50 @@ paperless_consume_dir: "{{ paperless_base_dir }}/consume"
 paperless_export_dir: "{{ paperless_base_dir }}/export"
 paperless_backup_retention_days: 7
 paperless_backup_schedule: "0 2 * * *"
+# Log and status file deliberately live in the base dir, not in the backup dir:
+# they must stay writable/readable when the backup target is not mounted.
+paperless_backup_log_file: "{{ paperless_base_dir }}/backup.log"
+paperless_backup_status_file: "{{ paperless_base_dir }}/backup-last-success"
+
+# Extra arguments for `document_exporter ../export`.
+#   --delete           remove files from the EXPORT directory that no longer
+#                      belong to the current export (deleted/renamed documents).
+#                      Only touches the export dir, never media/ or archives.
+#   --no-progress-bar  quiet output for cron.
+paperless_backup_exporter_args:
+  - --delete
+  - --no-progress-bar
+
+# Plausibility checks before an archive is created. A run that fails them
+# leaves the existing archives untouched (no retention) and reports an error.
+# Minimum number of files in the export (3 per document + manifest); set to 2
+# on a brand-new instance without documents.
+paperless_backup_min_files: 10
+paperless_backup_min_manifest_bytes: 1024
+# Fail if the export is more than this many percent smaller than at the last
+# good run (0 disables). Override once with `FORCE=1 backup-paperless.sh`.
+paperless_backup_max_shrink_percent: 50
+
+# If set, the path must be a mount point, otherwise the backup aborts instead
+# of writing onto the system partition (e.g. /volume1 on the NAS).
+paperless_backup_required_mount: ""
+
+# Optional second target directory (USB disk, other volume). The finished
+# archive is copied there as well. Must already exist and be on a different
+# filesystem than paperless_backup_dir and paperless_base_dir. Empty = off.
+paperless_backup_secondary_dir: ""
+paperless_backup_secondary_retention_days: "{{ paperless_backup_retention_days }}"
+
+# Optional ntfy-compatible push URL (https://ntfy.example/topic). The script
+# sends `curl -H "Title: …" -d "text" <url>` on failure, and on success only
+# if paperless_backup_notify_on_success is true. Empty = log only.
+paperless_backup_notify_url: ""
+paperless_backup_notify_on_success: false
+
+# Optional node-exporter textfile collector directory. If set and present,
+# the script writes paperless_backup.prom there
+# (paperless_backup_last_success_timestamp_seconds, …). Empty = no metrics.
+paperless_backup_textfile_dir: ""
 
 # Ports exposed on the host
 paperless_http_port: 8000
