@@ -8,7 +8,7 @@ description: |
   in the UI — see docs/16-jellyfin.md). CPU-only transcoding. Deployed via ArgoCD.
 type: application
 version: 0.1.0
-appVersion: "10.11.10"
+appVersion: "10.11.11"
 keywords:
   - jellyfin
   - media
@@ -22,7 +22,7 @@ maintainers:
   - name: home-server-admin
 dependencies:
   # Official Jellyfin Helm chart. Pinned + reproducible; Renovate raises a PR
-  # to bump. chart 3.2.0 → appVersion (jellyfin) 10.11.10.
+  # to bump. The image tag is pinned separately in values.yaml.
   - name: jellyfin
     repository: https://jellyfin.github.io/jellyfin-helm
     version: "3.7.0"

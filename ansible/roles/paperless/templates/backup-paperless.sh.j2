@@ -1,32 +1,279 @@
 #!/bin/bash
-set -e
+# Paperless-NGX backup — managed by Ansible (role: paperless). Do not edit on the host.
+#
+# Flow: document_exporter -> plausibility checks -> tar.gz (written atomically)
+#       -> status file + metrics -> optional second copy -> retention.
+#
+# Old archives are only pruned after a run that passed every check, so a broken
+# or empty export can never rotate the good backups away.
+#
+# Manual run:
+#   sudo {{ paperless_base_dir }}/backup-paperless.sh
+# Skip the shrink guard once (after deliberately deleting many documents):
+#   sudo FORCE=1 {{ paperless_base_dir }}/backup-paperless.sh
+set -euo pipefail
+umask 077
 
-# Configuration
-BACKUP_DIR="{{ paperless_backup_dir }}"
-EXPORT_DIR="{{ paperless_export_dir }}"
-RETENTION_DAYS="{{ paperless_backup_retention_days }}"
-COMPOSE_FILE="{{ paperless_base_dir }}/{{ paperless_compose_file }}"
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="$BACKUP_DIR/paperless-backup-$TIMESTAMP.tar.gz"
+# ---- Configuration (rendered by Ansible) -------------------------------------
+BASE_DIR={{ paperless_base_dir | quote }}
+BACKUP_DIR={{ paperless_backup_dir | quote }}
+EXPORT_DIR={{ paperless_export_dir | quote }}
+COMPOSE_FILE={{ (paperless_base_dir ~ '/' ~ paperless_compose_file) | quote }}
+RETENTION_DAYS={{ paperless_backup_retention_days | int }}
+EXPORTER_ARGS=({% for arg in paperless_backup_exporter_args %}{{ arg | quote }}{{ ' ' if not loop.last else '' }}{% endfor %})
 
-echo "Starting Paperless backup at $(date)..."
+# Plausibility thresholds
+MIN_FILES={{ paperless_backup_min_files | int }}
+MIN_MANIFEST_BYTES={{ paperless_backup_min_manifest_bytes | int }}
+MAX_SHRINK_PERCENT={{ paperless_backup_max_shrink_percent | int }}
 
-# Ensure backup directory exists
+# Optional: path that must be a mount point (protects against writing backups
+# onto the system partition when a volume is not mounted). Empty = no check.
+REQUIRED_MOUNT={{ paperless_backup_required_mount | quote }}
+
+# Optional second target (USB disk, other volume). Empty = disabled.
+SECONDARY_DIR={{ paperless_backup_secondary_dir | quote }}
+SECONDARY_RETENTION_DAYS={{ paperless_backup_secondary_retention_days | int }}
+
+# Optional ntfy-compatible push URL. Empty = log only.
+NOTIFY_URL={{ paperless_backup_notify_url | quote }}
+NOTIFY_ON_SUCCESS={{ '1' if paperless_backup_notify_on_success | bool else '0' }}
+
+# Optional node-exporter textfile collector directory. Empty = no metrics.
+TEXTFILE_DIR={{ paperless_backup_textfile_dir | quote }}
+
+STATUS_FILE={{ paperless_backup_status_file | quote }}
+LOCK_FILE="$BASE_DIR/.backup.lock"
+# ------------------------------------------------------------------------------
+
+HOST="$(hostname)"
+START_TS="$(date +%s)"
+TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
+ARCHIVE_NAME="paperless-backup-$TIMESTAMP.tar.gz"
+BACKUP_FILE="$BACKUP_DIR/$ARCHIVE_NAME"
+
+STAGE="startup"
+FAIL_MSG=""
+PARTIAL=""
+SECONDARY_PARTIAL=""
+
+log() {
+  printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"
+}
+
+# fail <message> — abort the run; the EXIT trap logs, writes metrics and notifies.
+fail() {
+  FAIL_MSG="$*"
+  exit 1
+}
+
+# notify <title> <priority> <tags> <message> — never fails the backup.
+notify() {
+  [ -n "$NOTIFY_URL" ] || return 0
+  curl -fsS --max-time 20 --retry 2 \
+    -H "Title: $1" -H "Priority: $2" -H "Tags: $3" \
+    -d "$4" "$NOTIFY_URL" >/dev/null 2>&1 \
+    || log "WARNING: could not deliver the push notification"
+}
+
+# status_get <key> — read a value from the status file of the last good run.
+status_get() {
+  [ -r "$STATUS_FILE" ] || return 0
+  sed -n "s/^$1=//p" "$STATUS_FILE" | head -n 1
+}
+
+# fs_id <path> — "<source>|<mount point>" of the filesystem holding <path>.
+fs_id() {
+  df -P "$1" | awk 'NR==2 {print $1 "|" $NF}'
+}
+
+# write_metrics <0|1> — Prometheus textfile for node-exporter (atomic rename).
+write_metrics() {
+  [ -n "$TEXTFILE_DIR" ] || return 0
+  if [ ! -d "$TEXTFILE_DIR" ]; then
+    log "NOTE: textfile directory $TEXTFILE_DIR does not exist, skipping metrics"
+    return 0
+  fi
+  local last_success last_bytes last_docs tmp
+  last_success="$(status_get timestamp)"
+  last_bytes="$(status_get archive_bytes)"
+  last_docs="$(status_get documents)"
+  tmp="$(mktemp "$TEXTFILE_DIR/.paperless_backup.XXXXXX")" || return 0
+  cat >"$tmp" <<EOF
+# HELP paperless_backup_last_success_timestamp_seconds Unix time of the last Paperless backup that passed all checks (0 = never).
+# TYPE paperless_backup_last_success_timestamp_seconds gauge
+paperless_backup_last_success_timestamp_seconds ${last_success:-0}
+# HELP paperless_backup_last_run_timestamp_seconds Unix time of the last backup attempt.
+# TYPE paperless_backup_last_run_timestamp_seconds gauge
+paperless_backup_last_run_timestamp_seconds $(date +%s)
+# HELP paperless_backup_last_run_success Whether the last backup attempt succeeded (1) or failed (0).
+# TYPE paperless_backup_last_run_success gauge
+paperless_backup_last_run_success $1
+# HELP paperless_backup_archive_size_bytes Size of the last good backup archive.
+# TYPE paperless_backup_archive_size_bytes gauge
+paperless_backup_archive_size_bytes ${last_bytes:-0}
+# HELP paperless_backup_documents Documents in the manifest of the last good backup.
+# TYPE paperless_backup_documents gauge
+paperless_backup_documents ${last_docs:-0}
+EOF
+  chmod 0644 "$tmp"
+  mv -f "$tmp" "$TEXTFILE_DIR/paperless_backup.prom"
+}
+
+on_exit() {
+  local rc=$?
+  trap - EXIT
+  set +e
+  [ -n "$PARTIAL" ] && rm -f -- "$PARTIAL"
+  [ -n "$SECONDARY_PARTIAL" ] && rm -f -- "$SECONDARY_PARTIAL"
+  if [ "$rc" -ne 0 ]; then
+    [ -n "$FAIL_MSG" ] || FAIL_MSG="a command failed with exit code $rc"
+    log "ERROR: Paperless backup FAILED during '$STAGE': $FAIL_MSG"
+    write_metrics 0
+    local last_good
+    last_good="$(status_get date)"
+    notify "Paperless backup FAILED on $HOST" "high" "rotating_light" \
+      "Stage: $STAGE. $FAIL_MSG. Last good backup: ${last_good:-never}. See the backup log on $HOST."
+  fi
+  exit "$rc"
+}
+trap on_exit EXIT
+
+log "Starting Paperless backup on $HOST"
+
+# ---- 0. Preconditions --------------------------------------------------------
+STAGE="preconditions"
+exec 9>"$LOCK_FILE"
+flock -n 9 || fail "another backup run is still holding $LOCK_FILE"
+
+if [ -n "$REQUIRED_MOUNT" ] && ! mountpoint -q "$REQUIRED_MOUNT"; then
+  fail "$REQUIRED_MOUNT is not mounted — refusing to write backups to the system partition"
+fi
 mkdir -p "$BACKUP_DIR"
+[ -d "$EXPORT_DIR" ] || fail "export directory $EXPORT_DIR does not exist"
 
-# 1. Run document_exporter
-# This runs inside the container and exports to /usr/src/paperless/export,
-# which is mounted to {{ paperless_export_dir }} on the host.
-echo "Running document_exporter..."
-cd "{{ paperless_base_dir }}"
-docker compose -f "$COMPOSE_FILE" exec -T paperless document_exporter ../export
+# ---- 1. document_exporter ----------------------------------------------------
+# Runs inside the container and writes to /usr/src/paperless/export, which is
+# the bind mount of $EXPORT_DIR. With --delete the exporter removes files in
+# that export directory that no longer belong to the current export (deleted
+# documents); it never touches originals in media/ or older archives.
+STAGE="document_exporter"
+log "Running document_exporter ${EXPORTER_ARGS[*]}"
+cd "$BASE_DIR"
+docker compose -f "$COMPOSE_FILE" exec -T paperless \
+  document_exporter ../export "${EXPORTER_ARGS[@]}"
 
-# 2. Archive the export directory
-echo "Creating archive $BACKUP_FILE..."
-tar -czf "$BACKUP_FILE" -C "$EXPORT_DIR" .
+# ---- 2. Plausibility checks --------------------------------------------------
+STAGE="plausibility check"
+MANIFEST="$EXPORT_DIR/manifest.json"
+[ -s "$MANIFEST" ] || fail "manifest.json is missing or empty in $EXPORT_DIR"
 
-# 3. Cleanup old backups
-echo "Removing backups older than $RETENTION_DAYS days..."
-find "$BACKUP_DIR" -name "paperless-backup-*.tar.gz" -mtime +$RETENTION_DAYS -delete
+manifest_bytes="$(stat -c %s "$MANIFEST")"
+manifest_mtime="$(stat -c %Y "$MANIFEST")"
+if [ "$manifest_bytes" -lt "$MIN_MANIFEST_BYTES" ]; then
+  fail "manifest.json has only $manifest_bytes bytes (minimum $MIN_MANIFEST_BYTES)"
+fi
+# The exporter rewrites the manifest on every run. An old manifest means the
+# export went somewhere else (wrong container / wrong bind mount).
+if [ "$manifest_mtime" -lt "$START_TS" ]; then
+  fail "manifest.json was not updated by this run — the exporter did not write to $EXPORT_DIR"
+fi
 
-echo "Backup completed successfully at $(date)."
+export_files="$(find "$EXPORT_DIR" -type f | wc -l)"
+export_bytes="$(du -sb "$EXPORT_DIR" | awk '{print $1}')"
+documents="$(grep -o '"model": *"documents\.document"' "$MANIFEST" | wc -l || true)"
+log "Export: $export_files files, $export_bytes bytes, $documents documents in manifest"
+
+if [ "$export_files" -lt "$MIN_FILES" ]; then
+  fail "export contains only $export_files files (minimum $MIN_FILES)"
+fi
+
+last_export_bytes="$(status_get export_bytes)"
+if [ "$MAX_SHRINK_PERCENT" -gt 0 ] && [ -n "$last_export_bytes" ] && [ "$last_export_bytes" -gt 0 ]; then
+  min_expected=$(( last_export_bytes * (100 - MAX_SHRINK_PERCENT) / 100 ))
+  if [ "$export_bytes" -lt "$min_expected" ]; then
+    if [ "${FORCE:-0}" = "1" ]; then
+      log "WARNING: export shrank from $last_export_bytes to $export_bytes bytes — accepted because FORCE=1"
+    else
+      fail "export shrank from $last_export_bytes to $export_bytes bytes (more than $MAX_SHRINK_PERCENT %). If that is intended, run once with FORCE=1"
+    fi
+  fi
+fi
+
+avail_bytes="$(df -PB1 "$BACKUP_DIR" | awk 'NR==2 {print $4}')"
+if [ "$avail_bytes" -lt "$export_bytes" ]; then
+  fail "only $avail_bytes bytes free in $BACKUP_DIR, need about $export_bytes"
+fi
+
+# ---- 3. Archive --------------------------------------------------------------
+STAGE="archive"
+PARTIAL="$BACKUP_DIR/.$ARCHIVE_NAME.partial"
+log "Creating archive $BACKUP_FILE"
+tar -czf "$PARTIAL" -C "$EXPORT_DIR" .
+gzip -t "$PARTIAL"
+archive_bytes="$(stat -c %s "$PARTIAL")"
+mv -f "$PARTIAL" "$BACKUP_FILE"
+PARTIAL=""
+log "Archive written: $archive_bytes bytes"
+
+# ---- 4. Status file + metrics ------------------------------------------------
+STAGE="status"
+status_tmp="$(mktemp "$STATUS_FILE.XXXXXX")"
+cat >"$status_tmp" <<EOF
+timestamp=$(date +%s)
+date=$(date '+%Y-%m-%dT%H:%M:%S%z')
+archive=$BACKUP_FILE
+archive_bytes=$archive_bytes
+export_bytes=$export_bytes
+export_files=$export_files
+documents=$documents
+EOF
+chmod 0644 "$status_tmp"
+mv -f "$status_tmp" "$STATUS_FILE"
+
+# ---- 5. Retention (primary) --------------------------------------------------
+STAGE="retention"
+log "Removing archives older than $RETENTION_DAYS days from $BACKUP_DIR"
+find "$BACKUP_DIR" -maxdepth 1 -type f -name 'paperless-backup-*.tar.gz' \
+  -mtime +"$RETENTION_DAYS" -print -delete
+find "$BACKUP_DIR" -maxdepth 1 -type f -name '.paperless-backup-*.partial' \
+  -mtime +1 -delete
+
+# ---- 6. Optional second copy -------------------------------------------------
+# Never creates the directory itself: a missing directory means the disk is not
+# mounted, and the copy must not land on the system partition instead.
+SECONDARY_ERROR=""
+if [ -n "$SECONDARY_DIR" ]; then
+  STAGE="secondary copy"
+  if [ ! -d "$SECONDARY_DIR" ]; then
+    SECONDARY_ERROR="second target $SECONDARY_DIR does not exist (disk not mounted?)"
+  elif [ "$(fs_id "$SECONDARY_DIR")" = "$(fs_id "$BACKUP_DIR")" ] \
+    || [ "$(fs_id "$SECONDARY_DIR")" = "$(fs_id "$BASE_DIR")" ]; then
+    SECONDARY_ERROR="second target $SECONDARY_DIR is on the same filesystem as the primary backup or the Paperless data (disk not mounted?)"
+  else
+    SECONDARY_PARTIAL="$SECONDARY_DIR/.$ARCHIVE_NAME.partial"
+    log "Copying archive to $SECONDARY_DIR"
+    if cp -- "$BACKUP_FILE" "$SECONDARY_PARTIAL" \
+      && cmp -s "$BACKUP_FILE" "$SECONDARY_PARTIAL" \
+      && mv -f "$SECONDARY_PARTIAL" "$SECONDARY_DIR/$ARCHIVE_NAME"; then
+      SECONDARY_PARTIAL=""
+      find "$SECONDARY_DIR" -maxdepth 1 -type f -name 'paperless-backup-*.tar.gz' \
+        -mtime +"$SECONDARY_RETENTION_DAYS" -print -delete || true
+    else
+      SECONDARY_ERROR="copying the archive to $SECONDARY_DIR failed"
+    fi
+  fi
+fi
+
+if [ -n "$SECONDARY_ERROR" ]; then
+  fail "primary archive $BACKUP_FILE is fine, but $SECONDARY_ERROR"
+fi
+
+# ---- 7. Done -----------------------------------------------------------------
+STAGE="finish"
+write_metrics 1
+log "Backup completed successfully: $BACKUP_FILE ($archive_bytes bytes, $documents documents)"
+if [ "$NOTIFY_ON_SUCCESS" = "1" ]; then
+  notify "Paperless backup OK on $HOST" "low" "white_check_mark" \
+    "$ARCHIVE_NAME: $archive_bytes bytes, $documents documents."
+fi
