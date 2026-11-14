@@ -11,17 +11,17 @@ extra flag.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "ha-mcp.fullname" . }}
+  name: {{ include "common.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "ha-mcp.labels" . | nindent 4 }}
+    {{- include "common.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "ha-mcp.selectorLabels" . | nindent 6 }}
+      {{- include "common.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -29,9 +29,9 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "ha-mcp.selectorLabels" . | nindent 8 }}
+        {{- include "common.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "ha-mcp.serviceAccountName" . }}
+      serviceAccountName: {{ include "common.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
