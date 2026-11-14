@@ -79,6 +79,73 @@ describe("/api/backups/[name]/restore", () => {
     expect(commands().some((c) => c.includes("docker start"))).toBe(true);
   });
 
+  it("räumt den Bestand weg, statt darüber zu entpacken: altes .pre-restore löschen, Saves dorthin verschieben", async () => {
+    await call("backup-2026-01-01T00-00-00.tar.gz");
+    const cmds = commands();
+    const stop = cmds.findIndex((c) => c.includes("docker stop"));
+    const move = cmds.findIndex((c) => c.includes("mv /opt/7dtd/data/Saves /opt/7dtd/data/Saves.pre-restore"));
+    const tar = cmds.findIndex((c) => c.includes("tar xzf -"));
+    expect(move).toBeGreaterThan(stop);
+    expect(move).toBeLessThan(tar);
+    // ein älteres .pre-restore wird vorher entfernt (sonst landete Saves DARIN)
+    const rm = cmds[move].indexOf("rm -rf /opt/7dtd/data/Saves.pre-restore");
+    expect(rm).toBeGreaterThanOrEqual(0);
+    expect(rm).toBeLessThan(cmds[move].indexOf("mv /opt/7dtd/data/Saves "));
+  });
+
+  it("stellt den vorherigen Stand wieder her, wenn das Entpacken fehlschlägt", async () => {
+    execMock.mockImplementation(async (cmd: string) => {
+      if (cmd.includes("tar xzf -")) throw new Error("Exit 2: tar: Unexpected EOF");
+      return "";
+    });
+    const res = await call("backup-2026-01-01T00-00-00.tar.gz");
+    expect(res.status).toBe(502);
+    const cmds = commands();
+    const rollback = cmds.findIndex((c) => c.includes("mv /opt/7dtd/data/Saves.pre-restore /opt/7dtd/data/Saves"));
+    const start = cmds.findIndex((c) => c.includes("docker start"));
+    expect(rollback).toBeGreaterThan(cmds.findIndex((c) => c.includes("tar xzf -")));
+    expect(rollback).toBeLessThan(start);
+  });
+
+  it("rollt nichts zurück, wenn schon das Wegräumen scheitert (Saves liegt dann noch am Platz)", async () => {
+    execMock.mockImplementation(async (cmd: string) => {
+      if (cmd.includes("Saves.pre-restore")) throw new Error("Exit 1: mv: cannot move");
+      return "";
+    });
+    const res = await call("backup-2026-01-01T00-00-00.tar.gz");
+    expect(res.status).toBe(502);
+    const cmds = commands();
+    expect(cmds.some((c) => c.includes("tar xzf -"))).toBe(false);
+    expect(cmds.filter((c) => c.includes("Saves.pre-restore"))).toHaveLength(1);
+    expect(cmds.some((c) => c.includes("docker start"))).toBe(true);
+  });
+
+  it("startet den Server auch dann wieder, wenn schon docker stop fehlschlägt", async () => {
+    execMock.mockImplementation(async (cmd: string) => {
+      if (cmd.includes("docker stop")) throw new Error("SSH command timed out after 300000 ms");
+      return "";
+    });
+    const res = await call("backup-2026-01-01T00-00-00.tar.gz");
+    expect(res.status).toBe(502);
+    const cmds = commands();
+    expect(cmds.some((c) => c.includes("docker start"))).toBe(true);
+    expect(cmds.some((c) => c.includes("Saves.pre-restore"))).toBe(false);
+  });
+
+  it("liefert 409, solange ein anderer Restore läuft", async () => {
+    let finish!: () => void;
+    execMock.mockImplementationOnce(() => new Promise<string>((r) => { finish = () => r(""); }));
+    const first = call("backup-2026-01-01T00-00-00.tar.gz");
+    await vi.waitFor(() => expect(execMock).toHaveBeenCalled());
+
+    const second = await call("backup-2026-01-01T00-00-00.tar.gz");
+    expect(second.status).toBe(409);
+    expect(execMock).toHaveBeenCalledTimes(1);
+
+    finish();
+    expect((await first).status).toBe(200);
+  });
+
   it("liefert 404 für ein unbekanntes Backup, ohne den Server anzufassen", async () => {
     fsMock.existsSync.mockReturnValue(false);
     const res = await call("gibt-es-nicht.tar.gz");
