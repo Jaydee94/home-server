@@ -6,7 +6,7 @@ description: |
   http://homeassistant.homeserver (LAN + Tailnet via Pi-hole wildcard DNS).
 type: application
 version: 0.1.0
-appVersion: "2025.6"
+appVersion: "2026.11.1"
 keywords:
   - home-assistant
   - automation
