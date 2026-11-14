@@ -1,0 +1,5 @@
+# Pinned tooling for the "ansible-lint" job in .github/workflows/lint.yml.
+# Renovate (pip_requirements manager) opens update PRs for these pins.
+# Keep the Python version of that job within what ansible-core supports.
+ansible==14.6.0
+ansible-lint==26.11.0

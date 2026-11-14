@@ -2,8 +2,18 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ":dependencyDashboard"
+    ":dependencyDashboard",
+    "helpers:pinGitHubActionDigests"
   ],
+  "minimumReleaseAge": "3 days",
+  "osvVulnerabilityAlerts": true,
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 4am on monday"]
+  },
+  "platformAutomerge": false,
+  "rebaseWhen": "auto",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
   "customManagers": [
     {
       "description": "Pinned release versions (VERSION=...) of the home-assistant init-container extensions (Lovelace cards + custom integrations).",
@@ -23,12 +33,13 @@
       "datasourceTemplate": "github-releases"
     },
     {
-      "description": "Generic '# renovate: datasource=... depName=...' annotations directly above a 'key: image:tag' or 'key: version' line — covers flat-string images in local charts (media stack), hardcoded images in chart templates, tag-only helm values (mosquitto), and NAS container images in Ansible role defaults.",
+      "description": "Generic '# renovate: datasource=... depName=...' annotations directly above a 'key: image:tag' or 'key: version' line — covers flat-string images in local charts (media stack), hardcoded images in chart templates, tag-only helm values (mosquitto), NAS container images in Ansible role defaults, and tool versions in GitHub workflow env blocks.",
       "customType": "regex",
       "managerFilePatterns": [
         "/argocd/apps/[^/]+/values\\.yaml$/",
         "/argocd/apps/[^/]+/templates/[^/]+\\.yaml$/",
-        "/ansible/roles/[^/]+/defaults/main\\.yml$/"
+        "/ansible/roles/[^/]+/defaults/main\\.yml$/",
+        "/\\.github/workflows/[^/]+\\.yml$/"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+?)(?: versioning=(?<versioning>\\S+))?\\n\\s*[\\w.-]+: [\"']?[\\w./-]+:(?<currentValue>[a-zA-Z0-9][\\w.-]*)[\"']?",
@@ -65,7 +76,90 @@
       "matchPackageNames": ["helm/helm"],
       "matchUpdateTypes": ["major"],
       "enabled": false
+    },
+    {
+      "description": "Lock file maintenance is only wanted for the npm lock of apps/gameserver-ui. Helm Chart.lock files change through their own chart-version PRs; maintenance would re-resolve every chart dependency at once.",
+      "matchManagers": ["helmv3"],
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "enabled": false
+    },
+    {
+      "description": "No release-age wait for our own image: its digest moves on every merge to main (built and tested by the gameserver-ui workflow), so the age of the digest says nothing about trust.",
+      "matchPackageNames": ["ghcr.io/jaydee94/gameserver-ui"],
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "Python for the lint workflows stays below the ceiling that the pinned ansible-core supports; a newer Python (the 3.x alias once resolved to 3.15) turned the required ansible-lint check red. Raise the ceiling deliberately.",
+      "matchManagers": ["github-actions"],
+      "matchDepNames": ["python"],
+      "allowedVersions": "<3.14"
+    },
+    {
+      "description": "renovate-config-validator runs on Node 24 (renovate needs ^24.11 || ^26.13, the validator crashed under Node 26 locally). Do not move the validator job to Node 26.",
+      "matchManagers": ["github-actions"],
+      "matchFileNames": [".github/workflows/renovate-config.yml"],
+      "matchDepNames": ["node"],
+      "allowedVersions": "<26"
+    },
+    {
+      "description": "Renovate publishes several releases a day; bump the pinned validator version at most weekly.",
+      "matchDatasources": ["npm"],
+      "matchPackageNames": ["renovate"],
+      "schedule": ["before 4am on monday"]
+    },
+    {
+      "description": "AUTOMERGE: digest/minor/patch of GitHub Actions. CI-only, never reaches the cluster.",
+      "matchManagers": ["github-actions"],
+      "matchDepTypes": ["action"],
+      "matchUpdateTypes": ["digest", "minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "AUTOMERGE: npm devDependencies of gameserver-ui, non-major only (major bumps of typescript/eslint/vitest need a human).",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["apps/gameserver-ui/**"],
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
+      "description": "AUTOMERGE: weekly lock file maintenance of gameserver-ui. Ends up in the next image build, so it is rolled out via the digest PR below.",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["apps/gameserver-ui/**"],
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "automerge": true
+    },
+    {
+      "description": "AUTOMERGE = AUTOMATIC DEPLOYMENT: the digest of our own gameserver-ui image (argocd/apps/gameserver-ui/values.yaml). The image was built and tested from main by the gameserver-ui workflow.",
+      "matchPackageNames": ["ghcr.io/jaydee94/gameserver-ui"],
+      "matchUpdateTypes": ["digest"],
+      "automerge": true
+    },
+    {
+      "description": "AUTOMERGE = AUTOMATIC DEPLOYMENT: patch updates of container images and Helm charts under argocd/apps. Minor and major stay manual; the stateful/critical components are excluded by the rule below.",
+      "matchFileNames": ["argocd/apps/**"],
+      "matchDatasources": ["docker", "helm"],
+      "matchUpdateTypes": ["patch"],
+      "automerge": true
+    },
+    {
+      "description": "NEVER automerge these packages, whatever the update type (placed last so it wins over the rules above): cluster/GitOps core, operators with CRDs and storage, databases, home-assistant, monitoring stack, networking, certificates, DNS, kubeseal-webgui.",
+      "matchPackageNames": [
+        "k3s-io/k3s", "/argo-cd/", "/argoproj/", "/kubevirt/", "/containerized-data-importer/",
+        "/postgres/", "/home-assistant/", "/victoria-?metrics/", "/sealed-secrets/", "/metallb/",
+        "/cert-manager/", "/jetstack/", "/pihole/", "/kubeseal-webgui/"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "NEVER automerge anything in these app directories or in the Ansible group_vars (k3s, Helm and ArgoCD versions), even if the package name above does not match (images vendored in these charts).",
+      "matchFileNames": [
+        "ansible/group_vars/all.yml",
+        "argocd/apps/kubevirt/**", "argocd/apps/home-assistant/**", "argocd/apps/monitoring/**",
+        "argocd/apps/sealed-secrets/**", "argocd/apps/metallb/**", "argocd/apps/cert-manager/**",
+        "argocd/apps/pihole/**", "argocd/apps/kubeseal-webgui/**"
+      ],
+      "automerge": false
     }
-  ],
-  "platformAutomerge": true
+  ]
 }

@@ -27,7 +27,7 @@ jobs:
       contents: read
       security-events: write
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # trivy-action and the trivy binary were both compromised via moved tags
       # in 2026 (March 2026 force-push; binary v0.69.4 was the malicious
       # release). Both stay pinned to immutable references — the action to a
@@ -82,17 +82,17 @@ jobs:
       images: ${{ steps.collect.outputs.images }}
       categories: ${{ steps.collect.outputs.categories }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: azure/setup-helm@v5
-      - uses: actions/setup-python@v7
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.x"
+          python-version: "3.13"
       - name: Set up chart-testing
         uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
       - name: Install PyYAML
-        run: pip install pyyaml
+        run: pip install -r .github/requirements-security.txt
       - name: Determine which charts to scan
         id: charts
         env:
@@ -208,7 +208,7 @@ jobs:
       matrix:
         image: ${{ fromJson(needs.discover-images.outputs.images) }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Same pinning rationale as the fs scan above (immutable action SHA +
       # exact trivy binary version).
       # A scan error (as opposed to findings) — typically an image that can no
