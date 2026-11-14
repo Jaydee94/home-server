@@ -70,21 +70,68 @@
     msg: "Tailscale connected: {{ tailscale_connected }}"
 
 # ---- Connect to Tailscale -----------------------------------
-# Pass the auth key via the TS_AUTHKEY env var so the secret never ends up
-# in the process list (unlike --authkey=tskey-auth-... on the command line).
+# Two things this block must guarantee:
+#
+# 1. The auth key never shows up in the process list. `environment:` does NOT
+#    achieve that with become: Ansible wraps the module in
+#    `sudo sh -c 'TS_AUTHKEY=tskey-... python3 ...'`, which every local user
+#    can read with `ps`. The key is therefore handed over as a 0600 file
+#    (`--auth-key=file:...`) that is removed again in `always`.
+#
+# 2. It never blocks the play. When the node key AND the auth key have expired,
+#    `tailscale up` prints a login URL and waits forever for an interactive
+#    login. Inside the unattended daily Semaphore run that hung the task for
+#    34 hours and blocked every following run (13 Nov 2026). `--timeout` makes
+#    tailscale give up; `timeout(1)` is the belt to those braces. A failed
+#    login is reported as a warning — Tailscale being logged out must not stop
+#    the rest of site.yml from converging.
 - name: Connect to Tailscale and advertise the local subnet
-  ansible.builtin.command: >
-    tailscale up
-    --hostname={{ tailscale_hostname }}
-    --advertise-routes={{ local_subnet }}
-    --accept-dns=true
-    --accept-routes=false
-  environment:
-    TS_AUTHKEY: "{{ tailscale_auth_key }}"
-  register: tailscale_up_result
-  changed_when: tailscale_up_result.rc == 0
-  no_log: true
   when: not tailscale_connected
+  block:
+    - name: Write the Tailscale auth key to a root-only file
+      ansible.builtin.copy:
+        content: "{{ tailscale_auth_key }}"
+        dest: /run/tailscale-authkey
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      changed_when: false
+
+    - name: Run tailscale up (bounded, never interactive)
+      ansible.builtin.command: >
+        timeout --kill-after=10 {{ tailscale_up_timeout_seconds | int + 15 }}
+        tailscale up
+        --auth-key=file:/run/tailscale-authkey
+        --timeout={{ tailscale_up_timeout_seconds }}s
+        --hostname={{ tailscale_hostname }}
+        --advertise-routes={{ local_subnet }}
+        --accept-dns=true
+        --accept-routes=false
+      register: tailscale_up_result
+      changed_when: tailscale_up_result.rc == 0
+      failed_when: false
+  always:
+    - name: Remove the Tailscale auth key file
+      ansible.builtin.file:
+        path: /run/tailscale-authkey
+        state: absent
+      changed_when: false
+
+- name: Record whether Tailscale is up
+  ansible.builtin.set_fact:
+    tailscale_up_ok: "{{ tailscale_connected or (tailscale_up_result.rc | default(1)) == 0 }}"
+
+- name: Tailscale login failed — continuing without Tailscale
+  ansible.builtin.debug:
+    msg:
+      - "WARNING: 'tailscale up' did not succeed (rc={{ tailscale_up_result.rc | default('n/a') }})."
+      - "Remote access via Tailscale is DOWN until someone logs this node in again."
+      - "Most likely the node key and the auth key in the vault (tailscale_auth_key) have both expired."
+      - "Fix: create a new auth key (https://login.tailscale.com/admin/settings/keys), vault it,"
+      - "or run 'sudo tailscale up' on the host once and disable key expiry for this node."
+      - "{{ tailscale_up_result.stderr | default('') | regex_replace('tskey-[A-Za-z0-9-]+', 'tskey-REDACTED') }}"
+  when: not tailscale_up_ok
 
 - name: Refresh Tailscale options (already connected — update hostname/routes)
   ansible.builtin.command: >
@@ -110,12 +157,14 @@
   retries: 6
   delay: 5
   until: tailscale_final_status.rc == 0
+  when: tailscale_up_ok
 
 - name: Get Tailscale IP address
   ansible.builtin.command: tailscale ip -4
   register: tailscale_ip
   changed_when: false
   failed_when: false
+  when: tailscale_up_ok
 
 - name: Display Tailscale connection info
   ansible.builtin.debug:
@@ -126,3 +175,4 @@
       - "Advertised subnet: {{ local_subnet }}"
       - "NOTE: Approve the advertised subnet route in the admin panel:"
       - "      https://login.tailscale.com/admin/machines"
+  when: tailscale_up_ok
