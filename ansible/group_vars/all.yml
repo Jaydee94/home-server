@@ -25,8 +25,7 @@ auto_reboot_if_required: true
 # schedules one for the next occurrence of `unattended_reboot_time`.
 # 05:00 sits between the nightly jobs: after the backup (04:00,
 # homeserver-backup.timer) has had an hour to finish, and well before the
-# Recyclarr CronJob (05:30) and the daily Semaphore run (06:00), which then
-# meets a freshly booted host. Set `unattended_reboot_enabled: false` to go
+# daily Semaphore run (06:00), which then meets a freshly booted host. Set `unattended_reboot_enabled: false` to go
 # back to manual reboots.
 unattended_reboot_enabled: true
 unattended_reboot_time: "05:00"
