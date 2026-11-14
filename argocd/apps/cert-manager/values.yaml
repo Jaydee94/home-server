@@ -1,4 +1,48 @@
 ---
+# Consumed by this chart's own templates (certificate-ingress-default.yaml,
+# tlsstore-default.yaml): ONE certificate from the homeserver CA that covers
+# every *.homeserver ingress host, installed as Traefik's default certificate.
+#
+# Why not a wildcard: browsers refuse "*.homeserver" (a wildcard directly under
+# a top-level label), so every host is listed explicitly.
+# Why not per-Ingress `tls:` blocks: Traefik already serves all ingresses on
+# :443 (entryPoints.websecure.http.tls=true) — it just used its self-signed
+# "TRAEFIK DEFAULT CERT". Swapping the default certificate fixes HTTPS for all
+# apps in one place, including upstream charts, and leaves plain HTTP untouched.
+#
+# ADDING AN APP WITH AN INGRESS: add its hostname here, otherwise HTTPS for it
+# falls back to a name-mismatch warning (HTTP keeps working).
+ingressTls:
+  enabled: true
+  # Must be the namespace Traefik runs in (k3s: kube-system).
+  namespace: kube-system
+  secretName: homeserver-ingress-tls
+  hosts:
+    - homeserver
+    - home.homeserver
+    - gameserver.homeserver
+    - gotify.homeserver
+    - grafana.homeserver
+    - ha-mcp.homeserver
+    - headlamp.homeserver
+    - homeassistant.homeserver
+    - jellyfin.homeserver
+    - kubeseal-webgui.homeserver
+    - ntfy.homeserver
+    - paperless-ai.homeserver
+    - pihole.homeserver
+    - prowlarr.homeserver
+    - radarr.homeserver
+    - remedy.homeserver
+    - rps-arena.homeserver
+    - sabnzbd.homeserver
+    - seerr.homeserver
+    - semaphore.homeserver
+    - sonarr.homeserver
+  # Traefik's node IP, for https://<ip>/ without DNS.
+  ipAddresses:
+    - 192.168.178.127
+
 cert-manager:
   crds:
     enabled: true

@@ -1,0 +1,18 @@
+{{- if .Values.ingressTls.enabled }}
+# Traefik only honours a TLSStore named "default". It replaces the built-in
+# self-signed "TRAEFIK DEFAULT CERT" for every router without its own
+# certificate. Ingresses that bring their own (ntfy) keep it: Traefik prefers
+# an SNI match over the default.
+apiVersion: traefik.io/v1alpha1
+kind: TLSStore
+metadata:
+  name: default
+  namespace: {{ .Values.ingressTls.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    # The CRD ships with k3s' Traefik, not with this chart.
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  defaultCertificate:
+    secretName: {{ .Values.ingressTls.secretName }}
+{{- end }}
