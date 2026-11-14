@@ -1,0 +1,45 @@
+---
+name: Renovate config
+
+# Validates renovate.json with the official validator. A broken config does not
+# fail loudly: Renovate opens a single "Action required" issue and stops
+# updating dependencies (or, for a bad packageRule, silently changes what gets
+# auto-merged and deployed). Only runs when the config or this workflow changes.
+# Deliberately NOT a required status check in the branch protection of main.
+"on":
+  pull_request:
+    paths:
+      - "renovate.json"
+      - ".github/workflows/renovate-config.yml"
+  push:
+    branches: [main]
+    paths:
+      - "renovate.json"
+      - ".github/workflows/renovate-config.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: renovate-config-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: renovate-config-validator
+    runs-on: ubuntu-latest
+    env:
+      # renovate: datasource=npm depName=renovate
+      RENOVATE_VERSION: "44.239.1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Renovate itself needs Node ^24.11 || ^26.13, and the validator crashed
+      # locally under Node 26 — stay on 24 (renovate.json stops Renovate from
+      # bumping this to 26).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Validate renovate.json
+        run: npx --yes --package "renovate@${RENOVATE_VERSION}" -- renovate-config-validator --strict

@@ -21,16 +21,19 @@ jobs:
     name: yamllint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.x"
-      - uses: actions/cache@v6
+          # Pinned (not "3.x"): a new Python release must not turn the required
+          # checks red on its own. Renovate keeps it below the ceiling set in
+          # renovate.json.
+          python-version: "3.13"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-yamllint-${{ runner.os }}-${{ hashFiles('.github/workflows/lint.yml') }}
+          key: pip-yamllint-${{ runner.os }}-${{ hashFiles('.github/requirements-yamllint.txt') }}
       - name: Install yamllint
-        run: pip install yamllint
+        run: pip install -r .github/requirements-yamllint.txt
       # Lint the whole repo, not just changed files: a pre-existing error in an
       # untouched file otherwise stays invisible until an unrelated PR (usually
       # Renovate) happens to touch that file and turns red for it. Takes seconds.
@@ -42,18 +45,19 @@ jobs:
     name: ansible-lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          # "3.x" resolves to 3.15, which ansible-core does not support yet
+          # Do not use "3.x": it resolved to 3.15, which ansible-core did not
+          # support yet. Renovate keeps this below the ceiling in renovate.json.
           python-version: "3.13"
-      - uses: actions/cache@v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pip
-          key: pip-ansible-${{ runner.os }}-${{ hashFiles('.github/workflows/lint.yml') }}
+          key: pip-ansible-${{ runner.os }}-${{ hashFiles('.github/requirements-ansible.txt') }}
       - name: Install ansible + ansible-lint
-        run: pip install ansible ansible-lint
-      - uses: actions/cache@v6
+        run: pip install -r .github/requirements-ansible.txt
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.ansible/collections
           key: ansible-collections-${{ runner.os }}-${{ hashFiles('ansible/requirements.yml') }}
@@ -66,13 +70,13 @@ jobs:
     name: helm lint (all charts)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: azure/setup-helm@v5
-      - uses: actions/setup-python@v7
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.x"
+          python-version: "3.13"
       - name: Set up chart-testing
         uses: helm/chart-testing-action@720270857a28afd41e2426521a7801db09e9b510 # v2.9.0
       - name: Detect changed charts
@@ -96,7 +100,7 @@ jobs:
     name: actionlint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Run actionlint
         uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2.2.0
         with:
