@@ -142,6 +142,9 @@ verglichen wurde (ob Renovate die Dependency tatsächlich beobachtet, ist ungepr
 
 - Alles stoppen: `kubectl -n remedy scale deployment/remedy-server --replicas=0` (Argo CD stellt es mit `selfHeal`
   zurück: vorher Auto-Sync der Application aus) oder das Verzeichnis `argocd/apps/remedy/` per Pull Request löschen.
+  Das Löschen des Verzeichnisses entfernt nur die Application; die Ressourcen bleiben stehen
+  (`preserveResourcesOnDeletion`, siehe `docs/gotchas.md` → „ArgoCD / GitOps") und werden danach mit
+  `kubectl delete namespace remedy` entfernt (löscht auch die Datenbank- und Backup-PVCs).
   Nichts anderes im Lab hängt von Remedy ab.
 - Der Eintrag `remedy` in `argocd/apps/monitoring/templates/networkpolicy.yaml` darf beim Abbau stehen bleiben; er
   öffnet nur den Ingress in `monitoring` für einen Namespace, den es dann nicht mehr gibt.
