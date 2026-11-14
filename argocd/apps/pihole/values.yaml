@@ -55,6 +55,10 @@ pihole:
     size: 2Gi
     accessModes:
       - ReadWriteOnce
+    # Keep the claim when the Application is deleted or the claim drops out of
+    # the rendered manifests; local-path would otherwise wipe the data.
+    annotations:
+      argocd.argoproj.io/sync-options: Delete=false,Prune=false
 
   # Upstream resolvers: FritzBox first (consistent with the host dnsmasq,
   # routes via the Vodafone uplink), Quad9 as a public backup.

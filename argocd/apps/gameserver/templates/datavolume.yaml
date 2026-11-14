@@ -13,6 +13,12 @@ metadata:
     app.kubernetes.io/name: gameserver
     app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/managed-by: {{ .Release.Service }}
+  annotations:
+    # The DataVolume owns the PVC with the VM's OS disk. Never delete it
+    # together with the Application (Delete=false) or when it disappears from
+    # the rendered manifests (Prune=false): the PVC would be garbage-collected
+    # with it and local-path would wipe the disk.
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   source:
     http:

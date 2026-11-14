@@ -7,6 +7,11 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "ntfy.labels" . | nindent 4 }}
+  annotations:
+    # Never delete this claim together with the Application (Delete=false) or
+    # when it disappears from the rendered manifests (Prune=false): local-path
+    # would wipe the data. Remove it by hand if that is really intended.
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
 spec:
   accessModes:
     - {{ .Values.persistence.accessMode }}

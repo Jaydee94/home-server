@@ -12,6 +12,16 @@ metadata:
 spec:
   goTemplate: true
   goTemplateOptions: ["missingkey=error"]
+  # Removing or renaming a directory under argocd/apps/ deletes the generated
+  # Application. Without this flag the Application carries the
+  # resources-finalizer and the deletion cascades to every resource it manages,
+  # including PVCs: local-path (reclaimPolicy Delete) then wipes the data.
+  # With it the Application is created without the finalizer, so its resources
+  # are left running/orphaned and have to be cleaned up on purpose
+  # (docs/gotchas.md → "ArgoCD / GitOps").
+  # NOTE: this is the ApplicationSet's own syncPolicy, not template.spec.syncPolicy.
+  syncPolicy:
+    preserveResourcesOnDeletion: true
   generators:
     - git:
         repoURL: "https://github.com/Jaydee94/home-server.git"
