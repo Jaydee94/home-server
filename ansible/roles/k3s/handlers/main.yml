@@ -1,0 +1,10 @@
+---
+# Restarting k3s restarts the API server, kubelet and the other embedded
+# components; containers keep running (the unit uses KillMode=process). Skipped
+# when the installer ran in the same play — it has just (re)started k3s with
+# the new configuration already in place.
+- name: Restart k3s
+  ansible.builtin.systemd:
+    name: k3s
+    state: restarted
+  when: not (k3s_install is defined and k3s_install is changed)
