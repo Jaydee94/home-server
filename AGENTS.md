@@ -14,63 +14,31 @@ Gilt für alle Agenten (Codex, Claude Code, etc.) die in diesem Repo arbeiten.
 <!-- CUSTOM:BEGIN -->
 ## Projekt-Kontext
 
-Vollständige Projektdokumentation: [`CLAUDE.md`](CLAUDE.md). Diese Datei
-spiegelt nur die wichtigsten Punkte für Agenten, die kein
-`CLAUDE.md`-Loading unterstützen.
+Die vollständige Agenten-Anleitung steht in [`CLAUDE.md`](CLAUDE.md), die Projektdoku in [`README.md`](README.md) und [`docs/`](docs/). Hier nur das Nötigste für Agenten, die `CLAUDE.md` nicht laden.
 
-### Was dieses Repo ist
-
-Ein vollständig automatisierter, GitOps-getriebener Home Server. Ansible
-provisioniert den Host (Ubuntu 26.04 LTS); k3s liefert Kubernetes; ArgoCD
-synchronisiert alles unter `argocd/apps/` kontinuierlich gegen den Cluster;
-Tailscale liefert VPN-Zugang ohne öffentliche Ports.
-
-### Wichtigste Kommandos
+Das Repo beschreibt einen GitOps-Home-Server: Ansible provisioniert den Host (Ubuntu 26.04 LTS), k3s liefert Kubernetes, ArgoCD synchronisiert jedes Verzeichnis unter `argocd/apps/` als eigene Application in einen gleichnamigen Namespace, und Tailscale ermöglicht Fernzugriff ohne öffentliche Ports.
 
 ```bash
-make deps           # Galaxy-Collections installieren
-make ping           # Erreichbarkeit prüfen
-make check          # Dry-run der gesamten Playbook-Run
-make install        # End-to-End provisionieren
-make lint           # yamllint + ansible-lint + helm lint
-make vault-edit     # Vault-verschlüsselte Vars editieren
-
-# Einzelne Rollen
-make common | host-dns | tailscale | k3s | argocd | scanner | semaphore
-make semaphore-targets | semaphore-bootstrap | semaphore-bootstrap-local
-
-# UGREEN NAS (eigenes Playbook ansible/ugreen-nas.yml)
-make nas            # NAS-Services deployen
-make nas-check      # Dry-run des NAS-Playbooks
+make deps | ping | check | install    # Collections, Erreichbarkeit, Dry-Run, Provisionierung
+make lint                             # yamllint, ansible-lint, helm lint
+make nas | nas-check                  # UGREEN NAS (ansible/ugreen-nas.yml)
 ```
 
-### Rollen-Reihenfolge in `ansible/site.yml`
+Rollen in `ansible/site.yml`: `common → host_dns → tailscale → k3s → argocd → scanner → semaphore_secrets → backup`, danach eigene Plays für `semaphore_targets` und `semaphore_bootstrap`.
 
-`common → host_dns → tailscale → k3s → argocd → scanner → semaphore_secrets`,
-danach separate Plays `semaphore_targets` und `semaphore_bootstrap`.
+## Pflicht-Skills
 
-### ArgoCD-Apps unter `argocd/apps/`
-
-Jeder Unterordner von `argocd/apps/` wird automatisch zu einer
-ArgoCD-`Application` im gleichnamigen Namespace. Die aktuelle Liste der Apps
-ergibt sich aus dem Verzeichnis selbst (`ls argocd/apps`); Kurzbeschreibungen
-stehen im Abschnitt „Repository-Layout" der [`README.md`](README.md).
-
-## Pflicht-Skills (für AI-Agenten)
-
-| Situation | Skill | Verhalten |
-|---|---|---|
-| Neues Feature / Bug-Fix | `superpowers:brainstorming` | MUSS vor Code aufgerufen werden |
-| Implementierung | `superpowers:test-driven-development` | MUSS vor Code aufgerufen werden |
-| Vor Commit/PR | `superpowers:verification-before-completion` | MUSS ausgeführt werden |
-| Debug | `superpowers:systematic-debugging` | MUSS vor Fix aufgerufen werden |
-| Bug nach Debug | `superpowers:test-driven-development` | Regressionstest schreiben, BEVOR der Fix committed wird |
+| Situation | Skill |
+|---|---|
+| Neues Feature oder Bugfix | `superpowers:brainstorming` vor dem Code |
+| Implementierung | `superpowers:test-driven-development` vor dem Code |
+| Debugging | `superpowers:systematic-debugging` vor dem Fix, danach Regressionstest |
+| Vor Commit oder PR | `superpowers:verification-before-completion` |
 
 ## Verhalten
 
 - Antworte auf Deutsch.
-- Änderungen immer über Branch + PR, nie direkt auf `main`.
-- YAGNI: keine ungefragten Features.
-- Keine unnötigen Kommentare im Code.
-- Secrets immer vault-encrypted, niemals plaintext committen.
+- Änderungen immer über Branch und PR, nie direkt auf `main`.
+- YAGNI: keine ungefragten Features, keine unnötigen Code-Kommentare.
+- Secrets nur vault-verschlüsselt committen.
 <!-- CUSTOM:END -->

@@ -1,121 +1,83 @@
-# 21: Media-Stack (Sonarr / Radarr / Prowlarr / SABnzbd / Seerr)
+# Media-Stack
 
-Usenet-basierter Media-Automations-Stack, der das **bestehende Jellyfin**
-(`argocd/apps/jellyfin`, Namespace `jellyfin`) befüllt. Deployt via ArgoCD aus
-`argocd/apps/media/` (lokales Helm-Chart, Namespace `media`).
+Usenet-Automatisierung für [Jellyfin](16-jellyfin.md): Prowlarr verwaltet die Indexer, Sonarr und Radarr suchen
+Serien und Filme, SABnzbd lädt, Seerr nimmt Wünsche entgegen.
 
-| App | URL | Port | Zweck |
-|---|---|---|---|
-| Prowlarr | http://prowlarr.homeserver | 9696 | Indexer-Manager (Newznab) |
-| SABnzbd | http://sabnzbd.homeserver | 8080 | Usenet-Downloader |
-| Sonarr | http://sonarr.homeserver | 8989 | Serien-Automation |
-| Radarr | http://radarr.homeserver | 7878 | Film-Automation |
-| Seerr | http://seerr.homeserver | 5055 | Request-UI (gegen Jellyfin) |
-| media-api-exporter | (intern) | 9108 | Prometheus-Metriken (VMServiceScrape) |
+| | |
+|---|---|
+| Namespace | `media` |
+| Quelle | [`argocd/apps/media/`](../argocd/apps/media/) (lokales Chart ohne Upstream-Dependency) |
+| Images | linuxserver.io (`sonarr`, `radarr`, `prowlarr`, `sabnzbd`), `ghcr.io/seerr-team/seerr`, gepinnt in `values.yaml` > `images` |
 
-Alle Web-UIs laufen als **ClusterIP + Traefik-Ingress** (kein MetalLB-IP nötig);
-Pi-hole löst `*.homeserver` per Wildcard auf `192.168.178.127` auf.
+| App | URL | Port |
+|---|---|---|
+| Prowlarr | http://prowlarr.homeserver | 9696 |
+| SABnzbd | http://sabnzbd.homeserver | 8080 |
+| Sonarr | http://sonarr.homeserver | 8989 |
+| Radarr | http://radarr.homeserver | 7878 |
+| Seerr | http://seerr.homeserver | 5055 |
+| `media-api-exporter` | intern, `VMServiceScrape` | 9108 |
 
 ## Architektur
 
-```
-SMB-PV "mediastack-data" ── //jays-ugreen/media (RWX, cifs uid/gid 1001)  → /data
-   /data/movies     Radarr root folder + Jellyfin "Filme"
-   /data/shows      Sonarr root folder + Jellyfin "Serien"
-   /data/downloads  SABnzbd complete/ + incomplete/
+```text
+PV/PVC mediastack-data = //jays-ugreen/media (RWX, cifs uid/gid 1001) → /data
+  /data/movies      Radarr-Root, Jellyfin /media/movies
+  /data/shows       Sonarr-Root, Jellyfin /media/shows
+  /data/downloads/complete   SABnzbd fertige Jobs
+PVC sabnzbd-incomplete (local-path) → /incomplete-downloads   Download, par2, Entpacken
+PVC <app>-config (local-path)       → /config                  SQLite der Apps
 
-Prowlarr ──(Indexer)──▶ Sonarr/Radarr ──(Download)──▶ SABnzbd ──▶ /data/downloads
-Sonarr/Radarr ──(import: server-side move)──▶ /data/movies | /data/shows
-Sonarr/Radarr ──(MediaBrowser-Notify)──▶ jellyfin.jellyfin.svc:8096  (Library-Refresh)
-Seerr ──▶ jellyfin.jellyfin.svc:8096  +  sonarr:8989 / radarr:7878
-```
-
-Wichtig: Downloads UND Bibliothek liegen im **selben** SMB-Mount → der Import ist
-ein serverseitiges, atomares **Rename** (schnell, kein Copy über Mount-Grenzen).
-**Hardlinks** funktionieren über SMB/CIFS generell **nicht** (*arr fällt sonst auf
-Copy zurück); bei diesem **Usenet**-Stack ist das egal: es gibt kein Seeding, die
-Apps verschieben den Download einfach in die Bibliothek. Daher: *arr auf **Move**
-stellen, „Use Hardlinks instead of Copy" **deaktivieren**. (Wer echte Hardlinks
-will, müsste den Mount auf **NFS** umstellen statt SMB.)
-
-## 1. NAS vorbereiten
-
-Im bestehenden Share `//jays-ugreen/media` (denselben, den Jellyfin liest):
-
-```
-movies/        # existiert bereits (Jellyfin "Filme")
-shows/         # existiert bereits (Jellyfin "Serien")
-downloads/
-  complete/
-  incomplete/
+Prowlarr → Sonarr/Radarr → SABnzbd → /data/downloads/complete
+Sonarr/Radarr → Move nach /data/movies|shows → Library-Refresh an jellyfin.jellyfin.svc:8096
 ```
 
-Der SMB-Account ist derselbe wie für Jellyfin.
+Downloads und Bibliothek liegen im selben Mount, deshalb ist der Import ein serverseitiges Rename auf dem NAS.
+Hardlinks gehen über SMB nicht; bei Usenet ohne Seeding fehlen sie nicht. Jellyfin mountet denselben Share unter
+`/media` statt `/data`, beide Seiten zeigen auf dieselben Ordner `movies/` und `shows/`.
 
-## 2. SMB-Credentials sealen (Pflicht; sonst mountet nichts)
+SABnzbd entpackt auf der lokalen SSD, weil Entpacken über CIFS langsam ist und bei Pod-Neustarts `_UNPACK_`-Reste
+hinterlässt. `incomplete.size` (100Gi) ist nominal: `local-path` erzwingt keine Größe und kann nicht wachsen. Wer die
+Größe ändern will, löscht die leere PVC und lässt sie neu anlegen.
 
-kubeseal ist **namespace-gebunden**: die Jellyfin-Creds müssen für `media` neu
-gesealt werden.
+## Einrichtung
 
-```sh
+1. Im Share `//jays-ugreen/media` neben `movies/` und `shows/` die Ordner `downloads/complete/` und
+   `downloads/incomplete/` anlegen.
+2. SMB-Zugangsdaten (dasselbe Konto wie bei Jellyfin) für den Namespace `media` neu sealen, da kubeseal an den
+   Namespace bindet. Ergebnis in `smb.encryptedUsername` und `smb.encryptedPassword` eintragen. Ohne die Werte
+   bleiben die Pods in `ContainerCreating`.
+
+```bash
 echo -n "<smb-username>" | kubeseal --raw \
   --namespace media --name mediastack-smbcreds \
   --controller-name sealed-secrets-controller \
   --controller-namespace sealed-secrets --from-file=/dev/stdin
-
-echo -n "<smb-password>" | kubeseal --raw \
-  --namespace media --name mediastack-smbcreds \
-  --controller-name sealed-secrets-controller \
-  --controller-namespace sealed-secrets --from-file=/dev/stdin
+# dasselbe für <smb-password>
 ```
 
-Die zwei Ausgaben in `argocd/apps/media/values.yaml` unter
-`smb.encryptedUsername` / `smb.encryptedPassword` eintragen. Solange leer, wird
-das SealedSecret übersprungen und die Pods bleiben `ContainerCreating`
-(gleiches Muster wie Jellyfin).
+3. Die Apps erzeugen ihre API-Keys beim ersten Start selbst. Danach in dieser Reihenfolge per UI konfigurieren:
 
-## 3. Deployen
+| App | Einstellungen |
+|---|---|
+| SABnzbd | Usenet-Provider eintragen. Config > Folders: Temporary `/incomplete-downloads`, Completed `/data/downloads/complete`. Config > Special > `host_whitelist`: `sabnzbd.homeserver` ergänzen |
+| Prowlarr | Newznab-Indexer, Download-Client `sabnzbd:8080`, Apps `http://sonarr:8989` und `http://radarr:7878` mit deren API-Keys |
+| Sonarr, Radarr | Root-Folder `/data/shows` bzw. `/data/movies`, Download-Client `sabnzbd:8080`, Connect > Emby/Jellyfin (siehe unten) |
+| Seerr | Jellyfin `http://jellyfin.jellyfin.svc.cluster.local:8096`, Jellyfin-Login an, Sonarr und Radarr verknüpfen |
 
-```sh
-git add argocd/apps/media docs/21-media-stack.md && \
-  git commit -m "feat(apps): add media stack" && git push
+Vor dem Eintrag der `host_whitelist` lehnt SABnzbd Aufrufe über den Hostnamen ab („Hostname verification failed“).
+Für den ersten Zugriff:
+
+```bash
+sudo kubectl -n media port-forward deploy/sabnzbd 8080:8080
 ```
 
-ArgoCD legt den Namespace `media` an und synct (~3 min). Das statische SMB-PV
-bindet, danach starten die Pods.
+4. Optional die API-Keys von Sonarr, Radarr, Prowlarr, SABnzbd und Jellyfin in das SealedSecret `media-api-keys`
+   sealen und unter `apiKeys.<app>` eintragen. Erst dann liefert der Exporter Werte. Die Homepage-Widgets lesen
+   `HOMEPAGE_VAR_{SONARR,RADARR,PROWLARR,SABNZBD,SEERR}_KEY` aus `homepage-credentials`
+   ([Homepage](14-homepage.md)).
 
-## 4. Erstkonfiguration (UI-Reihenfolge)
-
-Die *arr-Apps und SABnzbd **generieren ihre API-Keys selbst** beim ersten Start
-— kein Secret nötig zum Booten. Reihenfolge:
-
-1. **SABnzbd** (http://sabnzbd.homeserver): Wizard durchlaufen, Usenet-Provider
-   (Server/Port/User/Pass) eintragen. Ordner: complete → `/data/downloads/complete`,
-   incomplete → `/data/downloads/incomplete`.
-   ⚠️ **Host-Whitelist**: SABnzbd weist Requests mit unbekanntem Host-Header ab
-   ("Access denied - Hostname verification failed"). Beim ersten Zugriff per
-   `kubectl -n media port-forward deploy/sabnzbd 8080:8080` öffnen und unter
-   *Config → Special → host_whitelist* `sabnzbd.homeserver` ergänzen.
-2. **Prowlarr** (http://prowlarr.homeserver): Newznab-Indexer hinzufügen
-   (Indexer-API-Key vom Provider). Download-Client → SABnzbd (`sabnzbd:8080`,
-   API-Key aus SABnzbd → Config → General). Apps → Sonarr (`http://sonarr:8989`)
-   + Radarr (`http://radarr:7878`) mit deren API-Keys (Settings → General).
-3. **Sonarr / Radarr**: Auth-Wizard, Root-Folder setzen
-   (Sonarr `/data/shows`, Radarr `/data/movies`), Download-Client SABnzbd
-   (`sabnzbd:8080`). **Jellyfin-Benachrichtigung einrichten** (Pflicht für
-   sofortige Sichtbarkeit, siehe Abschnitt 8): Settings → Connect → Emby/Jellyfin:
-   Host `jellyfin.jellyfin.svc.cluster.local`, Port `8096`, API-Key (Jellyfin →
-   Dashboard → API-Schlüssel), *On Import* + *On Upgrade* + *Update Library* an.
-4. **Seerr** (http://seerr.homeserver): Wizard → Jellyfin-Server
-   `http://jellyfin.jellyfin.svc.cluster.local:8096`, Jellyfin-Login aktivieren,
-   Sonarr/Radarr verknüpfen.
-
-## 5. Exporter- & Homepage-Keys nachziehen (optional)
-
-Nach Schritt 4 die API-Keys aus den App-UIs sealen, damit Exporter-Metriken und
-Homepage-Widgets funktionieren. Alle in **ein** SealedSecret `media-api-keys`:
-
-```sh
+```bash
 for app in sonarr radarr prowlarr sabnzbd jellyfin; do
   echo -n "<$app-api-key>" | kubeseal --raw \
     --namespace media --name media-api-keys \
@@ -124,166 +86,51 @@ for app in sonarr radarr prowlarr sabnzbd jellyfin; do
 done
 ```
 
-Ausgaben in `values.yaml` unter `apiKeys.{sonarr,radarr,prowlarr,sabnzbd,jellyfin}`
-eintragen. (jellyfin-Key: Jellyfin → Dashboard → API-Schlüssel.)
+## Jellyfin-Benachrichtigung
 
-Die Homepage-Widgets nutzen `HOMEPAGE_VAR_{SONARR,RADARR,PROWLARR,SABNZBD,SEERR}_KEY`
-aus dem `homepage-credentials`-SealedSecret; dort analog ergänzen (siehe
-docs/14-homepage.md).
+Jellyfins Real-Time Monitoring braucht inotify, und das funktioniert auf CIFS nicht. Ohne Benachrichtigung tauchen
+neue Medien erst beim nächsten geplanten Scan auf. In Sonarr und Radarr deshalb unter Connect > Emby/Jellyfin
+eintragen: Host `jellyfin.jellyfin.svc.cluster.local`, Port `8096`, ohne SSL, API-Key aus Jellyfin (Dashboard >
+API-Schlüssel), Trigger On Import und On Upgrade, Update Library an.
 
-## 6. Import-Verhalten (Move, nicht Hardlink)
+## Aufräumen nach dem Import
 
-Über SMB/CIFS funktionieren **keine** Hardlinks; das ist eine Protokoll-/
-Mount-Limitierung, kein Konfigurationsfehler. Für diesen Usenet-Stack ist das
-unkritisch (kein Seeding). In Sonarr/Radarr unter *Settings → Media Management*:
-„Use Hard Links instead of Copy" **AUS** lassen, damit importiert wird per Move.
+Damit in `complete/` keine RAR-, par2- und `_UNPACK_`-Reste liegen bleiben:
 
-Verifizieren, dass ein Move innerhalb des Mounts schnell (serverseitiges Rename)
-ist und nicht über Mount-Grenzen kopiert:
+| Wo | Einstellung |
+|---|---|
+| SABnzbd, Config > Switches | Default-Post-Processing `+Delete`, Direct Unpack an |
+| SABnzbd, Config > Switches > Cleanup List | `nfo,sfv,srr,par2,jpg,nzb,sub,idx` (nie `mkv`, `mp4`, `avi`) |
+| Sonarr, Radarr, Download Clients > SABnzbd | Category `tv` bzw. `movies`, Completed Download Handling > Remove an |
+| Sonarr, Radarr, Media Management | „Use Hardlinks instead of Copy“ aus |
 
-```sh
-ssh jaydee@192.168.178.127 'sudo kubectl -n media exec deploy/sonarr -- sh -c "\
-  touch /data/downloads/complete/.mvtest && \
-  mv /data/downloads/complete/.mvtest /data/shows/.mvtest && \
-  ls -l /data/shows/.mvtest && rm -f /data/shows/.mvtest"'
+Die Cleanup-Liste löscht nur direkt geladene Dateien. Reste aus entpackten Archiven entfernt erst das Remove in
+Sonarr und Radarr.
+
+## Deutsche Releases
+
+Sonarr und Radarr laden nur deutsche bzw. German-DL-Releases. Dafür sorgen die Quality-Profile „[German] UHD Bluray + WEB“
+und „[German] HD Bluray + WEB“ mit den German-Custom-Formats. Sie liegen nur in den SQLite-Datenbanken auf
+den `*-config`-PVCs und werden in der UI gepflegt, siehe [Gotchas: Media-Stack](gotchas.md#media-stack). Grabben die
+Apps nichts mehr, führt der Indexer vermutlich keine passenden deutschen Releases.
+
+## Betrieb
+
+```bash
+sudo kubectl -n media get pods,pvc
+sudo kubectl -n media describe pod <pod>        # Mount-Fehler bei ContainerCreating
+# Prüfen, dass Downloads und Bibliothek im selben Mount liegen (Move ohne Kopie):
+sudo kubectl -n media exec deploy/sonarr -- sh -c \
+  'touch /data/downloads/complete/.mvtest && mv /data/downloads/complete/.mvtest /data/shows/.mvtest && rm /data/shows/.mvtest'
 ```
 
-Wenn das ohne Fehler durchläuft, sind Download- und Bibliotheks-Ordner im selben
-Mount und Imports sind günstig. (Lägen sie in getrennten Mounts, würde *arr
-copy+delete machen; langsam, transient 2× Platz.)
+`media_exporter_scrape_success 0` heißt meist, dass `media-api-keys` fehlt.
 
-## 7. Aufräumen / Cleanup (keine RAR-Reste in complete/)
+## Fallstricke
 
-Damit `complete/` nach jedem Import rückstandsfrei bleibt, müssen **drei** Dinge
-zusammenspielen; sonst sammeln sich RAR-, par2- und `_UNPACK_`-Reste an.
-
-### Folder-Architektur: Unpack auf SSD, nicht auf SMB
-
-SABnzbd entpackt **nicht** auf dem SMB-Mount (langsam, bricht bei Pod-Restarts ab
-→ steckengebliebene `_UNPACK_`-Ordner und Retry-Dubletten), sondern auf einer
-lokalen **local-path-SSD-PVC** (`sabnzbd-incomplete`, gemountet als
-`/incomplete-downloads`, siehe `values.yaml → incomplete`):
-
-```
-Download + par2-Repair + Unpack  →  /incomplete-downloads     (SSD, local-path)
-fertiges Medium                  →  /data/downloads/complete   (SMB)
-*arr-Import (same-FS move)        →  /data/movies | /data/shows (SMB)
-```
-
-In **SABnzbd → Config → Folders**:
-- *Temporary Download Folder* = `/incomplete-downloads`
-- *Completed Download Folder* = `/data/downloads/complete`
-
-> **Gotcha: Ordnerwechsel nur bei leerer Queue.** SABnzbd lehnt das Ändern des
-> Temporary/Completed-Ordners ab, solange Jobs in der Queue stehen
-> („Ordner kann nicht geändert werden, da die Warteschlange nicht leer ist" —
-> *pausiert* zählt **nicht** als leer). Vor dem Umstellen die Queue komplett
-> abarbeiten lassen **oder** löschen (Queue → Delete all, „Dateien auch löschen").
-> Beim Wechsel auf ein neues `download_dir` werden laufende Teildownloads im alten
-> Pfad verwaist → per *Status → Orphaned Jobs → Delete All* aufräumen.
-
-> **Sizing:** Die `sabnzbd-incomplete`-PVC ist `local-path`; die Größe in
-> `values.yaml` (`incomplete.size`) ist **nominal und wird nicht erzwungen**
-> (hostPath-Bind); die PVC nimmt physisch bis zum freien Node-Platz auf. Ein
-> In-place-Vergrößern geht nicht (`allowVolumeExpansion` der SC ist false) —
-> für eine echte Anpassung die (leere) PVC löschen und neu rendern lassen. Da
-> SAB-Jobs nacheinander durchlaufen (SSD → complete → Library, dann frei), bleibt
-> der SSD-Peak weit unter der Nominalgröße.
-
-### SABnzbd Post-Processing + Cleanup-Liste
-
-**Config → Switches → Post-Processing**:
-- Default-Post-Processing = **+Delete** (entpacken **und** Archive löschen).
-- *Direct Unpack* = **an**.
-
-**Config → Switches → Cleanup List**: `nfo,sfv,srr,par2,jpg,nzb,sub,idx`
-⚠️ **niemals** `mkv`/`mp4`/`avi` aufnehmen (löscht sonst die Videos). Hinweis:
-Die Cleanup-Liste entfernt nur **direkt heruntergeladene** Dateien, keine aus RAR
-entpackten; deshalb ist das *arr-Remove unten zwingend ergänzend.
-
-### Sonarr/Radarr: Completed Download Handling
-
-**Settings → Download Clients → SABnzbd**:
-- **Category** setzen: Sonarr `tv`, Radarr `movies`.
-- *Completed Download Handling → Remove* = **an**: entfernt nach dem Import die
-  ganze Job-Hülle (samt par2/nfo-Resten) aus `complete/`.
-
-### Einmaliges Aufräumen des Altbestands
-
-```sh
-# 1. SAB-Queue pausieren (UI) und aktive Downloads prüfen, damit nichts
-#    Laufendes getroffen wird.
-# 2. Steckengebliebene/verwaiste Ordner zählen:
-ssh jaydee@192.168.178.127 'sudo kubectl -n media exec deploy/sabnzbd -- \
-  sh -c "find /data/downloads/complete -iname \"*.rar\" | wc -l"'
-# 3. _UNPACK_- und Dubletten-Ordner löschen (nach Sichtprüfung):
-ssh jaydee@192.168.178.127 'sudo kubectl -n media exec deploy/sabnzbd -- \
-  sh -c "rm -rf /data/downloads/complete/_UNPACK_* "'
-# 4. Restliche bereits importierte Hüllen entfernen und SAB-History leeren (UI).
-```
-
-## 8. Jellyfin-Benachrichtigung (sofortige Sichtbarkeit)
-
-Ohne aktive Benachrichtigung erscheinen neue Importe **nicht sofort** in Jellyfin:
-„Real-Time Monitoring" greift über den SMB/CIFS-Mount **nicht** zuverlässig
-(inotify funktioniert auf CIFS nicht), also bliebe nur der geplante Library-Scan
-(Default ~alle 12 h). Deshalb in **Sonarr und Radarr** je eine
-**Connect → Emby/Jellyfin**-Notification (Implementation `MediaBrowser`):
-
-- Host `jellyfin.jellyfin.svc.cluster.local`, Port `8096`, `useSsl=false`
-- API-Key: Jellyfin → Dashboard → API-Schlüssel (derselbe, der in `media-api-keys`
-  unter `jellyfin-api-key` gesealt liegt)
-- Trigger: **On Import** + **On Upgrade**, **Update Library** = an
-  (`notify`/Send Notifications kann aus bleiben)
-
-Jeder Import stößt damit einen sofortigen Jellyfin-Refresh an → neue Medien sind
-in Sekunden da.
-
-**Pfad-Topologie (wichtig):** Jellyfin mountet `//jays-ugreen/media` unter
-`/media` (Libraries: `/media/movies`, `/media/shows`), während der Media-Stack
-denselben Share unter `/data` mountet (Radarr-Root `/data/movies`, Sonarr-Root
-`/data/shows`). Es ist **derselbe NAS-Share**; die unterschiedlichen Mount-Pfade
-pro Namespace sind unkritisch, solange beide Seiten auf dieselben `movies/`- und
-`shows/`-Ordner zeigen.
-
-> Die Connection lebt in der *arr-SQLite-Config auf dem `*-config`-PVC (wie der
-> gesamte Stack UI-konfiguriert), nicht in Git. Nach einem Config-PVC-Verlust neu
-> anlegen.
-
-## 9. Deutsch erzwingen (manuelle Quality-Profile)
-
-Sonarr und Radarr laden **ausschließlich deutsche bzw. German-(DL)-Releases**.
-Die Quality-Profile **„[German] UHD Bluray + WEB"** und **„[German] HD Bluray + WEB"**
-sowie die German-Custom-Formats wurden initial per Recyclarr eingerichtet und
-existieren jetzt dauerhaft in beiden Apps (nicht mehr GitOps-verwaltet).
-
-> Recyclarr wurde entfernt (2026-11-04): der upstream `config-templates`-Repo
-> verursacht einen SIGSEGV-Crash in allen recyclarr-Versionen ≤ 8.8.1 (v8-Branch
-> gelöscht, master-Branch nicht kompatibel). Manuelle Pflege der Profile ist
-> praktikabler als das Debuggen externer Abhängigkeiten.
-
-## Troubleshooting
-
-- **Pods `ContainerCreating`**: SMB-Creds nicht gesealt (Schritt 2) oder Share
-  `downloads/` fehlt. `sudo kubectl -n media describe pod <pod>` zeigt den
-  Mount-Fehler.
-- **SABnzbd "Access denied"**: host_whitelist (Schritt 4.1).
-- **Jellyfin sieht neue Medien nicht**: Sonarr/Radarr-Notification auf Jellyfin
-  prüfen, oder in Jellyfin Bibliothek manuell scannen. Sicherstellen, dass *arr
-  in dieselben Ordner schreiben, aus denen Jellyfin liest.
-- **Exporter-Metriken 0**: API-Keys in `media-api-keys` nicht gesetzt
-  (Schritt 5); der Exporter meldet dann `media_exporter_scrape_success 0`.
-- **Sonarr/Radarr grabben nichts mehr**: Erwartetes Verhalten des strikten
-  German-Profils, wenn der Indexer keine deutschen Releases führt —
-  Abschnitt 9, Schritt 1 (Indexer-Check).
-
-## Image-Pinning & Renovate
-
-Alle Images in `values.yaml → images` sind gepinnt und werden von Renovate
-aktuell gehalten: Jede Image-Zeile trägt einen
-`# renovate: datasource=docker depName=…`-Kommentar, den der generische
-Regex-CustomManager in `renovate.json` auswertet; Renovate öffnet bei neuen
-Upstream-Tags automatisch einen PR. Bei den linuxserver-Images sind bewusst
-die reinen App-Versions-Tags gepinnt (z. B. `4.0.19`), nicht die
-`-lsNNN`-Build-Tags: die reinen Tags existieren parallel, zeigen auf dasselbe
-Image und lassen sich von Renovate sauber sortieren.
+- Den Temporary- oder Completed-Ordner ändert SABnzbd nur bei leerer Queue, pausierte Jobs zählen mit. Vorher die
+  Queue abarbeiten oder löschen; Teildownloads im alten Pfad danach unter Status > Orphaned Jobs entfernen.
+- Die Benachrichtigungen, Profile und alle übrigen Einstellungen leben in den `*-config`-PVCs. Nach einem PVC-Verlust
+  muss alles neu angelegt werden.
+- linuxserver-Images sind mit den reinen App-Tags (z. B. `4.0.20`) gepinnt, nicht mit `-lsNNN`. Renovate sortiert
+  nur die reinen Tags sauber.

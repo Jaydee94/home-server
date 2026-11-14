@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="home-server — GitOps Home Lab on k3s, ArgoCD, Tailscale" width="100%" />
+  <img src="docs/assets/banner.svg" alt="home-server: GitOps Home Lab auf k3s, ArgoCD und Tailscale" width="100%" />
 </p>
 
 <p align="center">
@@ -12,309 +12,124 @@
 
 <p align="center">
   <b>Vollständig automatisierter, GitOps-getriebener Home-Server auf einer einzigen Maschine.</b><br/>
-  Ein einziger Ansible-Run liefert einen gehärteten Ubuntu-Host, einen schlanken Kubernetes-Cluster (<a href="https://k3s.io">k3s</a>), Continuous Delivery aus Git (<a href="https://argo-cd.readthedocs.io">ArgoCD</a>) und Zero-Config-Remote-Access (<a href="https://tailscale.com">Tailscale</a>).
+  Ansible provisioniert den Ubuntu-Host, k3s liefert Kubernetes, ArgoCD synchronisiert alles aus Git und Tailscale sorgt für Fernzugriff ohne offene Ports.
 </p>
 
----
-
-## TL;DR
+## Schnellstart
 
 ```bash
-# 1) Repo klonen
 git clone https://github.com/Jaydee94/home-server.git && cd home-server
 
-# 2) Eigene Details eintragen (Server-IP, Repo-URL, Tailscale-Key)
-$EDITOR ansible/inventory/hosts.yml
-$EDITOR ansible/group_vars/all.yml
+$EDITOR ansible/inventory/hosts.yml     # ansible_host = Server-IP
+$EDITOR ansible/group_vars/all.yml      # argocd_repo_url, local_subnet, timezone
 
-# 3) Collections installieren und Playbook laufen lassen
-make install   # oder: ansible-galaxy collection install -r ansible/requirements.yml \
-               #       && ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
-```
+# Secrets als Inline-Vault-Werte in all.yml einsetzen, z. B. den Tailscale-Key:
+ansible-vault encrypt_string 'tskey-auth-…' --name 'tailscale_auth_key'
 
-Am Ende druckt das Playbook die ArgoCD-URL und das Admin-Passwort. Fertig.
-
----
-
-## Was du bekommst
-
-| Schicht          | Komponente                             | Hinweis                                                                |
-|------------------|----------------------------------------|------------------------------------------------------------------------|
-| Betriebssystem   | **Ubuntu Server 26.04 LTS**            | Gehärtet, UFW-Firewall, NTP-synced, Swap off                           |
-| Kubernetes       | **k3s** (latest stable channel)        | Single-Node, bundelt Traefik, CoreDNS, local-path, metrics-server      |
-| GitOps           | **ArgoCD** + ApplicationSets           | Verzeichnis unter `argocd/apps/` anlegen, pushen, deployt              |
-| DNS + Adblock    | **Pi-hole** (k3s, MetalLB `.2`)        | `*.homeserver` autoritativ + netzwerkweiter Adblock; dnsmasq abgelöst  |
-| Web-Ansible      | **Semaphore UI**                       | Ein-Klick-`git pull && ansible-playbook` gegen das eigene LAN          |
-| Monitoring       | **VictoriaMetrics + Grafana**          | Single-Node TSDB, vmagent, vmalert, Alertmanager, Dashboards           |
-| Kubernetes-UI    | **Headlamp**                           | Browser-Dashboard für den Cluster                                      |
-| Secrets          | **Sealed Secrets + kubeseal-webgui**   | Verschlüsselte Secrets in Git, nur im Cluster entschlüsselbar          |
-| Dokumenten-Scan  | **scanbd + Fujitsu USB-Scanner**       | Bare-Metal-Scan-Daemon → CIFS → Paperless-NGX auf der NAS              |
-| Notifications    | **ntfy** + **Gotify**                  | ntfy: Alertmanager-Alerts als Push; Gotify: Scanner-Benachrichtigungen |
-| Remote-Access    | **Tailscale**                          | WireGuard-Mesh-VPN — keine Portfreigaben, keine öffentliche IP         |
-| Media-Server     | **Jellyfin** (+ csi-driver-smb)        | Streamt Medien vom NAS via SMB; deutsches Live-TV (M3U+EPG)            |
-| Home Automation  | **Home Assistant**                     | Solakon-ONE Solar (Modbus TCP), Zigbee ZHA (Sonoff MG24 Dongle)        |
-| MQTT-Broker      | **Mosquitto** (MetalLB `.4`)           | Nuki Smart Lock Pro → Home Assistant via MQTT Auto-Discovery            |
-| Gameserver       | **7 Days to Die** (KubeVirt VM)        | KubeVirt-VM, Tailscale-only; Zeitplan Mi 20–24 Uhr; Node-Sharing       |
-| Browser-Game     | **RPS-Arena**                          | Rock-Paper-Scissors (Svelte + Socket.IO) — Turnier-Modus, Bots         |
-| Ingress          | **Traefik v2** (mit k3s gebundled)     | HTTP/HTTPS-Routing in den Cluster                                      |
-| Provisioning     | **Ansible** (≥ 2.14)                   | Vollständig idempotent, Role-per-Concern, Vault für Secrets            |
-
-Ziel-Hardware: kleine Box mit ≥ 4 GB RAM und ≥ 20 GB Disk. Referenz-Build: Intel i5, 32 GB RAM, 512 GB NVMe.
-
-### Immer aktuell
-
-`auto_upgrade: true` (Default) hält bei jedem Playbook-Run die OS-Pakete aktuell; k3s, Helm und ArgoCD sind gepinnt und kommen per Renovate-PR:
-
-- **APT-Pakete** — `apt dist-upgrade` bei jedem Run, plus `unattended-upgrades` für tägliche Sicherheits-Patches im Hintergrund.
-- **Tailscale** — `state: latest` für das `tailscale`-Paket.
-- **k3s** — gepinnt über `k3s_version`; Renovate öffnet für neue Releases einen PR. (Leer ⇒ folgt `k3s_channel`.)
-- **Helm** — gepinnt über `helm_version` (Helm 3), per Renovate-PR aktualisiert.
-- **ArgoCD** — Chart-Version gepinnt über `argocd_version`, per Renovate-PR aktualisiert.
-- **Reboot-if-required** — wenn APT `/var/run/reboot-required` setzt, rebootet das Playbook den Host und wartet, bis er wieder oben ist (Toggle via `auto_reboot_if_required`). Läufe aus Semaphore überspringen diesen Reboot (er würde den ausführenden Pod beenden); dort übernimmt `unattended-upgrades` den Neustart um `unattended_reboot_time` (Default 05:00, Toggle via `unattended_reboot_enabled`).
-
-Für reproduzierbare Builds `auto_upgrade: false` in `ansible/group_vars/all.yml` setzen.
-
----
-
-## Quickstart (5 Schritte)
-
-> Erstmalig auf der Maschine? Start mit **[Ubuntu-Server-Installation](docs/00-ubuntu-server-install.md)**.
-> Komplette Voraussetzungen unter **[docs/02-prerequisites.md](docs/02-prerequisites.md)**.
-
-**1. Repo klonen**
-
-```bash
-git clone https://github.com/Jaydee94/home-server.git
-cd home-server
-```
-
-**2. Inventory auf den eigenen Server zeigen lassen**
-
-```bash
-$EDITOR ansible/inventory/hosts.yml
-# ansible_host (Server-IP) und ggf. ansible_ssh_private_key_file anpassen.
-```
-
-**3. Variablen setzen**
-
-```bash
-$EDITOR ansible/group_vars/all.yml
-# Pflicht: argocd_repo_url, local_subnet, timezone.
-# Tailscale-Key muss vault-encrypted sein (nächster Schritt).
-```
-
-**4. Tailscale-Auth-Key verschlüsseln**
-
-```bash
-ansible-vault encrypt_string 'tskey-auth-DEIN_KEY' --name 'tailscale_auth_key'
-# Den !vault-Block in all.yml über den bestehenden tailscale_auth_key-Wert pasten.
-```
-
-**5. Playbook ausführen**
-
-```bash
 make install
-# oder ohne make:
-ansible-galaxy collection install -r ansible/requirements.yml
-ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
 ```
 
-Am Ende druckt das Playbook:
+Am Ende gibt das Playbook die ArgoCD-URL und den Befehl zum Auslesen des Admin-Passworts aus. Eine frische Maschine richtest du zuerst nach [Ubuntu-Server-Installation](docs/00-ubuntu-server-install.md) ein, die Details zum Ablauf stehen in [Voraussetzungen](docs/02-prerequisites.md) und [Installation](docs/03-installation.md).
 
-```
-ArgoCD UI:  http://<server-ip>:30080
-Username:   admin
-Password:   <auto-generiert>
-```
+## Stack
 
----
+| Schicht | Komponente |
+|---|---|
+| Host | Ubuntu Server 26.04 LTS, UFW, SSH nur per Key, `unattended-upgrades` |
+| Kubernetes | k3s Single-Node mit Traefik v3, CoreDNS, local-path-provisioner |
+| GitOps | ArgoCD mit ApplicationSet: jedes Verzeichnis unter `argocd/apps/` wird eine App |
+| Netzwerk | Tailscale, MetalLB, Pi-hole als LAN-DNS (`*.homeserver`) und Adblocker |
+| TLS | cert-manager mit eigener Homeserver-CA für alle Ingresses |
+| Secrets | Ansible Vault (Host), Sealed Secrets und kubeseal-webgui (Cluster) |
+| Monitoring | VictoriaMetrics, VictoriaLogs, Grafana, Alertmanager mit Push über ntfy |
+| Automatisierung | Semaphore UI für Playbook-Läufe, Renovate für Versions-Updates |
+| Backup | restic, nächtlich auf die UGREEN NAS |
+| Anwendungen | Home Assistant, Mosquitto, Jellyfin, Media-Stack, Paperless-AI, Homepage, Gotify, Headlamp, Remedy, 7 Days to Die (KubeVirt), RPS-Arena |
 
-## Repository-Layout
+Referenz-Hardware: Intel i5, 32 GB RAM, 512 GB NVMe. Paperless-NGX, Portainer und die Mediendaten liegen auf einer UGREEN NAS, die das Playbook `ansible/ugreen-nas.yml` verwaltet.
 
-```
-home-server/
-├── README.md
-├── Makefile                          # Convenience-Targets: install, lint, ping, check, …
-├── docs/
-│   ├── 00-ubuntu-server-install.md   # Bare-Metal-Ubuntu-Installation
-│   ├── 01-overview.md                # Architektur-Diagramme
-│   ├── 02-prerequisites.md           # Voraussetzungen & Pre-flight
-│   ├── 03-installation.md            # Step-by-Step-Setup
-│   ├── 04-k3s.md                     # k3s + kubectl-Referenz
-│   ├── 05-argocd.md                  # GitOps-Nutzung
-│   ├── 06-tailscale.md               # VPN-Setup
-│   ├── 07-troubleshooting.md         # Häufige Probleme
-│   ├── 08-semaphore.md               # Semaphore-Web-UI für Ansible
-│   ├── 09-dns-architecture.md        # Split-DNS-Design & Ausfallsicherheit
-│   ├── 10-scanner.md                 # Fujitsu-Scanner + scanbd + Paperless
-│   ├── 11-gotify.md                  # Push-Notifications via Gotify
-│   ├── 12-paperless-ai.md            # KI-Dokumentenanalyse für Paperless-NGX
-│   ├── 14-homepage.md                # Zentrales Dashboard
-│   ├── 15-pihole.md                  # LAN-Adblock + DNS-Migration
-│   ├── 16-jellyfin.md                # Media-Server + Live-TV
-│   ├── 17-homeassistant.md           # Home Assistant (Solakon ONE, Zigbee ZHA)
-│   ├── 18-nuki-mqtt.md               # Nuki Smart Lock Pro via MQTT
-│   ├── 19-gameserver.md              # 7 Days to Die (KubeVirt VM)
-│   ├── 20-gameserver-ui.md           # Gameserver-Web-UI (Next.js)
-│   ├── 21-media-stack.md             # Sonarr / Radarr / Prowlarr / SABnzbd / Seerr
-│   ├── 22-ha-mcp.md                  # Home Assistant MCP-Server
-│   ├── 23-network-policies.md        # Namespace-Isolation via NetworkPolicies
-│   ├── 24-remedy.md                  # KI-Operator für Alerts
-│   ├── 25-rps-arena.md               # Rock-Paper-Scissors Browser-Game
-│   ├── gotchas.md                    # Fallstricke & Lösungen
-│   └── assets/banner.svg
-├── ansible/
-│   ├── site.yml                      # Entry-Point
-│   ├── ugreen-nas.yml                # Playbook für die UGREEN NAS (make nas)
-│   ├── requirements.yml              # Galaxy-Collections
-│   ├── ansible.cfg                   # Defaults
-│   ├── inventory/hosts.yml           # Eigener Server (+ semaphore_targets)
-│   ├── group_vars/all.yml            # Alle Knobs (vault-verschlüsselte Secrets)
-│   └── roles/
-│       ├── common/                   # Base-OS, Firewall, Pakete
-│       ├── host_dns/                 # Host-Resolver → Pi-hole (dnsmasq abgelöst)
-│       ├── tailscale/                # VPN (WireGuard-Mesh)
-│       ├── k3s/                      # Single-Node-Kubernetes + Helm
-│       ├── argocd/                   # GitOps-Controller via Helm
-│       ├── scanner/                  # Fujitsu-USB-Scanner + scanbd + SMB
-│       ├── semaphore_secrets/        # Bootstrap-Secret für den Semaphore-Pod
-│       ├── semaphore_targets/        # SSH-Pubkey auf Managed-Hosts pushen
-│       ├── semaphore_bootstrap/      # Projects/Inventories/Templates per API
-│       ├── portainer/                # NAS: Portainer (docker-compose)
-│       ├── paperless/                # NAS: Paperless-NGX (docker-compose) + Backup-Skript
-│       ├── node_exporter_nas/        # NAS: node-exporter + cAdvisor (docker-compose)
-│       └── jellyfin_media/           # NAS: Medien-Unterordner im SMB-Share "media"
-└── argocd/
-    ├── bootstrap/
-    │   ├── root-applicationset.yaml        # Erkennt jedes Verzeichnis darunter
-    │   └── bootstrap-app.yaml              # ArgoCD-Selbstverwaltung des bootstrap/-Ordners
-    └── apps/                               # Ein Ordner pro ArgoCD-Application
-        ├── blackbox-exporter/              # HTTP-Blackbox-Probes für die Homeserver-Services
-        ├── cert-manager/                   # cert-manager mit lokaler self-signed CA (TLS im Heimnetz)
-        ├── csi-driver-smb/                 # SMB-CSI-Driver (NAS-Mounts)
-        ├── gameserver/                     # 7 Days to Die (KubeVirt VM, Tailscale only)
-        ├── gameserver-ui/                  # Gameserver-Web-UI (Next.js)
-        ├── gotify/                         # Push-Notifications
-        ├── ha-mcp/                         # Home Assistant MCP-Server
-        ├── headlamp/                       # Kubernetes-Web-Dashboard
-        ├── home-assistant/                 # Home Automation (Solakon ONE, Zigbee ZHA)
-        ├── homepage/                       # Zentrales Dashboard
-        ├── jellyfin/                       # Media-Server (NAS via SMB)
-        ├── kubeseal-webgui/                # Sealed-Secrets-Verschlüsselungs-UI
-        ├── kubevirt/                       # KubeVirt Operator + CDI
-        ├── media/                          # Sonarr / Radarr / Prowlarr / SABnzbd / Seerr
-        ├── metallb/                        # L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
-        ├── monitoring/                     # VictoriaMetrics + Grafana
-        ├── monitoring-dashboards/          # Extra Grafana-Dashboards als ConfigMaps
-        ├── mosquitto/                      # MQTT-Broker (MetalLB .4) für Nuki Smart Lock
-        ├── ntfy/                           # Self-hosted ntfy Push-Notification-Server
-        ├── paperless-ai/                   # KI-Dokumentenanalyse für Paperless-NGX
-        ├── pihole/                         # DNS + netzwerkweiter Adblock
-        ├── remedy/                         # KI-Operator für Alerts
-        ├── rps-arena/                      # Rock-Paper-Scissors Browser-Game
-        ├── sealed-secrets/                 # SealedSecrets-Controller
-        └── semaphore/                      # Ansible-Web-UI
-```
+## Dienste
 
----
+Alle Hostnamen löst Pi-hole im LAN und im Tailnet auf. HTTPS funktioniert, sobald das Gerät der Homeserver-CA vertraut ([Gotchas: TLS](docs/gotchas.md#tls--https)).
 
-## Monitoring
+| Dienst | Adresse |
+|---|---|
+| Homepage | http://home.homeserver |
+| ArgoCD | http://192.168.178.127:30080 |
+| Grafana | http://grafana.homeserver |
+| Headlamp, Semaphore, Gotify, ntfy | http://{headlamp,semaphore,gotify,ntfy}.homeserver |
+| Pi-hole | http://pihole.homeserver/admin/login |
+| Home Assistant, HA-MCP | http://homeassistant.homeserver, http://ha-mcp.homeserver/&lt;secret&gt; |
+| Jellyfin | http://jellyfin.homeserver |
+| Sonarr, Radarr, Prowlarr, SABnzbd, Seerr | http://{sonarr,radarr,prowlarr,sabnzbd,seerr}.homeserver |
+| Paperless-AI, Remedy, kubeseal-webgui | http://{paperless-ai,remedy,kubeseal-webgui}.homeserver |
+| Gameserver-UI | http://gameserver.homeserver |
+| RPS-Arena | http://rps-arena.homeserver, http://192.168.178.127:30808 |
+| Mosquitto | mqtt://192.168.178.4:1883 |
+| Portainer, Paperless-NGX (NAS) | http://jays-ugreen:9000, http://jays-ugreen:8000 |
 
-Ein schlanker VictoriaMetrics-+-Grafana-Stack lebt unter
-`argocd/apps/monitoring/` und wird automatisch von ArgoCD ausgerollt.
-
-- **TSDB:** VMSingle (15 Tage Retention, 10 Gi `local-path`-PVC).
-- **Scrapers:** VMAgent scrapet alle `VMServiceScrape`/`VMPodScrape` und
-  zusätzlich Prometheus-`ServiceMonitor`-CRDs (vom Operator auto-konvertiert).
-- **Host-Metriken:** `prometheus-node-exporter` als DaemonSet auf dem Ubuntu-Host.
-- **Cluster-Metriken:** kubelet/cAdvisor, kube-apiserver, kube-state-metrics, CoreDNS.
-  Scheduler/Controller-Manager/etcd-Scrapes sind deaktiviert — k3s vereint sie in einem Prozess.
-- **Alerts:** Default-kube-prometheus-Rules; Alertmanager routet `critical`/`warning`
-  per Webhook an die `ntfy-alertmanager`-Bridge (Push via ntfy), `info`-Alerts landen
-  auf einem `blackhole`-Receiver.
-- **Dashboards:** Node Exporter Full, VictoriaMetrics + Kubernetes „Views / Global, Namespaces, Nodes, Pods" von grafana.com.
-
-Grafana öffnen unter **http://grafana.homeserver** (LAN + Tailnet, via Pi-hole).
-User `admin`, Passwort aus dem auto-generierten Secret:
+## Eine App hinzufügen
 
 ```bash
-kubectl -n monitoring get secret monitoring-grafana \
-  -o jsonpath='{.data.admin-password}' | base64 -d; echo
+mkdir -p argocd/apps/my-app      # Helm-Chart, Kustomize oder Plain-YAML
+git switch -c feat/my-app && git add argocd/apps/my-app
+git commit -m "feat(my-app): add app" && git push -u origin feat/my-app
 ```
 
----
+Nach dem Merge legt ArgoCD innerhalb von etwa drei Minuten die Application `my-app` im gleichnamigen Namespace an. Hat die App einen Ingress, gehört ihr Hostname in `ingressTls.hosts` in [`argocd/apps/cert-manager/values.yaml`](argocd/apps/cert-manager/values.yaml). Eigene Charts nutzen die Templates aus der Library [`argocd/lib/common`](argocd/lib/common/README.md). Mehr dazu in [ArgoCD](docs/05-argocd.md).
 
-## Application hinzufügen (der GitOps-Weg)
+## Netzwerk und Sicherheit
 
-```bash
-mkdir -p argocd/apps/my-app
-# Plain Kubernetes-YAML, kustomization.yaml oder ein Helm-Chart hineinlegen.
-git add argocd/apps/my-app && git commit -m "feat(apps): add my-app" && git push
-```
+Der Server hat keine öffentlich erreichbaren Dienste. Von außen geht alles über Tailscale, im LAN über Traefik und die MetalLB-IPs. SSH akzeptiert nur Keys, Secrets liegen verschlüsselt im Repo, und ArgoCD hat nur Lesezugriff auf Git.
 
-Innerhalb von ~3 Minuten erkennt ArgoCD das neue Verzeichnis, erstellt eine
-`Application` namens `my-app` im Namespace `my-app` und synct sie.
-Details: **[docs/05-argocd.md](docs/05-argocd.md)**.
+| Port | Protokoll | Erreichbar aus | Zweck |
+|---|---|---|---|
+| 22 | TCP | LAN, Tailnet | SSH |
+| 53 | UDP/TCP | LAN, Tailnet | Pi-hole auf `192.168.178.2` |
+| 80, 443 | TCP | LAN, Tailnet | Traefik |
+| 6443 | TCP | LAN, Tailnet | k3s-API |
+| 30080, 30443 | TCP | LAN, Tailnet | ArgoCD-UI |
+| 1883 | TCP | LAN | Mosquitto auf `192.168.178.4` |
+| 41641 | UDP | Internet | Tailscale (WireGuard) |
 
----
+## Updates
 
-## Networking & Security
-
-- **Keine öffentlichen Ports.** Internet-Zugriff geht ausschließlich über Tailscale.
-- **UFW** öffnet für beliebige Quellen nur HTTP/HTTPS und Tailscale-UDP. SSH ist auf LAN, Tailnet und Pod-CIDR (Semaphore) beschränkt; k3s-API, kubelet, Flannel VXLAN und die ArgoCD-NodePorts haben keine eigene Regel mehr und sind über das volle Trust für LAN, Tailnet, Pod- und Service-CIDRs erreichbar.
-- **SSH** nur per Key: kein Passwort-Login, kein Root-Login, kein X11 (`/etc/ssh/sshd_config.d/10-hardening.conf`, Toggle via `ssh_hardening_enabled`).
-- **Ansible-Vault** verschlüsselt sensitive Secrets at rest.
-- **ArgoCD** hat ausschließlich Read-Access auf das Git-Repo.
-
-| Port  | Protokoll | Scope             | Zweck                                  |
-|-------|-----------|-------------------|----------------------------------------|
-| 22    | TCP       | LAN + Tailnet     | SSH                                    |
-| 53    | UDP+TCP   | LAN + Tailnet     | Pi-hole (`.2`): `*.homeserver` + Adblock |
-| 80    | TCP       | LAN + Tailnet     | Traefik HTTP                           |
-| 443   | TCP       | LAN + Tailnet     | Traefik HTTPS                          |
-| 6443  | TCP       | LAN + Tailnet     | k3s-API                                |
-| 30080 | TCP       | LAN + Tailnet     | ArgoCD-UI (HTTP)                       |
-| 30443 | TCP       | LAN + Tailnet     | ArgoCD-UI (HTTPS)                      |
-| 1883  | TCP       | LAN               | Mosquitto MQTT (MetalLB `.4`, Nuki)    |
-| 41641 | UDP       | Internet          | Tailscale-WireGuard                    |
-
-Vollständige Architektur in **[docs/01-overview.md](docs/01-overview.md)**.
-
----
+Jeder Playbook-Lauf spielt mit `auto_upgrade: true` die OS-Pakete ein, Sicherheits-Patches kommen täglich über `unattended-upgrades`. k3s, Helm, ArgoCD und alle Charts sind gepinnt, neue Versionen schlägt Renovate als PR vor. ArgoCD verwaltet sich selbst (`argocd/apps/argocd`) und rollt ein gemergtes Update ohne Ansible aus. Verlangt ein Update einen Neustart, startet der Host um 05:00 neu (`unattended_reboot_time`).
 
 ## Dokumentation
 
-| Doc                                                             | Inhalt                                       |
-|-----------------------------------------------------------------|----------------------------------------------|
-| [Ubuntu-Server-Installation](docs/00-ubuntu-server-install.md)  | ISO, USB-Stick, Installer, erster Boot       |
-| [Architektur-Überblick](docs/01-overview.md)                    | Komponenten und Traffic-Flows                |
-| [Voraussetzungen](docs/02-prerequisites.md)                     | Was vor dem Ansible-Run nötig ist            |
-| [Installationsleitfaden](docs/03-installation.md)               | Vollständiger Step-by-Step-Walkthrough       |
-| [k3s-Referenz](docs/04-k3s.md)                                  | Config, kubectl-Cheatsheet, Upgrades         |
-| [ArgoCD-GitOps](docs/05-argocd.md)                              | App-Workflow, CLI, Sync-Policies             |
-| [Tailscale-VPN](docs/06-tailscale.md)                           | Auth-Keys, MagicDNS, Subnet-Routes           |
-| [Troubleshooting](docs/07-troubleshooting.md)                   | Diagnose-Playbook für häufige Probleme       |
-| [Semaphore-UI](docs/08-semaphore.md)                            | Web-UI zum Ausführen von Playbooks           |
-| [DNS-Architektur](docs/09-dns-architecture.md)                  | DNS-Trade-offs (SPOF) — historischer Kontext, jetzt via Pi-hole gelöst |
-| [Scanner & Paperless](docs/10-scanner.md)                       | Fujitsu-USB-Scanner → CIFS → Paperless-NGX   |
-| [Gotify-Push](docs/11-gotify.md)                                | Self-hosted Push-Notifications aus dem Stack |
-| [Paperless-AI](docs/12-paperless-ai.md)                         | KI-Dokumentenanalyse + RAG für Paperless-NGX |
-| [Homepage Dashboard](docs/14-homepage.md)                       | Zentrales Startpage-Dashboard (home.homeserver) |
-| [Pi-hole](docs/15-pihole.md)                                    | LAN-Adblock + DNS-Migration (dnsmasq → Pi-hole) |
-| [Jellyfin](docs/16-jellyfin.md)                                 | Media-Server (NAS via SMB) + deutsches Live-TV |
-| [Home Assistant](docs/17-homeassistant.md)                      | Solakon-ONE Solar (Modbus TCP), Zigbee ZHA (Sonoff MG24) |
-| [Nuki MQTT](docs/18-nuki-mqtt.md)                               | Nuki Smart Lock Pro → Mosquitto → Home Assistant |
-| [Gameserver](docs/19-gameserver.md)                             | 7 Days to Die auf KubeVirt VM (Tailscale, Zeitplan Mi 20–24 Uhr) |
-| [Gameserver-UI](docs/20-gameserver-ui.md)                       | Web-Oberfläche für die 7DTD-VM (Start/Stop, Logs, Console, Config) |
-| [Media-Stack](docs/21-media-stack.md)                           | Sonarr / Radarr / Prowlarr / SABnzbd / Seerr + Recyclarr (Deutsch) |
-| [HA-MCP](docs/22-ha-mcp.md)                                     | Home Assistant MCP-Server (Claude-Integration) |
-| [NetworkPolicies](docs/23-network-policies.md)                  | Namespace-Isolation — abgedeckte und bewusst ausgenommene Namespaces |
-| [Remedy](docs/24-remedy.md)                                     | KI-Operator: Alerts lesen, NAS prüfen, Änderungen vorschlagen |
-| [RPS-Arena](docs/25-rps-arena.md)                               | Rock-Paper-Scissors Browser-Game (Svelte + Socket.IO) |
-| [Gotchas](docs/gotchas.md)                                      | Gesammelte Fallstricke und Lösungen |
+Einrichtung
 
----
+- [Ubuntu-Server-Installation](docs/00-ubuntu-server-install.md)
+- [Architektur](docs/01-overview.md)
+- [Voraussetzungen](docs/02-prerequisites.md)
+- [Installation](docs/03-installation.md)
+
+Plattform
+
+- [k3s](docs/04-k3s.md)
+- [ArgoCD](docs/05-argocd.md)
+- [Tailscale](docs/06-tailscale.md)
+- [Pi-hole und DNS](docs/15-pihole.md)
+- [NetworkPolicies](docs/23-network-policies.md)
+- [Monitoring und Alerting](docs/13-monitoring.md)
+- [Semaphore](docs/08-semaphore.md)
+- [Backup](docs/26-backup.md)
+
+Anwendungen
+
+- [Scanner und Paperless](docs/10-scanner.md), [Paperless-AI](docs/12-paperless-ai.md)
+- [Gotify](docs/11-gotify.md), [Homepage](docs/14-homepage.md)
+- [Home Assistant](docs/17-homeassistant.md), [Nuki über MQTT](docs/18-nuki-mqtt.md), [HA-MCP](docs/22-ha-mcp.md)
+- [Jellyfin](docs/16-jellyfin.md), [Media-Stack](docs/21-media-stack.md)
+- [Gameserver](docs/19-gameserver.md), [Gameserver-UI](docs/20-gameserver-ui.md), [RPS-Arena](docs/25-rps-arena.md)
+- [Remedy](docs/24-remedy.md)
+
+Betrieb
+
+- [Troubleshooting](docs/07-troubleshooting.md)
+- [Gotchas](docs/gotchas.md)
 
 ## Lizenz
 
-MIT — siehe [LICENSE](LICENSE).
+MIT, siehe [LICENSE](LICENSE).

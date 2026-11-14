@@ -1,261 +1,91 @@
-# Architektur-Überblick
+# Architektur
 
-High-Level-Architektur des Home-Server-Setups.
+Ein einzelner Ubuntu-Host betreibt einen Single-Node-k3s-Cluster. Ansible richtet den Host ein, ArgoCD rollt alles unter `argocd/apps/` aus dem Branch `main` aus, und von außen ist der Server nur über Tailscale erreichbar.
 
----
+```text
+Laptop/Phone ── Tailscale (WireGuard, 100.64.0.0/10) ──┐
+LAN-Clients (192.168.178.0/24) ────────────────────────┤
+                                                       ▼
+homeserver 192.168.178.127 (Ubuntu Server 26.04 LTS)
+├── Host: UFW, tailscaled (Subnet-Router), chrony, systemd-resolved → Pi-hole,
+│         scanbd (USB-Scanner), restic-Timer
+└── k3s (Single-Node)
+    ├── Traefik :80/:443 ── Ingress *.homeserver ── App-Services
+    ├── MetalLB L2: .2 Pi-hole DNS, .3 Jellyfin, .4 Mosquitto
+    ├── ArgoCD :30080 ── ApplicationSet ── argocd/apps/* ◄── git pull ── GitHub (main)
+    └── CoreDNS, local-path-provisioner (NVMe), metrics-server
 
-## System-Architektur
-
+UGREEN NAS 192.168.178.118 (SMB): Paperless-consume, Medien, Backup-Repo
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                          INTERNET                                   │
-└────────────────────────────┬────────────────────────────────────────┘
-                             │ WireGuard / Tailscale
-                             ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                    TAILSCALE VPN OVERLAY                            │
-│                  (100.x.x.x Adressbereich)                          │
-│                                                                     │
-│   ┌─────────────┐         ┌──────────────┐      ┌──────────────┐   │
-│   │  Laptop /   │         │    Phone /   │      │   Remote     │   │
-│   │  Desktop    │◄───────►│    Tablet    │      │   Machine    │   │
-│   └─────────────┘         └──────────────┘      └──────────────┘   │
-└───────────────────────────────┬─────────────────────────────────────┘
-                                │ Tailscale MagicDNS / IP
-                                ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│                    HOME SERVER (192.168.178.127)                    │
-│                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐   │
-│  │                    Ubuntu 26.04 LTS                          │   │
-│  │  ┌────────────┐  ┌──────────────┐  ┌──────────────────────┐ │   │
-│  │  │ tailscaled │  │   chrony     │  │   UFW Firewall       │ │   │
-│  │  │ (Tailscale)│  │ (NTP sync)   │  │  (22,80,443,6443..)  │ │   │
-│  │  └────────────┘  └──────────────┘  └──────────────────────┘ │   │
-│  │  ┌──────────────┐  ┌─────────────────────────────────────┐  │   │
-│  │  │   host_dns   │  │   scanbd + SANE + scan_*.sh         │  │   │
-│  │  │ resolver →   │  │   (Fujitsu USB Scanner Pipeline)    │  │   │
-│  │  │ Pi-hole (k3s)│  │   ──► CIFS Mount auf UGREEN NAS     │  │   │
-│  │  │ *.homeserver │  │       (Paperless-NGX consume-Dir)   │  │   │
-│  │  └──────────────┘  └─────────────────────────────────────┘  │   │
-│  │                                                              │   │
-│  │  ┌──────────────────────────────────────────────────────┐   │   │
-│  │  │                   k3s (Kubernetes)                   │   │   │
-│  │  │                                                      │   │   │
-│  │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  │   │   │
-│  │  │  │   Traefik   │  │   ArgoCD    │  │  Workload   │  │   │   │
-│  │  │  │  (Ingress)  │  │  (GitOps)   │  │   Apps      │  │   │   │
-│  │  │  │  :80/:443   │  │  :30080     │  │  (siehe ↓)  │  │   │   │
-│  │  │  └──────┬──────┘  └──────┬──────┘  └─────────────┘  │   │   │
-│  │  │         │                │                           │   │   │
-│  │  │  ┌──────┴────────────────┴──────────────────────┐   │   │   │
-│  │  │  │  argocd/apps/ — verwaltet vom ApplicationSet:│   │   │   │
-│  │  │  │    metallb (LB-IP), pihole (DNS+Adblock),    │   │   │   │
-│  │  │  │    monitoring + monitoring-dashboards,        │   │   │   │
-│  │  │  │    sealed-secrets + kubeseal-webgui,         │   │   │   │
-│  │  │  │    semaphore,                                │   │   │   │
-│  │  │  │    headlamp, gotify, homepage, paperless-ai, │   │   │   │
-│  │  │  │    home-assistant, ha-mcp, jellyfin,          │   │   │   │
-│  │  │  │    mosquitto, media (Sonarr/Radarr/…),       │   │   │   │
-│  │  │  │    kubevirt, gameserver, gameserver-ui,      │   │   │   │
-│  │  │  │    remedy, rps-arena,                        │   │   │   │
-│  │  │  │    csi-driver-smb                            │   │   │   │
-│  │  │  └─────────────────────────────────────────────┘   │   │   │
-│  │  │                                                      │   │   │
-│  │  │  ┌──────────────────────────────────────────────┐   │   │   │
-│  │  │  │   Flannel VXLAN (Pod-Netz 10.42.0.0/16)      │   │   │   │
-│  │  │  └──────────────────────────────────────────────┘   │   │   │
-│  │  │                                                      │   │   │
-│  │  │  ┌──────────────────────────────────────────────┐   │   │   │
-│  │  │  │   local-path StorageClass (NVMe-SSD)         │   │   │   │
-│  │  │  └──────────────────────────────────────────────┘   │   │   │
-│  │  └──────────────────────────────────────────────────────┘   │   │
-│  └──────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────┘
-                                ▲
-                                │ git pull (HTTPS/SSH)
-                                │
-┌─────────────────────────────────────────────────────────────────────┐
-│                    GIT REPOSITORY (GitHub)                          │
-│                                                                     │
-│   home-server/                                                      │
-│   └── argocd/apps/          ← ArgoCD beobachtet dieses Verzeichnis │
-│       ├── metallb/          ← Jedes Unterverzeichnis = eine App    │
-│       ├── pihole/                                                  │
-│       ├── monitoring/                                              │
-│       ├── monitoring-dashboards/                                    │
-│       ├── sealed-secrets/                                          │
-│       ├── kubeseal-webgui/                                         │
-│       ├── headlamp/                                                │
-│       ├── semaphore/                                               │
-│       ├── gotify/                                                  │
-│       ├── homepage/                                                │
-│       ├── paperless-ai/                                            │
-│       ├── home-assistant/                                           │
-│       ├── ha-mcp/                                                   │
-│       ├── jellyfin/                                                 │
-│       ├── media/                                                    │
-│       ├── mosquitto/                                                │
-│       ├── kubevirt/                                                 │
-│       ├── gameserver/                                               │
-│       ├── gameserver-ui/                                            │
-│       ├── remedy/                                                   │
-│       ├── rps-arena/                                                │
-│       ├── csi-driver-smb/                                           │
-│       └── my-new-app/       ← Verzeichnis anlegen → auto-deployed  │
-└─────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## GitOps-Flow
-
-```
-Developer                Git Repo               ArgoCD              k3s Cluster
-    │                       │                     │                      │
-    │── git push ──────────►│                     │                      │
-    │                       │◄── poll (3 min) ────│                      │
-    │                       │─── diff erkannt ───►│                      │
-    │                       │                     │── kubectl apply ────►│
-    │                       │                     │                      │── Pods laufen
-    │                       │                     │◄── Status-Sync ──────│
-    │                       │                     │── Sync complete      │
-```
-
----
 
 ## Komponenten
 
-### Ubuntu 26.04 LTS (Base-OS)
+| Komponente | Rolle im Setup | Doku |
+|---|---|---|
+| Ubuntu Server 26.04 LTS | Host, eingerichtet von den Ansible-Rollen in [`site.yml`](../ansible/site.yml) | [Installation](03-installation.md) |
+| k3s | Kubernetes mit gebündeltem Traefik v3, CoreDNS, local-path-provisioner, metrics-server und Klipper-ServiceLB | [k3s](04-k3s.md) |
+| ArgoCD | GitOps-Controller, ein `ApplicationSet` erzeugt pro Verzeichnis unter `argocd/apps/` eine Application im gleichnamigen Namespace | [ArgoCD](05-argocd.md) |
+| Tailscale | VPN ohne offene Router-Ports, der Host gibt das LAN als Subnet-Route frei | [Tailscale](06-tailscale.md) |
+| MetalLB | feste LAN-IPs für Dienste, die nicht über Traefik laufen | [Pi-hole](15-pihole.md) |
+| Pi-hole | einziger DNS-Resolver im LAN und Tailnet, Wildcard `*.homeserver`, Adblock | [Pi-hole](15-pihole.md) |
+| cert-manager | eigene CA und ein Default-Zertifikat für alle `*.homeserver`-Ingresses | [Gotchas](gotchas.md#tls--https) |
+| VictoriaMetrics, Grafana, ntfy | Metriken, Logs, Dashboards und Alerting | [Monitoring](13-monitoring.md) |
+| Semaphore | Web-UI für Ansible-Läufe, täglicher Lauf von `site.yml` | [Semaphore](08-semaphore.md) |
+| restic | nächtliches Backup von Datastore, Sealed-Secrets-Keys und Volumes auf die NAS | [Backup](26-backup.md) |
 
-Das Fundament des ganzen Stacks. Konfiguriert durch die Ansible-Rolle `common`:
+## Apps unter `argocd/apps/`
 
-- Vollständiges `apt dist-upgrade` bei jedem Ansible-Run (gesteuert über `auto_upgrade`)
-- `unattended-upgrades` aktiv für tägliche Sicherheits-Patches im Hintergrund
-- Automatischer Reboot, wenn `/var/run/reboot-required` existiert (manuelle Läufe sofort, sonst durch `unattended-upgrades` um `unattended_reboot_time`)
-- UFW-Firewall mit minimal offenen Ports (SSH nur aus LAN, Tailnet und Pod-Netz)
-- SSH nur per Key, kein Root-Login (`/etc/ssh/sshd_config.d/10-hardening.conf`)
-- journald auf 500 MB / 1 Monat begrenzt
-- Kernel-Module für Container-Netzwerk (`br_netfilter`, `overlay`)
-- sysctl-Tuning für Kubernetes-Anforderungen
-- Chrony für NTP-Zeitsync
-- Swap deaktiviert (Kubernetes-Pflicht)
+| App | Zweck |
+|---|---|
+| `blackbox-exporter` | HTTP-Probes auf die Dienste |
+| `cert-manager` | TLS mit lokaler CA |
+| `csi-driver-smb` | SMB-Volumes von der NAS für Pods |
+| `gameserver` | 7 Days to Die als KubeVirt-VM ([Gameserver](19-gameserver.md)) |
+| `gameserver-ui` | Web-UI für den Gameserver ([Gameserver-UI](20-gameserver-ui.md)) |
+| `gotify` | Push-Benachrichtigungen, unter anderem vom Scanner ([Gotify](11-gotify.md)) |
+| `ha-mcp` | MCP-Server für Home Assistant ([HA-MCP](22-ha-mcp.md)) |
+| `headlamp` | Kubernetes-Web-UI |
+| `home-assistant` | Hausautomation ([Home Assistant](17-homeassistant.md)) |
+| `homepage` | Startseite `home.homeserver` ([Homepage](14-homepage.md)) |
+| `jellyfin` | Medienserver mit Quick-Sync-Transcoding ([Jellyfin](16-jellyfin.md)) |
+| `kubeseal-webgui` | Browser-UI zum Verschlüsseln von Sealed Secrets |
+| `kubevirt` | KubeVirt-Operator und CDI für VMs |
+| `media` | Prowlarr, SABnzbd, Sonarr, Radarr, Seerr ([Media-Stack](21-media-stack.md)) |
+| `metallb` | LoadBalancer im L2-Modus |
+| `monitoring` | VictoriaMetrics-Stack mit Grafana ([Monitoring](13-monitoring.md)) |
+| `monitoring-dashboards` | zusätzliche Grafana-Dashboards (ArgoCD, Pi-hole, NAS, Alerts) |
+| `mosquitto` | MQTT-Broker für das Nuki-Schloss ([Nuki/MQTT](18-nuki-mqtt.md)) |
+| `ntfy` | Push-Server für Alerts |
+| `paperless-ai` | KI-Tagging für Paperless-NGX ([Paperless-AI](12-paperless-ai.md)) |
+| `pihole` | DNS und Adblock ([Pi-hole](15-pihole.md)) |
+| `remedy` | KI-Operator für das Homelab ([Remedy](24-remedy.md)) |
+| `rps-arena` | Browser-Spiel ([RPS-Arena](25-rps-arena.md)) |
+| `sealed-secrets` | Controller, der `SealedSecret`s entschlüsselt |
+| `semaphore` | Ansible-Web-UI ([Semaphore](08-semaphore.md)) |
+| `smartctl-exporter` | SMART-/NVMe-Metriken der Host-Disk |
 
-### k3s (Kubernetes-Distribution)
+## Anfragen und DNS
 
-k3s ist eine CNCF-zertifizierte, produktionsreife Kubernetes-Distribution,
-optimiert für ressourcenarme Umgebungen. Auf dieser Hardware (i5 + 32 GB RAM)
-läuft k3s weit unter seinem Limit.
+Die FritzBox verteilt per DHCP `192.168.178.2` als DNS-Server, Tailnet-Geräte bekommen dieselbe Adresse über die Tailscale-DNS-Einstellungen und die Subnet-Route. Pi-hole beantwortet jede Anfrage für `*.homeserver` mit `192.168.178.127`. Dort nimmt Traefik auf Port 80 und 443 an, wählt den Ingress nach Hostname und leitet an den Service der App weiter. HTTPS nutzt das Default-Zertifikat von cert-manager.
 
-Mitgelieferte Komponenten:
+Jellyfin (`.3`) und Mosquitto (`.4`) haben eigene MetalLB-IPs, weil LAN-Geräte ohne Tailscale (Smart-TV, Nuki) sie direkt ansprechen. ArgoCD und RPS-Arena laufen zusätzlich als NodePort auf der Host-IP. Die Port-Freigaben stehen im [README](../README.md#netzwerk-und-sicherheit), das DNS-Setup samt Ausfallverhalten in [Pi-hole](15-pihole.md).
 
-- **Flannel** (VXLAN) für Pod-Networking
-- **Traefik v2** als Default-Ingress-Controller
-- **CoreDNS** für Cluster-DNS
-- **local-path Provisioner** für PersistentVolume-Storage
-- **metrics-server** für Resource-Metriken
+## Netze und IPs
 
-### ArgoCD (GitOps-Controller)
+| Adresse | Zweck |
+|---|---|
+| `192.168.178.0/24` | Heimnetz (`local_subnet`), Gateway `192.168.178.1` |
+| `192.168.178.2` | Pi-hole DNS (MetalLB-Pool `pihole-dns`) |
+| `192.168.178.3` | Jellyfin (MetalLB-Pool `jellyfin`) |
+| `192.168.178.4` | Mosquitto MQTT `:1883` (MetalLB-Pool `mosquitto`) |
+| `192.168.178.118` | UGREEN NAS `jays-ugreen` |
+| `192.168.178.127` | Home-Server, Traefik, NodePorts |
+| `100.64.0.0/10` | Tailnet (`tailscale_cidr`) |
+| `10.42.0.0/16` | k3s-Pods (`k3s_pod_cidr`) |
+| `10.43.0.0/16` | k3s-Services (`k3s_service_cidr`) |
 
-ArgoCD beobachtet das Git-Repository und gleicht den Cluster-State mit dem
-gewünschten YAML-State ab. Wird per Helm-Chart in den `argocd`-Namespace deployt.
+Alle MetalLB-Pools haben `autoAssign: false`. Eine IP bekommt nur ein Service, der sie ausdrücklich anfordert. Die Pools liegen in [`argocd/apps/metallb/templates/`](../argocd/apps/metallb/templates/).
 
-Der **ApplicationSet**-Controller erlaubt dynamisches Erzeugen von Applications
-aus Verzeichnis-Patterns: Ein neues Verzeichnis unter `argocd/apps/` anlegen,
-pushen, ArgoCD erzeugt automatisch eine neue Application und synct sie.
+## Sicherheit
 
-### Tailscale (VPN)
-
-Tailscale liefert ein WireGuard-basiertes Mesh-VPN. Der Home-Server wird
-zum Knoten im eigenen Tailscale-Netz, alle Services sind von jedem
-Tailscale-Gerät per MagicDNS-Hostname oder Tailscale-IP erreichbar, ohne
-Portfreigaben am Router.
-
-### Traefik (Ingress-Controller)
-
-Wird mit k3s mitgeliefert und routet HTTP/HTTPS in den Cluster. Services
-werden über `Ingress`-Resourcen oder Traefiks `IngressRoute`-CRD exponiert.
-
-### DNS (`*.homeserver` + Adblock via Pi-hole)
-
-DNS macht **Pi-hole** als einziger Resolver (`argocd/apps/pihole/`, in k3s auf
-der MetalLB-IP `192.168.178.2`). Es löst die `*.homeserver`-Wildcard autoritativ
-auf (`address=/homeserver/192.168.178.127`), so dass Apps als
-`grafana.homeserver`, `argocd.homeserver` etc. erreichbar sind. Es blockt netzwerkweit
-Werbung/Tracker. Das frühere Host-`dnsmasq` wurde abgelöst; der Host selbst
-fragt Pi-hole über die `host_dns`-Rolle (systemd-resolved → `.2`, FritzBox als
-Fallback). Setup, FritzBox- und Tailscale-Schritte:
-[`15-pihole.md`](15-pihole.md); die DNS-Trade-offs (SPOF):
-[`09-dns-architecture.md`](09-dns-architecture.md).
-
-### Scanner + Paperless-Pipeline
-
-Ein Fujitsu USB-Scanner hängt direkt am Host. `scanbd` hört auf den
-Hardware-Button und triggert Shell-Skripte (`scan_button.sh` →
-`scan_to_pdf.sh`), die ein PDF erzeugen und auf einem CIFS-Mount der
-UGREEN NAS ablegen, wo Paperless-NGX es einliest. Optional werden
-Gotify-Push-Notifications aus denselben Skripten verschickt.
-Vollständiges Setup: [`10-scanner.md`](10-scanner.md) und
-[`11-gotify.md`](11-gotify.md).
-
-### Monitoring-Stack (VictoriaMetrics + Grafana)
-
-Deployt via `argocd/apps/monitoring/`. VMSingle hält 15 Tage TSDB auf
-einem `local-path`-PVC, VMAgent scrapet `VMServiceScrape`/`VMPodScrape`
-**und** auto-konvertierte Prometheus-`ServiceMonitor`-CRDs, Grafana
-liefert vorinstallierte Dashboards (Node Exporter Full, VictoriaMetrics,
-Kubernetes Views) unter `http://grafana.homeserver`.
-
-### Sealed Secrets
-
-Der `sealed-secrets`-Controller von Bitnami (unter
-`argocd/apps/sealed-secrets/`) entschlüsselt cluster-interne
-`SealedSecret`-CRDs in normale Kubernetes-`Secret`s. `kubeseal-webgui`
-(`argocd/apps/kubeseal-webgui/`) ist eine kleine Browser-UI, die
-Klartext-Werte mit dem Public Key des Controllers verschlüsselt —
-ideal, um per-App-Secrets sicher ins GitOps-Repo zu committen.
-
-### Semaphore (Ansible-Web-UI)
-
-Läuft als k8s-Pod unter `argocd/apps/semaphore/`. Die Ansible-Rolle
-`semaphore_bootstrap` ruft die Semaphore-REST-API auf und legt
-Projects, Inventories, Repositories und Templates idempotent an —
-die UI ist nach dem ersten Playbook-Run sofort einsatzbereit.
-
----
-
-## Port-Übersicht
-
-| Port  | Protokoll | Komponente      | Scope            | Zweck                                |
-|-------|-----------|-----------------|------------------|--------------------------------------|
-| 22    | TCP       | SSH             | LAN + Tailscale  | Server-SSH-Zugriff                   |
-| 53    | UDP+TCP   | Pi-hole (.2)    | LAN + Tailscale  | DNS: `*.homeserver` + netzwerkweiter Adblock |
-| 80    | TCP       | Traefik         | LAN + Tailscale  | HTTP-Ingress                         |
-| 443   | TCP       | Traefik         | LAN + Tailscale  | HTTPS-Ingress                        |
-| 6443  | TCP       | k3s API-Server  | LAN + Tailscale  | Kubernetes-API                       |
-| 30080 | TCP       | ArgoCD NodePort | LAN + Tailscale  | ArgoCD-Web-UI (HTTP)                 |
-| 30443 | TCP       | ArgoCD NodePort | LAN + Tailscale  | ArgoCD-Web-UI (HTTPS)                |
-| 41641 | UDP       | Tailscale       | Internet         | WireGuard-VPN (Tailscale)            |
-| 10250 | TCP       | k3s-kubelet     | Intern           | kubelet-API                          |
-| 8472  | UDP       | Flannel VXLAN   | Intern           | Pod-Overlay-Netz                     |
-
----
-
-## Netzwerk-Übersicht
-
-| Netz                | CIDR              | Zweck                            |
-|---------------------|-------------------|----------------------------------|
-| Home-LAN            | 192.168.178.0/24  | Physikalisches Heimnetz          |
-| Tailscale-Overlay   | 100.64.0.0/10     | VPN-Mesh                         |
-| k3s-Pod-CIDR        | 10.42.0.0/16      | Pod-IPs                          |
-| k3s-Service-CIDR    | 10.43.0.0/16      | ClusterIP-Service-Adressen       |
-
----
-
-## Security-Modell
-
-- **Keine Ports ins Internet:** Remote-Zugriff ausschließlich über Tailscale.
-- **UFW-Firewall** blockt alles, was nicht explizit erlaubt ist.
-- **Tailscale-ACLs** können zusätzlich pro Gerät einschränken, welche Services erreichbar sind.
-- **ArgoCD** hat ausschließlich Read-Access auf das Git-Repo.
-- **Ansible-Vault** verschlüsselt sensitive Werte (Tailscale-Auth-Key, SMB-Password, Vault-Password, Tokens) at rest.
+Am Router ist kein Port freigegeben. UFW erlaubt 80, 443 und UDP 41641 von überall, alles Weitere nur aus LAN, Tailnet und den k3s-Netzen. NodePorts und Traefik laufen an UFW vorbei ([Gotchas](gotchas.md#host-hardening-common-rolle)). SSH akzeptiert nur Keys. Host-Secrets liegen als Ansible-Vault-Werte in [`all.yml`](../ansible/group_vars/all.yml), Cluster-Secrets als `SealedSecret` im Repo, und ArgoCD liest das Repo nur.

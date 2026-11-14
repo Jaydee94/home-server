@@ -1,193 +1,115 @@
-# 20: Gameserver-UI
+# Gameserver-UI
 
-Web-Oberfläche zur Verwaltung der 7DTD-KubeVirt-VM unter `http://gameserver.homeserver`.
+Eigene Next.js-App zum Verwalten des [7DTD-Gameservers](19-gameserver.md): VM starten und stoppen, Server-Config,
+Konsole, Logs, Backups, Mods und Spieler.
+
+| | |
+|---|---|
+| URL | http://gameserver.homeserver |
+| Namespace | `gameserver-ui` |
+| Quelle | App [`apps/gameserver-ui/`](../apps/gameserver-ui/) ([Entwickler-README](../apps/gameserver-ui/README.md)), Chart [`argocd/apps/gameserver-ui/`](../argocd/apps/gameserver-ui/) |
+| Image | `ghcr.io/jaydee94/gameserver-ui`, gepinnt per Digest |
+| CI | [`.github/workflows/gameserver-ui.yml`](../.github/workflows/gameserver-ui.yml) |
+
+![Dashboard](screenshots/02-dashboard.png)
 
 ## Architektur
 
-```
-Browser → Traefik (LAN/Tailnet) → Namespace gameserver-ui
-            Service :80 → Pod :3000 (Next.js standalone)
-                            ↓
-                  ServiceAccount gameserver-ui
-                  Role/RoleBinding im Namespace gameserver
-                            ↓
-                  KubeVirt API: VirtualMachine + VirtualMachineInstance
+```text
+Browser → Traefik → Service :80 → Pod :3000 (Next.js standalone, UID 10001, read-only rootfs)
+  ├─ KubeVirt-API (Role im Namespace gameserver): VM get/list/patch, VMI get/list
+  ├─ SSH als ubuntu zur VM-IP: docker, tar, unzip, Telnet-Tunnel auf Port 8081
+  ├─ VictoriaMetrics :8428: CPU und RAM der VM
+  └─ SMB-PVC gameserver-ui-data (//jays-ugreen/gameserver-data) → /mnt/gameserver-data (Backups)
 ```
 
-- **Authentifizierung:** Single-Admin, iron-session-Cookie. Das Admin-Passwort liegt im Klartext (`ADMIN_PASSWORD`, Key `adminPassword`) im SealedSecret `gameserver-ui-auth`; der Login vergleicht es timing-sicher (SHA-256 beider Seiten + `timingSafeEqual`). Es gibt **keinen** Hash und keine `ADMIN_PASSWORD_HASH`-Variable.
-  - `SESSION_SECRET` (Key `sessionSecret`, mind. 32 Zeichen) ist in Production Pflicht: fehlt es oder ist es zu kurz, verweigert die App zur Laufzeit jede Session-Nutzung (der Build läuft ohne Secret). Der Dev-Fallback gilt nur außerhalb von `NODE_ENV=production`.
-  - Login-Rate-Limit: 5 Fehlversuche pro Minute und IP (letzter `X-Forwarded-For`-Eintrag), danach `429` mit `Retry-After`. In-Memory, geht beim Pod-Neustart verloren.
-  - Neben der Middleware prüfen alle zustandsändernden API-Routen die Session selbst (`requireSession()`).
-- **VM-Steuerung:** PATCH `spec.runStrategy` (`Always` = starten, `Halted` = stoppen)
-- **Container-Neustart:** `POST /api/restart` → `saveworld` + `sudo docker restart 7dtd-server` via SSH (bei Online-Spielern 30 s Broadcast-Countdown). Startet nur den 7DTD-Container neu (nicht die VM); lädt u. a. neue Mods.
-- **Spielversion:** `GET /api/version` → Telnet `version` → `parseVersion` (`V 2.6 (b14)`)
-- **Metriken:** VictoriaMetrics-Abfragen via `/api/metrics`: CPU-Auslastung (`kubevirt_vmi_vcpu_seconds_total`) und RAM `X.X / Y.Y GB` (`kubevirt_vmi_memory_resident_bytes` / `kubevirt_vm_resource_requests`)
-- **RBAC:** Cross-Namespace: ServiceAccount im Namespace `gameserver-ui`, Role/RoleBinding im Namespace `gameserver` (nur `get/list` auf VMI, `get/list/patch` auf VM)
-- **Image:** `ghcr.io/jaydee94/gameserver-ui`; Build via GitHub Actions (`.github/workflows/gameserver-ui.yml`), Tags `sha-<short-sha>` und `stable`; deployt wird per Digest (siehe „Image-Rollout“)
+| Funktion | Umsetzung |
+|---|---|
+| Starten, Stoppen | PATCH `spec.runStrategy` (`Always` bzw. `Halted`) |
+| Neustart | `POST /api/restart`: bei Spielern online 30 s Vorwarnung, `saveworld`, dann `sudo docker restart 7dtd-server`. Die VM läuft weiter. |
+| Spielversion | Telnet `version`, z. B. `V 2.6 (b14)` |
+| Metriken | `kubevirt_vmi_vcpu_seconds_total`, `kubevirt_vmi_memory_resident_bytes`, `kubevirt_vm_resource_requests` |
+| Backups | `tar` von `/opt/7dtd/data/Saves` auf den NAS, behält die neuesten 7 (`BACKUP_KEEP`); Restore stoppt den Container und legt den alten Stand als `Saves.pre-restore` ab |
+| Mod-Upload | Zip als roher Body per SFTP auf die VM, `sudo unzip -o` nach `/opt/7dtd/mods`, maximal 100 MB (`MAX_MOD_UPLOAD_BYTES`) |
 
-## Seal-Prozedur
+Login: ein Admin, Session per iron-session-Cookie. `ADMIN_PASSWORD` liegt im Klartext im Secret und wird
+timing-sicher verglichen (SHA-256 beider Seiten, `timingSafeEqual`). Nach 5 Fehlversuchen pro Minute und IP antwortet
+der Login mit `429`. Der Zähler liegt im Speicher und geht beim Neustart verloren. Zustandsändernde API-Routen prüfen
+die Session zusätzlich selbst (`requireSession()`).
 
-Bei Erstinstallation oder Rotation:
+## Seiten
 
-```bash
-# 1. Neues SESSION_SECRET erzeugen
-SESSION_SECRET=$(openssl rand -hex 32)
+| Seite | Pfad | Inhalt | Screenshot |
+|---|---|---|---|
+| Dashboard | `/` | Status, CPU, RAM, Blutmond-Countdown, Version, Starten, Stoppen, Neustarten | [02](screenshots/02-dashboard.png) |
+| Spieler | `/players` | Online-Spieler mit Session-Dauer, Broadcast an alle | [03](screenshots/03-players.png) |
+| Konsole | `/console` | Telnet-Konsole | [04](screenshots/04-console.png) |
+| Logs | `/logs` | Live-Log des aktuellen Container-Starts mit Suche, Pause, Kopieren, Download; Telnet-Verbindungen standardmäßig ausgeblendet | [05](screenshots/05-logs.png) |
+| Config | `/config` | `serverconfig.xml` mit typgerechten Controls, Suche und XML-Expertenmodus; Speichern startet den Container neu | [06](screenshots/06-config.png) |
+| Backups | `/backups` | Erstellen, Inhalt ansehen, Download, Restore, Löschen | [07](screenshots/07-backups.png) |
+| Mods | `/mods` | Upload, Löschen, „Mods anwenden (Neustart)“; Stock-Mods (`0_TFP`, `TFP_`, `Xample_`) sind geschützt | [08](screenshots/08-mods.png) |
 
-# 2. Admin-Passwort festlegen
-read -s -p "Admin-Passwort: " PW; echo
+Die Config-Seite schreibt `/opt/7dtd/config/serverconfig.xml`. Damit das wirkt, muss die Datei vollständig sein und
+auf `serverfiles/sdtdserver.xml` gemountet werden ([Gameserver: Fallstricke](19-gameserver.md#fallstricke)).
 
-# 3. SESSION_SECRET sealen
-SEALED_SESSION=$(echo -n "$SESSION_SECRET" | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubeseal --raw --namespace gameserver-ui --name gameserver-ui-auth \
-   --controller-name sealed-secrets-controller \
-   --controller-namespace sealed-secrets \
-   --from-file=/dev/stdin')
+## Secrets
 
-# 4. Passwort sealen (Klartext; die App vergleicht es timing-sicher, es gibt keinen Hash)
-SEALED_PASSWORD=$(echo -n "$PW" | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubeseal --raw --namespace gameserver-ui --name gameserver-ui-auth \
-   --controller-name sealed-secrets-controller \
-   --controller-namespace sealed-secrets \
-   --from-file=/dev/stdin')
-
-# 5. Beide Werte in argocd/apps/gameserver-ui/values.yaml eintragen:
-#    sealedSecret.encryptedSessionSecret: "<SEALED_SESSION>"
-#    sealedSecret.encryptedAdminPassword: "<SEALED_PASSWORD>"
-```
-
-Anschließend committen und pushen; ArgoCD synct automatisch. `SESSION_SECRET` und `ADMIN_PASSWORD` sind im Deployment nicht mehr `optional`: Ohne das Secret `gameserver-ui-auth` (Keys `sessionSecret`, `adminPassword`) startet der Pod nicht (`CreateContainerConfigError`).
-
-### SSH-Host-Key pinnen (optional)
-
-Ohne `VM_SSH_HOST_FINGERPRINT` wird der Host-Key der VM nicht geprüft; die App loggt das einmal pro Prozessstart als Warnung. Zum Pinnen den SHA-256-Fingerprint (hex, ohne `:`) des VM-Host-Keys ermitteln, sealen (wie oben, `--name gameserver-ui-ssh`) und eintragen:
-
-```yaml
-# argocd/apps/gameserver-ui/values.yaml
-sshSecret:
-  encryptedHostFingerprint: "<SEALED_FINGERPRINT>"
-```
-
-Das Template rendert den Key `hostFingerprint` nur, wenn der Wert gesetzt ist; ohne Wert ändert sich nichts. Nach einer Neuinstallation der VM ändert sich der Host-Key — dann Fingerprint aktualisieren, sonst schlagen alle SSH-Verbindungen fehl.
-
-## Image-Rollout (Digest-Pin)
-
-`image.tag` in `argocd/apps/gameserver-ui/values.yaml` ist `stable@sha256:<digest>` mit `pullPolicy: IfNotPresent` — das Manifest benennt genau ein Image.
-
-1. Merge nach `main` mit Änderungen unter `apps/gameserver-ui/` → der Workflow baut und pusht `sha-<short-sha>` und `stable`. Das allein rollt nichts aus.
-2. Renovate (Manager `helm-values`) bemerkt den neuen Digest hinter `stable` und öffnet einen PR, der den Digest in `values.yaml` ersetzt.
-3. Merge dieses PRs → ArgoCD rollt das neue Image aus.
-
-Rollback: den Digest-PR reverten. Von Hand pinnen (z. B. wenn Renovate nicht warten soll): Digest aus der Zusammenfassung des Workflow-Runs nehmen (`gh run view <id>` bzw. Run-Seite, Abschnitt „Pushed ghcr.io/jaydee94/gameserver-ui“) und als `stable@sha256:…` eintragen.
-
-Pull Requests bauen das Image zur Kontrolle ebenfalls, pushen aber nichts.
-
-## Troubleshooting
-
-### Pod bleibt in CrashLoop / Login schlägt mit 500 fehl
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n gameserver-ui logs -l app=gameserver-ui --tail=50'
-```
-
-Ursache meistens: `SESSION_SECRET` (mind. 32 Zeichen) oder `ADMIN_PASSWORD` fehlen bzw. sind zu kurz (SealedSecret noch nicht versiegelt oder Controller hat Secret noch nicht entschlüsselt). Lösung: Seal-Prozedur oben durchführen, danach Pod neu starten:
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n gameserver-ui rollout restart deployment gameserver-ui'
-```
-
-### 502 vom /api/vm-Endpunkt
-
-RBAC-Problem: ServiceAccount hat keine Berechtigung auf die KubeVirt-Ressourcen:
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl auth can-i get virtualmachines -n gameserver \
-   --as=system:serviceaccount:gameserver-ui:gameserver-ui'
-# Expected: yes
-```
-
-Falls `no`: ArgoCD-Sync erzwingen (Role/RoleBinding im Namespace `gameserver` prüfen).
-
-### VM-Status bleibt "Unknown"
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n gameserver get vm,vmi'
-```
-
-Die VM muss im Namespace `gameserver` existieren und den Namen `7dtd-server` tragen.
-
-### Konsole zeigt `IOException … socket has been shut down`
-
-7DTD hält pro Telnet-Verbindung einen Writer-Thread (`TelnetConnection.handleWriting`),
-der das Server-Log fortlaufend an den Client broadcastet. Wird der Socket abrupt
-gekappt (`channel.destroy()` ohne vorheriges 7DTD-`exit`), stirbt dieser Thread beim
-nächsten Schreibvorgang mit `ERR/EXC IOException: Unable to write data … socket has
-been shut down`. Da 7DTD die jüngste Log-History auch an neu verbundene Clients
-sendet, erscheint der Fehler in der Ausgabe des **nächsten** Befehls.
-
-`telnetCommand` (`src/lib/telnet.ts`) meldet sich deshalb per `exit` ab (der Server
-schließt den Socket selbst) und filtert Server-Logzeilen (ISO-Zeitstempel) via
-`extractCommandOutput()` aus der angezeigten Ausgabe. Tritt der Fehler erneut auf, prüfen
-ob diese beiden Mechanismen noch greifen.
-
-### Mod-Upload schlägt mit 502 fehl / Mods werden nicht geladen
-
-`POST /api/mod-upload` entpackt die Zip auf der VM (`sudo unzip -o … -d /opt/7dtd/mods`)
-und 7DTD lädt aus `serverfiles/Mods`. Zwei VM-seitige Voraussetzungen müssen
-erfüllt sein (in `docs/19-gameserver.md` cloud-init verankert):
-
-1. **`unzip` installiert**: sonst `502` mit `sudo: unzip: command not found`.
-   Live nachinstallieren: `sudo apt-get install -y unzip`.
-2. **Bind-Mount `/opt/7dtd/mods → /home/sdtdserver/serverfiles/Mods`** in
-   `/opt/7dtd/docker-compose.yml`; sonst landet der Mod zwar auf dem Host, kommt
-   aber nie im Container an. Volume ergänzen, dann `cd /opt/7dtd && sudo docker
-   compose up -d` (Recreate, nicht nur `restart`; neue Mounts greifen erst beim
-   Recreate). Mod-Pfad laut vinanrra „Manual Mods": `serverfiles/Mods/<ModName>/`.
-
-Die Zip wird als roher Request-Body hochgeladen (`POST /api/mod-upload?filename=<name>.zip`)
-und per SFTP auf die VM gestreamt. Limit: **100 MB** (`MAX_MOD_UPLOAD_BYTES` in
-`src/lib/mods.ts`), darüber antwortet die Route mit `413`; größere Mods per `scp`
-direkt nach `/opt/7dtd/mods` kopieren. Die Route ist bewusst vom Middleware-`matcher`
-ausgenommen (Next.js würde den Body sonst komplett im RAM puffern) und prüft die
-Session selbst (`requireSession()`).
-
-Verifikation: Upload → `200`, Mod in der Liste, im Container sichtbar via
-`docker exec 7dtd-server ls /home/sdtdserver/serverfiles/Mods`.
-
-## End-to-End-Verifikation nach Merge
-
-1. `http://gameserver.homeserver` → Redirect auf `/login`
-2. Admin-Passwort eingeben → Dashboard mit `runStrategy: Halted`
-3. „Starten" → nach ~60 s VMI-Phase `Running` + Tailscale-IP sichtbar
-4. „Stoppen" (Bestätigungs-Dialog) → VMI verschwindet, Status `Stopped`
-5. RBAC-Negativtest: `kubectl auth can-i delete vm -n gameserver --as=system:serviceaccount:gameserver-ui:gameserver-ui` → `no`
-6. Konsole (`/console`): nacheinander `lp` und `gettime` senden → nur das jeweilige
-   Ergebnis (`Total of N …`, `Day X, HH:MM`) sichtbar, **keine** `ERR/EXC IOException`-Zeilen.
-   Gegenprobe `/logs`: keine neuen `IOException … socket has been shut down` nach Befehlen.
-7. Logs (`/logs`): Default-Ansicht ohne Telnet-Plumbing (`Telnet connection from/closed`,
-   `Executing command … by Telnet`); Toggle „Verbindungs-Logs" blendet es wieder ein.
-   Spielgeschehen (`GMSG … joined/died`, `Chat (…)`) bleibt in beiden Modi sichtbar.
-8. Dashboard: Kachel „Version" zeigt die aktive Spielversion (z. B. `V 2.6 (b14)`).
-9. Dashboard „↻ Neustarten" (bzw. Mods → „Mods anwenden"): Confirm → Container startet
-   neu (~1 Min); im `/logs` erscheinen Shutdown + Startup, danach läuft der Server wieder.
-
-## Implementierte Seiten
-
-| Seite | Pfad | Funktion |
+| SealedSecret | Keys | Pflicht |
 |---|---|---|
-| Dashboard | `/` | VM-Status, CPU/RAM/Version-Kacheln, Horde-Night-Countdown, Starten/Stoppen/**Neustarten** (Container-Restart) |
-| Logs | `/logs` | Live-Logs (`docker logs -f --since <Container-Start> --tail=2000 7dtd-server`, == LinuxGSM `sdtdserver-console.log`), zeigt nur den **aktuellen** Server-Start (frühere Boots gefiltert via `.State.StartedAt`); mit Suche, Pause, Kopieren, Download; Toggle „Verbindungs-Logs" blendet Telnet-Polling-Rauschen aus (Default aus) |
-| Console | `/console` | Interaktive Telnet-Console zur VM |
-| Config | `/config` | Alle ~70 serverconfig.xml-Settings (V2.6) mit typgerechten Controls (Dropdown/Toggle/Slider/Stepper), gruppiert (Akkordeon) + Suche; Map-Dropdown via `/api/worlds`; „Experten (XML)" für Rohbearbeitung; veraltete/unbekannte Properties (Gruppe „Sonstige") per 🗑 entfernbar. Speichern schreibt XML + Container-Neustart. Schreibt nach `/opt/7dtd/config/serverconfig.xml`; diese Datei MUSS per Bind-Mount auf die vom Server gelesene `serverfiles/sdtdserver.xml` zeigen und vollständig sein, sonst wirken Änderungen nicht bzw. crasht 7DTD (siehe `docs/19` → „Server-Config & Gameserver-UI") |
-| Backups | `/backups` | Backup erstellen (mit Retention), Download, Löschen |
-| Mods | `/mods` | Mod-Liste anzeigen/verwalten; „Mods anwenden (Neustart)" lädt hochgeladene Mods via Container-Restart. Stock-Mods (Präfix `0_TFP`/`TFP_`/`Xample_`, z. B. `0_TFP_Harmony`) sind als „System" markiert und vor Löschen geschützt, auch server-seitig (DELETE → 403) |
-| Players | `/players` | Online-Spieler mit Session-Dauer |
+| `gameserver-ui-auth` | `sessionSecret` (mind. 32 Zeichen), `adminPassword` | ja, sonst `CreateContainerConfigError` |
+| `gameserver-ui-ssh` | `privateKey`, `publicKey`, optional `hostFingerprint` | ja; der Public Key gehört in die cloud-init-Userdata der VM |
+| `gameserver-ui-smbcreds` | `username`, `password` | für Backups; ohne beide Werte entfällt der NAS-Mount |
+| `gameserver-ui-telnet` | `password` | nein; nur nötig, wenn `TelnetPassword` in der Server-Config gesetzt ist |
 
-## Weiterführend
+Sealen, hier am Beispiel von `gameserver-ui-auth` (bei mehreren Keys im selben Secret immer denselben `--name`):
 
-- Quellcode: `apps/gameserver-ui/`
-- Helm-Chart: `argocd/apps/gameserver-ui/`
-- Gameserver-Infra (KubeVirt VM, CronJobs, Tailscale): `docs/19-gameserver.md`
+```bash
+SESSION_SECRET=$(openssl rand -hex 32)
+echo -n "$SESSION_SECRET" | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+  'sudo kubeseal --raw --namespace gameserver-ui --name gameserver-ui-auth \
+   --controller-name sealed-secrets-controller --controller-namespace sealed-secrets \
+   --from-file=/dev/stdin'
+# dasselbe für das Admin-Passwort
+```
+
+Die Ausgaben in [`values.yaml`](../argocd/apps/gameserver-ui/values.yaml) eintragen (`sealedSecret.encryptedSessionSecret`,
+`sealedSecret.encryptedAdminPassword`, `sshSecret.*`, `smb.*`, `telnet.encryptedPassword`).
+
+Ohne `hostFingerprint` prüft die App den Host-Key der VM nicht und warnt einmal pro Prozessstart. Der Wert ist der
+SHA-256-Fingerprint als Hex ohne Doppelpunkte. Nach einer Neuinstallation der VM ändert er sich, dann schlagen alle
+SSH-Verbindungen fehl, bis er aktualisiert ist.
+
+## Image-Rollout
+
+`image.tag` ist `stable@sha256:<digest>` mit `pullPolicy: IfNotPresent`, das Manifest benennt also genau ein Image.
+
+1. Ein Merge nach `main` mit Änderungen unter `apps/gameserver-ui/` startet den Workflow: Type-Check, Lint, Tests,
+   dann Build und Push von `sha-<short-sha>` und `stable`. Ausgerollt ist damit noch nichts.
+2. Renovate (`helm-values`) sieht den neuen Digest hinter `stable` und öffnet einen PR für `values.yaml`.
+3. Der Merge dieses PRs rollt das Image aus. Rollback: PR reverten.
+
+Pull Requests bauen das Image nur zur Kontrolle und pushen nichts. Zum Pinnen von Hand steht der Digest in der
+Zusammenfassung des Workflow-Runs.
+
+## Betrieb
+
+```bash
+sudo kubectl -n gameserver-ui logs -l app=gameserver-ui --tail=50
+sudo kubectl -n gameserver-ui rollout restart deployment gameserver-ui
+sudo kubectl auth can-i patch virtualmachines -n gameserver \
+  --as=system:serviceaccount:gameserver-ui:gameserver-ui    # erwartet: yes
+```
+
+## Fallstricke
+
+- `502` auf `/api/vm` heißt meist fehlende RBAC: Role und RoleBinding liegen im Namespace `gameserver`, nicht im
+  Namespace der App.
+- Kappt der Client einen Telnet-Socket abrupt, stirbt 7DTDs Writer-Thread, und der nächste Befehl zeigt
+  `IOException … socket has been shut down`. `telnetCommand` (`src/lib/telnet.ts`) meldet sich deshalb mit `exit` ab
+  und filtert Logzeilen per `extractCommandOutput()`. Taucht der Fehler auf, diese beiden Stellen prüfen.
+- Mod-Upload mit `502 sudo: unzip: command not found`: `unzip` fehlt in der VM. Lädt 7DTD den Mod nicht, fehlt der
+  Bind-Mount `/opt/7dtd/mods` (siehe [Gameserver](19-gameserver.md#fallstricke)).
+- `/api/mod-upload` ist vom Middleware-`matcher` ausgenommen, damit Next.js den Body nicht komplett im RAM puffert.
+  Die Route prüft die Session selbst; größere Mods per `scp` nach `/opt/7dtd/mods` kopieren.
+- `/api/version` und der Neustart liefern `502 "Telnet timeout"`, wenn `TelnetPassword` gesetzt ist und nicht dem
+  Secret `gameserver-ui-telnet` entspricht.

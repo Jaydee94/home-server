@@ -1,443 +1,90 @@
-# ArgoCD-GitOps-Guide
+# ArgoCD
 
----
+ArgoCD synct alles unter `argocd/apps/` aus dem Branch `main` in den Cluster, auch sich selbst: Die App `argocd` kommt aus [`argocd/apps/argocd/`](../argocd/apps/argocd/). Ansible installiert ArgoCD nur auf einem frischen Cluster und legt die Bootstrap-Ressourcen an.
 
-## Zugriff
+| | |
+|---|---|
+| URL | http://\<server-ip\>:30080 (HTTPS: 30443), über Tailscale `http://homeserver:30080` |
+| Namespace | `argocd` |
+| Rolle | [`ansible/roles/argocd/`](../ansible/roles/argocd/) |
+| Quelle | [`argocd/apps/argocd/`](../argocd/apps/argocd/) (Chart-Version in `Chart.yaml`, Helm-Values unter `argo-cd:` in `values.yaml`) |
+| Make | `make argocd`, `make argocd-recover`, `make render-bootstrap` |
+| Chart | `argo/argo-cd` |
+| Bootstrap | [`argocd/bootstrap/`](../argocd/bootstrap/) |
 
-### Web-UI
+## Konfiguration
 
-ArgoCD läuft als NodePort-Service auf den Ports **30080** (HTTP) und **30443** (HTTPS).
+| Variable | Wert | Zweck |
+|---|---|---|
+| `argocd_repo_url` | `https://github.com/Jaydee94/home-server.git` | Repo für ApplicationSet und Bootstrap-App. Öffentlich, daher keine Repo-Credentials. |
+| `argocd_repo_revision` | `main` | Branch, Tag oder SHA, dem ArgoCD folgt |
 
-```
-http://<server-ip>:30080
-http://homeserver:30080          (via Tailscale-MagicDNS)
-http://100.x.x.x:30080           (via Tailscale-IP)
-```
+Die Helm-Values in [`argocd/apps/argocd/values.yaml`](../argocd/apps/argocd/values.yaml) setzen NodePort 30080/30443, HTTP ohne TLS im Server (`insecure: true`), je ein Replica ohne Redis-HA, einen Account `readonly` (nur API-Key, Rolle `role:readonly`) und globale `ignoreDifferences` in `argocd-cm` für StatefulSets, KubeVirt-VMs und CRDs. Die drei ArgoCD-CRDs tragen `Prune=false,Delete=false`, damit kein Sync die `Application`-CRD und damit alle Apps löschen kann.
 
-### Initial-Credentials
-
-Bei der Installation generiert ArgoCD ein zufälliges Initial-Passwort in einem Kubernetes-Secret.
-
-Auslesen:
-
-```bash
-kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath="{.data.password}" | base64 -d; echo
-```
-
-- **Username:** `admin`
-- **Passwort:** Output des Befehls
-
----
-
-## Erst-Login und Passwortwechsel
-
-1. `http://<server-ip>:30080` öffnen.
-2. Login mit `admin` + Initial-Passwort.
-3. **User-Icon** oben links anklicken.
-4. **User Info**.
-5. **Update Password**.
-6. Neues, starkes Passwort vergeben und bestätigen.
-7. **Save**.
-
-Nach dem Passwortwechsel kann das Initial-Secret optional gelöscht werden:
+Das Initial-Passwort gibt die Rolle nicht aus. Auslesen mit:
 
 ```bash
-kubectl -n argocd delete secret argocd-initial-admin-secret
+sudo kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
 ```
 
----
+Login ist `admin`. Alternativ zeigt `-e argocd_show_initial_password=true` das Passwort im Playbook-Log.
 
-## Repository-Konfiguration
+## Bootstrap
 
-Das Bootstrap-`ApplicationSet` ist so konfiguriert, dass es aus dem eigenen
-Git-Repo zieht. Bei **öffentlichem** Repo ist keine zusätzliche Konfiguration nötig.
+Die Rolle `argocd` liest Chart-Version und Values aus `argocd/apps/argocd/` und führt `helm upgrade --install` nur aus, wenn noch kein `argocd-server` läuft. Auf einem bestehenden Cluster lässt sie ArgoCD in Ruhe. Danach wendet sie zwei Ressourcen an:
 
-### Privates Repository
+| Datei | Ressource | Aufgabe |
+|---|---|---|
+| [`bootstrap-app.yaml`](../argocd/bootstrap/bootstrap-app.yaml) | Application `bootstrap` | Synct `argocd/bootstrap/` aus Git, sich selbst per `directory.exclude` ausgenommen |
+| [`root-applicationset.yaml`](../argocd/bootstrap/root-applicationset.yaml) | ApplicationSet `home-server-apps` | Macht aus jedem Verzeichnis unter `argocd/apps/*` eine Application |
 
-Bei privatem Repo Credentials über UI oder CLI hinterlegen:
+Änderungen am ApplicationSet wirken nach dem Push, ohne `make argocd`. Beide Dateien sind aus den Templates in `ansible/roles/argocd/templates/` generiert. Template ändern, dann `make render-bootstrap` und beides committen. Die generierten Dateien nicht von Hand bearbeiten.
 
-**Über die UI:**
+Jede generierte Application heißt wie ihr Verzeichnis und deployt in den gleichnamigen Namespace. Das ApplicationSet setzt:
 
-1. **Settings → Repositories**
-2. **Connect Repo**
-3. **HTTPS** oder **SSH** wählen
-4. Repo-URL und Credentials eingeben
+| Einstellung | Wirkung |
+|---|---|
+| `automated: prune, selfHeal` | Synct jeden Push, löscht aus Git entfernte Ressourcen, dreht manuelle Änderungen zurück |
+| `retry` (5×, 10 s bis 5 min) | Fängt Reihenfolgeprobleme beim ersten Sync ab, etwa CRD und CR im selben Sync |
+| `CreateNamespace`, `ServerSideApply`, `SkipDryRunOnMissingResource` | Namespace anlegen, SSA, kein Dry-Run gegen noch fehlende CRDs |
+| `RespectIgnoreDifferences` | Ignorierte Felder werden auch nicht angewendet |
+| `preserveResourcesOnDeletion: true` | Verschwindet ein App-Verzeichnis, bleiben dessen Ressourcen und PVCs stehen |
 
-**Über die CLI:**
+Was `ignoreDifferences`, Prune und das Löschen von Apps im Detail bedeuten, steht in [Gotchas: ArgoCD / GitOps](gotchas.md#argocd--gitops).
+
+## App hinzufügen
+
+Der Skill `/add-app` legt das Gerüst an. Von Hand:
+
+1. `argocd/apps/<name>/` anlegen, mit Plain-Manifests, `kustomization.yaml` oder einem Helm-Chart (`Chart.yaml` plus `values.yaml`).
+2. Bei eigenem Chart Service, Ingress, PVC und NetworkPolicy aus der Library [`argocd/lib/common`](../argocd/lib/common/README.md) einbinden (`repository: file://../../lib/common`).
+3. Bei einem Ingress den Hostnamen in [`argocd/apps/cert-manager/values.yaml`](../argocd/apps/cert-manager/values.yaml) unter `ingressTls.hosts` eintragen.
+4. Eigene `local-path`-PVCs mit `argocd.argoproj.io/sync-options: Delete=false,Prune=false` annotieren (macht `common.pvc` automatisch).
+5. PR öffnen, nach grüner CI mergen. ArgoCD pollt das Repo und legt die App nach etwa 3 Minuten an.
+
+Ruft die neue App in einen isolierten Namespace hinein, muss dessen NetworkPolicy den Aufrufer erlauben ([Gotchas: NetworkPolicies](gotchas.md#networkpolicies)).
+
+## Upgrades
+
+Renovate erkennt das `argo-cd`-Chart über die Dependency in `argocd/apps/argocd/Chart.yaml` und öffnet PRs, die nie automatisch gemergt werden. Nach dem Merge rollt ArgoCD die neue Version innerhalb weniger Minuten selbst aus; der Application-Controller startet dabei neu und setzt den Sync danach fort.
+
+Zerschießt ein Upgrade ArgoCD so, dass es sich nicht mehr selbst reparieren kann, den Fix (oder die alte Version) in `argocd/apps/argocd/` mergen und `make argocd-recover` ausführen. Das spielt den Git-Stand per Helm ein (`-e argocd_force_helm=true`). Das Helm-Release-Secret aus dem Bootstrap bleibt liegen, `helm list -n argocd` zeigt deshalb nicht die laufende Version; maßgeblich ist `sudo kubectl -n argocd get application argocd`.
+
+Für Charts und Images unter `argocd/apps/` mergt Renovate Patch-Updates automatisch. Minor und Major bleiben manuell, ebenso jedes Update der Kernkomponenten (ArgoCD, KubeVirt, Monitoring, MetalLB, cert-manager, Pi-hole, Sealed Secrets, kubeseal-webgui, Home Assistant, Postgres). Die Regeln stehen in [`renovate.json`](../renovate.json).
+
+## Betrieb
 
 ```bash
-# HTTPS mit User/Password oder Token
-argocd repo add https://github.com/YOUR_USER/home-server.git \
-  --username YOUR_USER \
-  --password YOUR_TOKEN
+# Alle Apps mit Sync- und Health-Status
+sudo kubectl -n argocd get applications
 
-# SSH mit Key
-argocd repo add git@github.com:YOUR_USER/home-server.git \
-  --ssh-private-key-path ~/.ssh/id_ed25519
+# Fehler des ApplicationSets (z. B. kaputtes Template)
+sudo kubectl -n argocd describe applicationset home-server-apps
 
-# Repos prüfen
-argocd repo list
+# Sofort neu aus Git lesen statt auf den Poll zu warten
+sudo kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite
+
+# Render- und Sync-Fehler
+sudo kubectl -n argocd logs deploy/argocd-repo-server --tail=100
+sudo kubectl -n argocd logs statefulset/argocd-application-controller --tail=100
 ```
-
-**Über ein Kubernetes-Secret:**
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: home-server-repo
-  namespace: argocd
-  labels:
-    argocd.argoproj.io/secret-type: repository
-type: Opaque
-stringData:
-  type: git
-  url: https://github.com/YOUR_USER/home-server.git
-  password: ghp_YOUR_GITHUB_TOKEN
-  username: YOUR_USER
-```
-
-```bash
-kubectl apply -f repo-secret.yaml
-```
-
----
-
-## ApplicationSet-Struktur
-
-Das Bootstrap-`ApplicationSet` (`argocd/bootstrap/root-applicationset.yaml`) nutzt
-den Git-Directory-Generator, um aus Unterverzeichnissen automatisch
-ArgoCD-Applications zu erzeugen.
-
-```yaml
-generators:
-  - git:
-      repoURL: https://github.com/YOUR_USER/home-server.git
-      revision: HEAD
-      directories:
-        - path: "argocd/apps/*"
-```
-
-**Funktionsweise:**
-
-- ArgoCD scannt `argocd/apps/` im Git-Repo.
-- Jedes Unterverzeichnis wird zu einer ArgoCD-**Application**.
-- Application-Name = Verzeichnisname.
-- Ziel-Namespace = Verzeichnisname.
-- ArgoCD synct den Inhalt des Verzeichnisses in den Cluster.
-
-**Aktuelle Verzeichnis-Struktur in diesem Repo:**
-
-```
-argocd/apps/
-├── csi-driver-smb/      → SMB-CSI-Driver (NAS-Mounts)
-├── gameserver/          → 7 Days to Die (KubeVirt VM, Tailscale only)
-├── gameserver-ui/       → Web-Oberfläche für die 7DTD-VM (gameserver.homeserver)
-├── gotify/              → Push-Notification-Server (Android/iOS-Client)
-├── ha-mcp/              → Home Assistant MCP-Server (ha-mcp.homeserver/<secret>)
-├── headlamp/            → Web-basiertes Kubernetes-Dashboard
-├── home-assistant/      → Home Automation (Solakon ONE, Zigbee ZHA, MQTT)
-├── homepage/            → Zentrales Dashboard (home.homeserver)
-├── jellyfin/            → Media-Server (MetalLB LAN-IP, NAS via SMB)
-├── kubeseal-webgui/     → Browser-UI zum Erzeugen von SealedSecrets
-├── kubevirt/            → KubeVirt Operator + CDI (VMs im Cluster)
-├── media/               → Sonarr / Radarr / Prowlarr / SABnzbd / Seerr
-├── metallb/             → L2-LoadBalancer (Pi-hole .2, Mosquitto .4, Jellyfin .3)
-├── monitoring/          → VictoriaMetrics + Grafana + node-exporter +
-│                          kube-state-metrics + Alertmanager
-├── monitoring-dashboards/ → Extra Grafana-Dashboards als ConfigMaps
-├── mosquitto/           → MQTT-Broker (MetalLB .4:1883) für Nuki Smart Lock
-├── paperless-ai/        → KI-gestützte Dokumenten-Kategorisierung
-├── pihole/              → Netzwerkweiter DNS-Adblock (pihole.homeserver/admin/login)
-├── remedy/              → KI-Operator: Alerts lesen, NAS prüfen, Fixes vorschlagen
-├── rps-arena/           → Rock-Paper-Scissors Browser-Game (rps-arena.homeserver)
-├── sealed-secrets/      → bitnami-labs SealedSecrets-Controller
-└── semaphore/           → Web-UI zum Ausführen von Ansible-Playbooks
-```
-
-Jedes Verzeichnis wird zu einer `Application` mit gleichem Namen und Namespace.
-Eine neue App ist drei Schritte entfernt: Verzeichnis unter `argocd/apps/<name>/`
-anlegen (plain Manifests, `kustomization.yaml` **oder** Helm-Chart mit
-`Chart.yaml` + `values.yaml`), committen, pushen; ArgoCD greift in
-~3 Minuten zu.
-
----
-
-## Bootstrap-Application (ArgoCD-Selbstverwaltung)
-
-Das `ApplicationSet` (`argocd/bootstrap/root-applicationset.yaml`) wird von
-Ansible einmalig auf den Cluster angewendet. Danach übernimmt ArgoCD via einer
-**Bootstrap-Application** (`argocd/bootstrap/bootstrap-app.yaml`) die Verwaltung
-des `argocd/bootstrap/`-Verzeichnisses aus Git:
-
-```
-Git: argocd/bootstrap/
-  ├── root-applicationset.yaml   ← ArgoCD synct und verwaltet dieses
-  └── bootstrap-app.yaml         ← wird NICHT gesynct (exclude)
-```
-
-**Funktionsweise:**
-
-- Die Bootstrap-Application beobachtet `argocd/bootstrap/` im Git-Repo.
-- `bootstrap-app.yaml` selbst ist aus dem Sync-Scope ausgeschlossen
-  (`directory.exclude: bootstrap-app.yaml`) um eine zirkuläre Abhängigkeit zu
-  vermeiden.
-- Änderungen an `root-applicationset.yaml` im Git werden dadurch **automatisch**
-  auf den Cluster angewendet, kein `make argocd` mehr nötig.
-
-**Status prüfen:**
-
-```bash
-ssh jaydee@192.168.178.127 \
-  'sudo kubectl -n argocd get application bootstrap'
-# NAME        SYNC STATUS   HEALTH STATUS
-# bootstrap   Synced        Healthy
-```
-
-**`ignoreDifferences`** im ApplicationSet verhindert, dass ArgoCD Laufzeit-Änderungen
-an bestimmten Feldern zurückdreht (z.B. `runStrategy` der Gameserver-VM).
-
----
-
-## Neue Application hinzufügen
-
-Der GitOps-Workflow für neue Apps:
-
-1. Verzeichnis `argocd/apps/<app-name>/` anlegen.
-2. Kubernetes-Manifests oder Helm-Chart hineinlegen.
-3. `git add` + `git commit` + `git push`.
-4. ArgoCD erkennt das neue Verzeichnis innerhalb von ~3 Minuten.
-5. ArgoCD erzeugt eine Application und synct sie.
-
-**Beispiel: App mit Plain-Manifest**
-
-```bash
-mkdir -p argocd/apps/my-app
-cat > argocd/apps/my-app/deployment.yaml << 'EOF'
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: my-app
-  namespace: my-app
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: my-app
-  template:
-    metadata:
-      labels:
-        app: my-app
-    spec:
-      containers:
-        - name: my-app
-          image: nginx:alpine
-          ports:
-            - containerPort: 80
-EOF
-
-git add argocd/apps/my-app/
-git commit -m "feat: add my-app"
-git push
-```
-
-**Beispiel: App als Helm-Chart**
-
-```bash
-mkdir -p argocd/apps/my-helm-app/templates
-
-# Chart.yaml, values.yaml, templates/ — standard Helm-Chart-Struktur
-# ArgoCD erkennt Chart.yaml und behandelt das Verzeichnis als Helm-Chart
-```
-
----
-
-## Sync-Policies
-
-Das Bootstrap-`ApplicationSet` konfiguriert Apps mit voller Automation:
-
-```yaml
-syncPolicy:
-  automated:
-    prune: true      # Resources, die aus Git entfernt wurden, löschen
-    selfHeal: true   # Manuelle Änderungen am Cluster zurückdrehen
-  syncOptions:
-    - CreateNamespace=true    # Ziel-Namespace automatisch erstellen
-    - ServerSideApply=true    # Server-Side-Apply für bessere Field-Ownership
-```
-
-**Bedeutung:**
-
-| Policy           | Effekt                                                              |
-|------------------|---------------------------------------------------------------------|
-| `automated`      | ArgoCD synct automatisch bei Git-Changes (kein manueller Sync nötig)|
-| `prune: true`    | Aus Git entfernte Resources werden vom Cluster gelöscht             |
-| `selfHeal: true` | Manuelle `kubectl`-Änderungen werden auf den Git-Stand zurückgedreht|
-| `CreateNamespace`| Ziel-Namespace wird erzeugt, falls nicht vorhanden                  |
-| `ServerSideApply`| Nutzt `kubectl apply --server-side` für besseres Field-Management   |
-
-**Automated Sync für eine einzelne App deaktivieren:**
-
-Für eine App, die manuell kontrolliert werden soll, ein eigenes
-`Application`-Manifest hinterlegen, das die Sync-Policy überschreibt:
-
-```yaml
-# argocd/apps/my-careful-app/argocd-application.yaml
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: my-careful-app
-  namespace: argocd
-  annotations:
-    argocd.argoproj.io/skip-reconcile: "true"  # nicht durch das ApplicationSet überschreiben
-spec:
-  syncPolicy: {}  # nur manueller Sync
-```
-
----
-
-## CLI-Nutzung
-
-ArgoCD-CLI installieren:
-
-```bash
-# Linux
-curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-chmod +x argocd && sudo mv argocd /usr/local/bin/
-
-# macOS
-brew install argocd
-```
-
-### Gängige CLI-Kommandos
-
-**Authentifizierung:**
-
-```bash
-# Login
-argocd login 192.168.178.127:30080 --username admin --password <password> --insecure
-
-# Via Tailscale
-argocd login homeserver:30080 --username admin --password <password> --insecure
-
-# Aktueller Context
-argocd context
-```
-
-**Applications:**
-
-```bash
-# Alle Apps auflisten
-argocd app list
-
-# Details
-argocd app get gotify
-
-# Manuell syncen
-argocd app sync gotify
-
-# Sync mit Prune (überflüssige Resources entfernen)
-argocd app sync gotify --prune
-
-# Spezifische Resource syncen
-argocd app sync gotify --resource apps:Deployment:gotify
-
-# Auf Sync warten
-argocd app wait gotify --sync
-
-# Logs
-argocd app logs gotify
-
-# Diff (was würde sich ändern)
-argocd app diff gotify
-
-# Rollback auf vorherige Revision
-argocd app rollback gotify 1   # Revision-Nummer aus der Historie
-
-# Historie
-argocd app history gotify
-
-# App löschen (löscht Default-mäßig KEINE Cluster-Resources)
-argocd app delete gotify
-
-# App UND Cluster-Resources löschen
-argocd app delete gotify --cascade
-```
-
-**Repositories:**
-
-```bash
-# Repos auflisten
-argocd repo list
-
-# Repo hinzufügen
-argocd repo add https://github.com/YOUR_USER/home-server.git
-
-# Repo entfernen
-argocd repo rm https://github.com/YOUR_USER/home-server.git
-```
-
-**Accounts:**
-
-```bash
-# Accounts auflisten
-argocd account list
-
-# Passwort ändern
-argocd account update-password
-
-# API-Token generieren
-argocd account generate-token --account admin
-```
-
----
-
-## Health-Status
-
-ArgoCD führt zwei Status-Werte pro Application:
-
-**Sync-Status:**
-
-- `Synced`: Cluster stimmt mit Git überein
-- `OutOfSync`: Unterschiede zwischen Git und Cluster
-- `Unknown`: Status nicht ermittelbar
-
-**Health-Status:**
-
-- `Healthy`: alle Resources gesund
-- `Progressing`: Resources deployen/updaten gerade
-- `Degraded`: Resources schlagen fehl
-- `Missing`: Resources noch nicht vorhanden
-- `Suspended`: Resources pausiert (z. B. CronJob)
-- `Unknown`: Health nicht ermittelbar
-
-Über die UI unter **Applications** oder per CLI:
-
-```bash
-argocd app list
-# NAME   CLUSTER   NAMESPACE   PROJECT   STATUS   HEALTH   ...
-```
-
----
-
-## Notifications & Webhooks
-
-### GitHub-Webhook (schnellerer Sync)
-
-Default-mäßig pollt ArgoCD das Git-Repo alle 3 Minuten. Mit einem GitHub-Webhook
-wird der Sync sofort nach jedem Push ausgelöst:
-
-1. GitHub-Repo → **Settings → Webhooks**.
-2. **Add webhook**.
-3. Payload-URL: `http://<tailscale-ip>:30080/api/webhook`.
-4. Content type: `application/json`.
-5. **Just the push event**.
-6. **Add webhook**.
-
-Hinweis: Der Server muss aus den GitHub-Servern erreichbar sein. Über Tailscale
-geht das nur, wenn er als
-[Tailscale-Exit-Node](06-tailscale.md) eingerichtet oder Subnet-Routing
-konfiguriert ist.
-
-Alternativ ist der 3-Minuten-Poll für einen Home-Server völlig ausreichend.

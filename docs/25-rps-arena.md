@@ -1,82 +1,43 @@
-# rps-arena: Rock-Paper-Scissors Browser-Game
+# RPS-Arena
 
-**URL:** http://rps-arena.homeserver
+Schere-Stein-Papier im Browser: eine eigene Svelte-SPA mit Socket.IO-Backend und mitgeliefertem Redis.
 
-Ein browserbasiertes Rock-Paper-Scissors-Spiel (Svelte SPA + Socket.IO Backend)
-mit Turnier-Modus, Bot-Gegnern und Deutsch/Englisch-Lokalisierung.
-
----
+| | |
+|---|---|
+| URL | http://rps-arena.homeserver · ohne DNS: `http://192.168.178.127:30808` |
+| Namespace | `rps-arena` |
+| Quelle | [`argocd/apps/rps-arena/`](../argocd/apps/rps-arena/) (Wrapper-Chart, Werte unter `rps-arena:`) |
+| Chart | `oci://ghcr.io/jaydee94/charts/rps-arena` 1.4.0, Code: [Jaydee94/rps-arena](https://github.com/Jaydee94/rps-arena) |
 
 ## Architektur
 
-```
-Browser
-  │  HTTP + WebSocket (socket.io)
-  ▼
-Traefik (kube-system) → Ingress rps-arena.homeserver
-  │
-  ▼
-rps-arena Pod (Port 8080)
-  │  REDIS_URL (intern)
-  ▼
-Redis Pod (bundled, same namespace)
-  │  PVC: local-path 1Gi
+```text
+Browser ── HTTP + WebSocket ──→ Traefik (Ingress rps-arena.homeserver) ──┐
+Browser im LAN ──→ NodePort 30808 (rps-arena-nodeport) ──────────────────┤
+                                                                         ▼
+                                         rps-arena Pod :8080 ──→ Redis (PVC local-path 1Gi)
 ```
 
-- **Image:** `ghcr.io/jaydee94/rps-arena`; Renovate hält Tag aktuell
-- **Helm-Chart:** `oci://ghcr.io/jaydee94/charts/rps-arena` (selbe Versionierung)
-- **Redis:** bundled, in-namespace, kein externes Secret nötig
-- **Replica-Count:** 1, kein Sticky-Session-Middleware erforderlich
-
----
-
-## Deployment
-
-Der App-Ordner `argocd/apps/rps-arena/` wird vom Root-ApplicationSet automatisch
-erkannt. Nach einem `git push` auf `main` synchronisiert ArgoCD innerhalb von ~3 Minuten.
-
-ArgoCD erstellt den Namespace `rps-arena` automatisch (`CreateNamespace=true`).
-
----
-
-## Traefik WebSocket
-
-Traefik v2 verarbeitet WebSocket-Upgrades (HTTP → WS) **nativ** ohne zusätzliche
-Annotationen. Die nginx-spezifischen Timeout-Annotationen aus dem Chart-Default
-(`nginx.ingress.kubernetes.io/proxy-*-timeout`) werden bewusst überschrieben:
-`ingress.annotations: {}`.
-
----
+Traefik reicht WebSocket-Upgrades ohne Annotationen durch. `ingress.annotations: {}` überschreibt die
+nginx-Timeout-Annotationen aus dem Chart-Default.
 
 ## Konfiguration
 
-Alle Werte liegen in `argocd/apps/rps-arena/values.yaml`.
-
-| Wert | Default | Beschreibung |
+| Wert unter `rps-arena:` | Default | Zweck |
 |---|---|---|
-| `replicaCount` | 1 | Einzel-Replica (kein Sticky-Session-Bedarf) |
-| `ingress.host` | `rps-arena.homeserver` | LAN + Tailnet via dnsmasq-Wildcard |
-| `redis.maxmemory` | 100mb | Redis-Speicher-Cap (volatile-lru Eviction) |
-| `redis.persistence.size` | 1Gi | PVC für Redis (local-path) |
+| `replicaCount` | `1` | eine Replica, daher keine Sticky Sessions nötig |
+| `ingress.host` | `rps-arena.homeserver` | Hostname, auch in `ingressTls.hosts` von cert-manager |
+| `redis.maxmemory` / `redis.maxmemoryPolicy` | `100mb` / `volatile-lru` | Speichergrenze von Redis |
+| `redis.persistence.size` | `1Gi` | PVC für Redis |
 
----
-
-## Upgrade
-
-Renovate öffnet automatisch PRs wenn eine neue Chart-Version erscheint.
-Merge auf `main` → ArgoCD rollt das neue Image aus.
-
-Manueller Rollback (falls nötig):
-
-```bash
-# Chart-Version in values.yaml zurücksetzen, committen, pushen
-# ArgoCD erkennt den Diff und rollt zurück
-```
-
----
+Renovate hebt die Chart-Version in `Chart.yaml` per PR an. Rollback: diesen PR reverten.
 
 ## NetworkPolicy
 
-Nur Traefik (`kube-system`) und Monitoring dürfen von außen in den Namespace.
-Der interne Redis-Traffic läuft über `podSelector: {}` (same namespace).
-Details: `docs/23-network-policies.md`.
+`rps-arena-namespace-isolation` lässt Ingress nur aus dem eigenen Namespace (App zu Redis), aus `kube-system`
+(Traefik), aus `monitoring` und aus `192.168.178.0/24` zu. Mehr dazu in [NetworkPolicies](23-network-policies.md).
+
+## Fallstricke
+
+- Der NodePort-Service braucht `externalTrafficPolicy: Local`. Mit `Cluster` ersetzt kube-proxy die Client-IP durch
+  eine Pod-CIDR-Adresse, und die `ipBlock`-Regel für das LAN greift nicht mehr.
