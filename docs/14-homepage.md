@@ -1,84 +1,68 @@
-# 14: Homepage Dashboard
+# Homepage
 
-[gethomepage/homepage](https://gethomepage.dev) ist das zentrale Startpage-Dashboard
-des Home Servers.
+[gethomepage/homepage](https://gethomepage.dev) ist die Startseite des Home-Servers mit Links und Status-Widgets für alle Dienste.
 
-## URL
+| | |
+|---|---|
+| URL | http://home.homeserver, ohne Hostname auch http://192.168.178.127 |
+| Namespace | `homepage` |
+| Quelle | [`argocd/apps/homepage/`](../argocd/apps/homepage/) |
+| Chart | `jameswynn/homepage` (Version in [`Chart.yaml`](../argocd/apps/homepage/Chart.yaml)) |
 
-`http://home.homeserver` (LAN + Tailnet via Pi-hole-Wildcard `*.homeserver`)
+## Konfiguration
 
-## Konfiguration ändern
-
-Alle Einstellungen leben in `argocd/apps/homepage/values.yaml` (GitOps):
+Alle Einstellungen stehen in [`values.yaml`](../argocd/apps/homepage/values.yaml) unter `homepage.config`:
 
 | Key | Inhalt |
 |---|---|
-| `homepage.config.services` | Dienste, Links, Widget-Konfiguration |
-| `homepage.config.widgets` | Header-Widgets (Kubernetes, Uhrzeit, Suche) |
-| `homepage.config.settings` | Theme, Layout, Titel |
+| `services` | Gruppen `Cluster`, `Media`, `NAS`, `Tools` mit Links und Widgets |
+| `widgets` | Kopfzeile: Kubernetes, Host-Ressourcen, Datum, Google-Suche |
+| `settings` | Dark-Theme `teal`, `useEqualHeights: true`, Spalten je Gruppe unter `layout` |
 
-Änderungen committen + auf `main` mergen → ArgoCD synct automatisch.
+Das Custom-CSS liegt in der ConfigMap `homepage-custom-css` ([`configmap-custom-css.yaml`](../argocd/apps/homepage/templates/configmap-custom-css.yaml)) und wird nach `/app/config/custom.css` gemountet. Stabile Selektoren sind `body`, `#information-widgets` und `.service-card`. Die Hintergrundfarbe sitzt auf `body`, weil der Inhalts-Wrapper transparent ist.
 
-## Design
+Die IngressRoute `homepage-catchall` (Priorität 1) leitet Aufrufe ohne passenden Host-Header auf die Homepage, damit Traefik dort keinen 404 liefert.
 
-Google-/Material-inspiriertes Dark-Theme mit Teal-Akzent:
+Widgets sprechen die Dienste cluster-intern an, etwa `http://argocd-server.argocd.svc.cluster.local` oder `http://sonarr.media.svc.cluster.local:8989`. Portainer und Paperless liegen auf der NAS (`jays-ugreen`).
 
-- `theme: dark` (fest), `color: teal`, `headerStyle: clean`, `iconStyle: color`
-- **Angepasstes Raster:** Cluster `columns: 3`, Media `columns: 2`, NAS + Tools `columns: 4`
-- **Gleich hohe Karten:** `useEqualHeights: true`, verhindert unterschiedlich
-  große Kacheln (Karten mit Widget wären sonst höher als Karten ohne)
-- Zentrierte Inhaltsspalte (kein `fullWidth`), Google-Suche + Quick Launch
+## Widget-Credentials
 
-### Custom-CSS
+Alle Widget-Keys liegen im SealedSecret `homepage-credentials` ([`sealedsecret-credentials.yaml`](../argocd/apps/homepage/templates/sealedsecret-credentials.yaml)). Homepage lädt sie per `envFrom` als `HOMEPAGE_VAR_*` und ersetzt `{{HOMEPAGE_VAR_<NAME>}}` in der Konfiguration.
 
-Der Google-/Material-Feinschliff (Roboto-Schrift, dezenter Hintergrund-Verlauf,
-weiche Material-Schatten + Hover-Lift, betonte Suchleiste) liegt in der ConfigMap
-`homepage-custom-css` (`argocd/apps/homepage/templates/configmap-custom-css.yaml`)
-und wird über `homepage.persistence.customcss` nach `/app/config/custom.css`
-gemountet; homepage lädt die Datei automatisch.
+| Key | Quelle |
+|---|---|
+| `HOMEPAGE_VAR_ARGOCD_TOKEN` | ArgoCD-Account `readonly` |
+| `HOMEPAGE_VAR_GRAFANA_PASSWORD` | Secret `grafana-admin` im Namespace `monitoring` |
+| `HOMEPAGE_VAR_PORTAINER_TOKEN` | Portainer auf der NAS |
+| `HOMEPAGE_VAR_SONARR_KEY`, `_RADARR_KEY`, `_PROWLARR_KEY`, `_SABNZBD_KEY`, `_SEERR_KEY` | API-Keys aus der jeweiligen App |
 
-## Widget-Credentials rotieren
-
-Grafana-Passwort und ArgoCD-API-Token sind als SealedSecret `homepage-credentials`
-im Namespace `homepage` gespeichert. Homepage liest sie als Env-Vars mit Prefix
-`HOMEPAGE_VAR_` und substituiert sie in der Konfiguration via `{{HOMEPAGE_VAR_<NAME>}}`.
-
-### Grafana-Passwort neu versiegeln
+Einen Wert erneuern: neu versiegeln, den String in `sealedsecret-credentials.yaml` ersetzen, PR mergen. `kubeseal` läuft auf dem Server, weil der lokale kubeconfig auf einen anderen Cluster zeigt:
 
 ```bash
-GRAFANA_PW=$(ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n monitoring get secret monitoring-grafana \
-   -o jsonpath="{.data.admin-password}" | base64 -d')
+echo -n '<wert>' | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+  'sudo kubeseal --raw --namespace homepage --name homepage-credentials \
+     --controller-name sealed-secrets-controller --controller-namespace sealed-secrets \
+     --from-file=/dev/stdin'
 
-echo -n "$GRAFANA_PW" | kubeseal --raw \
-  --namespace homepage --name homepage-credentials --from-file=/dev/stdin
+# Grafana-Passwort auslesen
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+  'sudo kubectl -n monitoring get secret grafana-admin -o jsonpath="{.data.admin-password}" | base64 -d'
 ```
 
-Encrypted-String in `argocd/apps/homepage/templates/sealedsecret-credentials.yaml`
-unter `HOMEPAGE_VAR_GRAFANA_PASSWORD` ersetzen, committen + auf `main` mergen.
-
-### ArgoCD-Token erneuern
-
-1. ArgoCD-UI → Settings → Accounts → `readonly` → Generate Token
-2. Token versiegeln:
-   ```bash
-   echo -n "<token>" | kubeseal --raw \
-     --namespace homepage --name homepage-credentials --from-file=/dev/stdin
-   ```
-3. `HOMEPAGE_VAR_ARGOCD_TOKEN` in der SealedSecret-Datei ersetzen, committen + mergen.
+Den ArgoCD-Token erzeugst du in der ArgoCD-UI unter Settings, Accounts, `readonly`, „Generate Token". Den Account definiert [`argocd/apps/argocd/values.yaml`](../argocd/apps/argocd/values.yaml) (`accounts.readonly: apiKey`); ArgoCD übernimmt Änderungen dort nach dem Merge selbst.
 
 ### Portainer-Token erneuern
 
-Portainer CE läuft auf dem UGREEN NAS (`http://jays-ugreen:9000`). API-Tokens sind langlebig, können aber bei Bedarf rotiert werden:
+Das Admin-Passwort steht im Vault als `vault_portainer_admin_password`. Der neue Token wird auf dem Server erzeugt und direkt versiegelt, damit der Klartext nie lokal erscheint:
 
 ```bash
-# 1. JWT holen (Portainer Admin-Passwort aus Vault: vault_portainer_admin_password)
+# 1. JWT holen
 JWT=$(curl -s -X POST http://192.168.178.118:9000/api/auth \
   -H "Content-Type: application/json" \
   -d '{"Username":"admin","Password":"<PASSWORT>"}' | \
   python3 -c "import json,sys; print(json.load(sys.stdin)['jwt'])")
 
-# 2. Neuen Token erstellen (auf dem Server, damit raw key nie lokal erscheint)
+# 2. Token erzeugen und versiegeln
 ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
   "curl -s -X POST http://192.168.178.118:9000/api/users/1/tokens \
     -H 'Authorization: Bearer $JWT' \
@@ -92,35 +76,20 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
       --from-file=/dev/stdin"
 ```
 
-Encrypted-String in `argocd/apps/homepage/templates/sealedsecret-credentials.yaml`
-unter `HOMEPAGE_VAR_PORTAINER_TOKEN` ersetzen, committen + auf `main` mergen.
+Ergebnis als `HOMEPAGE_VAR_PORTAINER_TOKEN` eintragen.
 
-## ArgoCD readonly-User
+## Betrieb
 
-Konfiguriert in `ansible/roles/argocd/templates/argocd-values.yaml.j2`.
-Nach Änderungen: `make argocd` ausführen.
+```bash
+sudo kubectl -n homepage get pods
+# nach CSS-Änderungen, falls die ConfigMap keinen Neustart auslöst
+sudo kubectl -n homepage rollout restart deploy
+```
 
-## Gotchas
+## Fallstricke
 
-- **Cross-namespace Secrets:** Kubernetes erlaubt kein `envFrom` über Namespace-Grenzen.
-  Grafana-PW und ArgoCD-Token müssen als eigenes SealedSecret im Namespace `homepage`
-  existieren, nicht aus `monitoring` oder `argocd` referenzierbar.
-- **HOMEPAGE_ALLOWED_HOSTS:** Ohne diese Env-Var schlägt der Kubernetes-Liveness-Probe fehl.
-  Gesetzt in `values.yaml` unter `env:`.
-- **Grafana intern:** Widget-URL ist `http://monitoring-grafana.monitoring.svc.cluster.local`
-  (kein Umweg über den Ingress, kein Passwort-Prompt).
-- **ArgoCD intern:** Widget-URL ist `http://argocd-server.argocd.svc.cluster.local`.
-- **Icons:** Eingebaute Icons (z.B. `grafana.svg`, `jellyfin.svg`) ohne Pfad angeben.
-  Für alle anderen: `mdi-<name>` (Material Design Icons, immer verfügbar) bevorzugen.
-  CDN-URLs von walkxcode/dashboard-icons und selfhst/icons liefern häufig 403, nicht verwenden.
-- **Custom-CSS greift nicht / veraltet:** ConfigMap-Änderungen lösen je nach
-  Chart-Version keinen Pod-Neustart aus. Dann
-  `sudo kubectl -n homepage rollout restart deploy` ausführen. Homepage muss die
-  statische Seite neu generieren (Refresh-Icon unten rechts erzwingt das auch).
-- **`.service-card` / `#information-widgets`:** stabile homepage-Selektoren für
-  Custom-CSS (Karten bzw. Header). Hintergrundfarbe liegt auf `body`; der
-  Inhalts-Wrapper ist transparent, daher greift ein Verlauf auf `body`.
-- **Pi-hole:** Kein manueller DNS-Eintrag nötig; der Wildcard-Eintrag `address=/homeserver/<ip>`
-  (in `argocd/apps/pihole/values.yaml` → `customDnsEntries`) deckt `home.homeserver`
-  automatisch ab.
-- **Feature-Branch:** ArgoCD synct nur `main`. Homepage erscheint erst nach dem Merge des PRs.
+- Ohne `HOMEPAGE_ALLOWED_HOSTS` (in `values.yaml` unter `env`) schlägt die Liveness-Probe fehl. Neue Hostnamen oder IPs dort ergänzen.
+- `envFrom` funktioniert nicht über Namespace-Grenzen. Deshalb braucht Homepage ein eigenes SealedSecret und kann die Secrets aus `monitoring` oder `argocd` nicht direkt referenzieren.
+- Neue Widgets in einen Namespace mit NetworkPolicy (z. B. `media`, `monitoring`) brauchen dort eine Freigabe für `homepage`, sonst läuft der Aufruf ins Timeout. Siehe [gotchas.md](gotchas.md#networkpolicies).
+- Icons: eingebaute Namen ohne Pfad (`grafana.svg`), sonst `mdi-<name>`. CDN-URLs von walkxcode/dashboard-icons und selfhst/icons liefern oft 403.
+- Greift neues CSS nicht, muss Homepage die statische Seite neu erzeugen: Pod neu starten oder das Refresh-Icon unten rechts nutzen.

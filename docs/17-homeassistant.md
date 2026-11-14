@@ -1,211 +1,84 @@
-# 17 – Home Assistant
+# Home Assistant
 
-Home Assistant läuft als ArgoCD-App im k3s-Cluster (pajikos Helm-Chart, Config
-auf `local-path`-PVC). Erweiterungen (Lovelace-Karten, Custom-Integrationen,
-Themes) werden **GitOps-reproduzierbar per Init-Container bzw. ConfigMap**
-eingebracht – bewusst **ohne HACS**, damit jede Version dem Git-Stand entspricht
-und Renovate Updates automatisiert.
+Home Assistant läuft im Cluster und steuert Zigbee-Geräte (ZHA), das Nuki-Schloss ([MQTT](18-nuki-mqtt.md)) und weitere Integrationen. Erweiterungen kommen ohne HACS über gepinnte Init-Container und eine ConfigMap ins PVC, damit jede Version dem Git-Stand entspricht und Renovate sie aktualisiert.
 
 | | |
 |---|---|
-| URL | <http://homeassistant.homeserver> (LAN + Tailnet, von Pi-hole aufgelöst) |
+| URL | http://homeassistant.homeserver |
 | Namespace | `home-assistant` |
-| Chart | `argocd/apps/home-assistant/` (pajikos `home-assistant`, Version siehe `Chart.yaml`) |
+| Quelle | [`argocd/apps/home-assistant/`](../argocd/apps/home-assistant/) |
+| Chart | `pajikos/home-assistant` (Version in [`Chart.yaml`](../argocd/apps/home-assistant/Chart.yaml)), StatefulSet `home-assistant`, Pod `home-assistant-0` |
+| Cluster-intern | `http://home-assistant.home-assistant.svc.cluster.local:8080` |
 
-## Erweiterungs-Architektur
+## Architektur
 
+```text
+home-assistant-0
+ ├─ init install-bubble-card             -> /config/www/bubble-card.js
+ ├─ init install-hourly-weather          -> /config/www/hourly-weather/hourly-weather.js
+ ├─ init install-ai-automation-suggester -> /config/custom_components/ai_automation_suggester
+ ├─ init install-dreame-vacuum           -> /config/custom_components/dreame_vacuum
+ ├─ ConfigMap ha-theme-midnight (subPath) -> /config/themes/midnight.yaml
+ ├─ hostPath Zigbee-Dongle (by-id)        -> /dev/ttyUSB0
+ └─ PVC 10Gi local-path                   -> /config
 ```
-k3s ─ home-assistant Pod
-   ├─ initContainer "install-bubble-card"            → /config/www/bubble-card.js
-   ├─ initContainer "install-hourly-weather"         → /config/www/hourly-weather/hourly-weather.js
-   ├─ initContainer "install-ai-automation-suggester" → /config/custom_components/ai_automation_suggester
-   ├─ initContainer "install-dreame-vacuum"          → /config/custom_components/dreame_vacuum
-   ├─ ConfigMap "ha-theme-midnight" (subPath-Mount)  → /config/themes/midnight.yaml
-   ├─ HA-Container (lädt Karten/Integrationen/Themes beim Start)
-   └─ config-PVC (local-path, 10Gi) → /config  (DB, .storage, www, custom_components, themes)
-```
 
-Jeder Init-Container nutzt `alpine:3.24`, lädt das **gepinnte** Release nach `/tmp`
-und ersetzt das Ziel im geteilten `/config`-PVC erst nach erfolgreichem Download.
-Die installierte Version steht danach in `/config/.extension-versions/<name>`.
-Die `# renovate:`-Annotation über jedem Container sorgt dafür, dass
-Renovate (regex-Manager in `renovate.json`) bei neuen Releases automatisch PRs für
-das `VERSION=`-Pin öffnet.
+Die Konfiguration (Integrationen, Dashboards, Tokens) liegt im UI-/Storage-Modus in `/config/.storage` auf dem PVC. Die NetworkPolicy `home-assistant-ingress` erlaubt Port 8123 nur aus `kube-system` (Traefik) und `ha-mcp`. `trusted_proxies` umfasst das Pod-Netz `10.42.0.0/16`.
 
-**Offline-Verhalten:** Home Assistant startet auch ohne Internet, GitHub oder DNS
-(Pi-hole läuft im selben Cluster, z. B. nach einem Stromausfall):
+## Erweiterungen
 
-| Zustand im PVC | Download | Ergebnis |
-|---|---|---|
-| Marker = gepinnte Version | wird nicht versucht | Init-Container endet sofort |
-| andere/keine Marker-Version, Kopie vorhanden | scheitert | Warnung im Log, alte Kopie bleibt, Pod startet; nächster Pod-Start versucht es erneut |
-| andere/keine Marker-Version | klappt | Ziel ersetzt, Marker geschrieben |
-| noch keine Kopie | scheitert | Init-Container schlägt fehl (`Init:Error`) |
+| Erweiterung | Typ | Upstream | Lovelace-Ressource |
+|---|---|---|---|
+| Bubble Card | Frontend | `Clooos/Bubble-Card` (Datei aus `dist/`, kein Release-Asset) | `/local/bubble-card.js` |
+| Hourly Weather | Frontend | `decompil3d/lovelace-hourly-weather` (Tags ohne `v`) | `/local/hourly-weather/hourly-weather.js` |
+| AI Automation Suggester | Integration | `ITSpecialist111/ai_automation_suggester` | |
+| Dreame Vacuum | Integration (Dreame D9 Max) | `Tasshack/dreame-vacuum` | |
+| Midnight | Theme | im Repo versioniert ([`midnight-theme-configmap.yaml`](../argocd/apps/home-assistant/templates/midnight-theme-configmap.yaml)) | |
 
-Welche Version läuft: `sudo kubectl -n home-assistant exec home-assistant-0 -- sh -c 'head /config/.extension-versions/*'`.
-Download erzwingen: Marker-Datei löschen und den Pod neu starten. Ein gescheiterter
-Download steht im Log des Init-Containers:
-`sudo kubectl -n home-assistant logs home-assistant-0 -c install-bubble-card`.
+Jeder Init-Container (`alpine:3.24`) lädt das gepinnte Release nach `/tmp`, ersetzt das Ziel erst nach erfolgreichem Download und schreibt die Version nach `/config/.extension-versions/<name>`. Stimmt der Marker mit dem Pin überein, lädt er nichts. Home Assistant startet deshalb auch ohne Internet oder DNS, etwa nach einem Stromausfall, solange Pi-hole im selben Cluster noch nicht läuft. Scheitert ein Download, bleibt die alte Kopie und der nächste Pod-Start versucht es erneut. Nur ohne vorhandene Kopie endet der Init-Container mit `Init:Error`.
 
-**Update einer Erweiterung:** `VERSION` in `values.yaml` anheben (oder den
-Renovate-PR mergen) → push → ArgoCD synct → Pod startet neu → der Init-Container
-kopiert die neue Version.
+Ein Update ist ein höheres `VERSION=` in `values.yaml` oder ein gemergter Renovate-PR. Die Zeile `# renovate:` über dem Container und die erste `VERSION=`-Zuweisung im Skript gehören für den Regex-Manager in `renovate.json` zusammen und dürfen nicht umformatiert werden.
 
-> **Lovelace-Ressourcen registrieren (einmalig):** HA läuft im Storage-/UI-Modus.
-> Frontend-Karten (Bubble-Card, Hourly Weather) müssen nach dem ersten Pod-Start
-> **einmal manuell** als Ressource hinterlegt werden:
-> *Einstellungen → Dashboards → ⋮ → Ressourcen → Hinzufügen*. Die Registrierung
-> persistiert in `/config/.storage` auf dem PVC und überlebt Pod-Restarts.
+## Einrichtung bei Neuinstallation
 
-## Bubble-Card (Lovelace) #86
+Ist das PVC leer, sind diese Schritte in der UI nötig:
 
-Modernes Bubble-UI mit Pop-up-Overlays, Button-Stacks und Media-Controls.
+1. Frontend-Karten registrieren: Einstellungen, Dashboards, Ressourcen, „Hinzufügen". Beide URLs aus der Tabelle oben, Typ „JavaScript-Modul".
+2. ZHA hinzufügen (Einstellungen, Geräte & Dienste): Serial Device `/dev/ttyUSB0`, Radio-Typ EZSP.
+3. AI Automation Suggester hinzufügen und Provider samt API-Key eintragen. Der Key liegt nur in `/config/.storage`.
+4. Dreame Vacuum hinzufügen, bevorzugt lokal mit Geräte-IP (DHCP-Reservierung in der FritzBox) und Miio-Token (`pip install python-miio`, dann `miiocli discover --handshake 1`).
+5. MQTT für das Nuki-Schloss: siehe [Nuki und MQTT](18-nuki-mqtt.md).
+6. Theme wählen: Profil, Theme `midnight`. Der Chart lädt `themes/` bereits per `frontend.themes: !include_dir_merge_named themes`.
 
-- Init-Container `install-bubble-card`, bezieht die gebaute
-  `dist/bubble-card.js` aus dem Repo-Tree am Tag (`Clooos/Bubble-Card`). Bubble-Card
-  v3 liefert **kein** Release-Asset mehr – die Datei liegt im `dist/`-Ordner
-  (so installiert auch HACS gemäß `hacs.json`).
-- Lovelace-Ressource registrieren: URL `/local/bubble-card.js`, Typ
-  **JavaScript-Modul**.
-- Danach im Dashboard verfügbar unter *Karte hinzufügen → Bubble Card*.
+## Zigbee
 
-## Hourly Weather Card (Lovelace) #88
+Koordinator ist ein Sonoff Zigbee Dongle Plus MG24 (EFR32MG24, EZSP). Der Chart mountet den stabilen `by-id`-Pfad `/dev/serial/by-id/usb-SONOFF_SONOFF_Dongle_Plus_MG24_…-if00-port0` als `CharDevice` nach `/dev/ttyUSB0` im Pod. Der vollständige Pfad steht unter `additionalVolumes` in `values.yaml`.
 
-Visualisiert die kommenden Wetterbedingungen als farbigen Balken.
-
-- Init-Container `install-hourly-weather`, Asset `hourly-weather.js`
-  (`decompil3d/lovelace-hourly-weather`). **Hinweis:** dieses Repo taggt **ohne**
-  `v`-Präfix (z. B. `6.8.0`), die Download-URL ist entsprechend ohne `v`.
-- Lovelace-Ressource registrieren: URL `/local/hourly-weather/hourly-weather.js`,
-  Typ **JavaScript-Modul**.
-- Beispiel-Konfiguration (benötigt eine Wetter-Entity):
-
-  ```yaml
-  type: custom:hourly-weather
-  entity: weather.dein_wetter
-  num_segments: 12
-  name: Nächste 12 Stunden
-  ```
-
-## AI Automation Suggester (Integration) #89
-
-LLM-gestützte Automatisierungsvorschläge auf Basis der eigenen Entities, Geräte
-und Bereiche.
-
-- Init-Container `install-ai-automation-suggester`, kopiert das
-  `custom_components/ai_automation_suggester`-Verzeichnis aus dem Release-Tarball
-  (`ITSpecialist111/ai_automation_suggester`).
-- Config-Flow: *Einstellungen → Geräte & Dienste → + Integration hinzufügen →
-  AI Automation Suggester*. Dort Provider + API-Key wählen.
-- **Provider:** Da der Stack ohnehin Claude nutzt, bietet sich **Anthropic**
-  (`claude-sonnet-4-6`) an. Der API-Key wird **nicht** in Git gehalten – er wird
-  einmalig im UI-Config-Flow eingetragen und von HA in `/config/.storage`
-  persistiert.
-
-## Dreame Vacuum (Integration) #90
-
-Vollständige Steuerung für Dreame-Saugroboter (Live-Karte, Zimmer-Cleaning,
-Automations-Events). Getestet für den **Dreame D9 Max** (`dreame.vacuum.p2259`).
-
-- Init-Container `install-dreame-vacuum`, kopiert
-  `custom_components/dreame_vacuum` aus dem Release-Tarball (`Tasshack/dreame-vacuum`).
-- Config-Flow: *Einstellungen → Geräte & Dienste → + Integration → Dreame Vacuum*.
-- **Lokale Verbindung (empfohlen):** Geräte-IP (FritzBox-DHCP-Reservierung) +
-  Miio-Token. Token einmalig extrahieren:
-
-  ```bash
-  pip install python-miio
-  miiocli discover --handshake 1
-  ```
-
-  Alternativ Xiaomi-Cloud-Login (kein Token, aber Cloud-Abhängigkeit).
-
-## Midnight Theme #91
-
-Dunkles Community-Theme
-([home-assistant-community-themes/midnight](https://github.com/home-assistant-community-themes/midnight)).
-Da es kein versioniertes Release-Artefakt gibt, wird das Theme-YAML **direkt im
-Repo versioniert** und als ConfigMap bereitgestellt.
-
-- `templates/midnight-theme-configmap.yaml` enthält das vollständige Theme-YAML
-  (ConfigMap `ha-theme-midnight`).
-- In `values.yaml` als `additionalVolumes`/`additionalMounts` per `subPath` nach
-  `/config/themes/midnight.yaml` gemountet.
-- `frontend.themes: !include_dir_merge_named themes` ist **bereits** im
-  Chart-Default-`templateConfig` aktiv – es ist keine Config-Anpassung nötig.
-- Aktivieren: *Profil → Theme → midnight* (oder Service-Call
-  `frontend.set_theme`).
-
-## Verifikation
+## Betrieb
 
 ```bash
-# ArgoCD-App synced & healthy
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n argocd get applications home-assistant'
-
-# Frontend-Karten im PVC vorhanden
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n home-assistant exec deploy/home-assistant -- \
-   ls -la /config/www/bubble-card.js /config/www/hourly-weather/hourly-weather.js'
-
-# Custom-Integrations vorhanden
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n home-assistant exec deploy/home-assistant -- \
-   ls /config/custom_components/ai_automation_suggester/manifest.json \
-      /config/custom_components/dreame_vacuum/manifest.json'
-
-# Midnight-Theme + ConfigMap
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n home-assistant get configmap ha-theme-midnight && \
-   sudo kubectl -n home-assistant exec deploy/home-assistant -- \
-   head -5 /config/themes/midnight.yaml'
-
-# Init-Container-Logs (Pod-Name vorher mit `get pods` holen)
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n home-assistant logs <pod> -c install-bubble-card'
+sudo kubectl -n home-assistant get pods
+# installierte Versionen der Erweiterungen
+sudo kubectl -n home-assistant exec home-assistant-0 -- sh -c 'head /config/.extension-versions/*'
+# Log eines Init-Containers
+sudo kubectl -n home-assistant logs home-assistant-0 -c install-bubble-card
+# Download erzwingen: Marker löschen, Pod neu starten
+sudo kubectl -n home-assistant exec home-assistant-0 -- rm /config/.extension-versions/bubble-card
+sudo kubectl -n home-assistant rollout restart statefulset/home-assistant
+# Zigbee-Device im Pod
+sudo kubectl -n home-assistant exec home-assistant-0 -- ls -la /dev/ttyUSB0
 ```
 
-## Zigbee via ZHA
+## Fallstricke
 
-Zigbee-Koordinator: **Sonoff Zigbee Dongle Plus MG24** (EFR32MG24-Chip, CP210x UART-Bridge).
+- `securityContext.privileged: true` ist für den USB-Zugriff nötig, k3s hat kein Device-Plugin.
+- Nie `/dev/ttyUSB0` vom Host mounten. Die Nummer ändert sich nach einem Reboot, wenn weitere USB-Geräte stecken.
+- Der MG24 spricht EZSP. ZNP ist für TI-Chips (CC2652) und scheitert beim Verbinden.
+- „Custom element doesn't exist": Ressource fehlt oder URL falsch. Ressourcen prüfen, Browser-Cache leeren.
+- `cp: no such file` im Init-Container nach einem Major-Update: Der Ordnername im Tarball hat sich geändert. `SRC=` im Skript anpassen.
+- Weitere Punkte: [gotchas.md](gotchas.md#home-assistant--ha-mcp).
 
-| | |
-|---|---|
-| Host-Device | `/dev/serial/by-id/usb-SONOFF_SONOFF_Dongle_Plus_MG24_46718ac707a3ef11a29a8c6661ce3355-if00-port0` → `/dev/ttyUSB0` |
-| Pod-Pfad | `/dev/ttyUSB0` (via `additionalVolumes`/`additionalMounts` im pajikos-Chart) |
-| Protokoll | **EZSP** (EmberZNet Serial Protocol) |
-| SecurityContext | `privileged: true` (nötig für USB-Device-Zugriff in k3s) |
+## Siehe auch
 
-**ZHA-Onboarding** (einmalig nach erstem Deploy):
-
-1. <http://homeassistant.homeserver> → Settings → Devices & Services → **Add Integration** → ZHA
-2. Serial Device Path: `/dev/ttyUSB0`
-3. Radio type: **EZSP** (EmberZNet, nicht ZNP auswählen)
-4. Koordinator erscheint unter Devices & Services; Zigbee-Geräte können jetzt gepaired werden.
-
-ZHA-Konfiguration persistiert in `/config/.storage/core.config_entries` auf dem PVC und überlebt Pod-Restarts.
-
-**Verifikation:**
-
-```bash
-# Device im Pod prüfen
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl -n home-assistant exec home-assistant-0 -- ls -la /dev/ttyUSB0'
-# Erwartet: crw-rw---- 1 root dialout 188, 0 ...
-```
-
-**Gotchas:**
-
-- `privileged: true` ist zwingend; k3s hat keinen USB-Device-Plugin, ohne Privilegien ist das CharDevice im Pod nicht zugänglich.
-- Kein direkter `/dev/ttyUSB0`-Mount vom Host-Pfad verwenden; die Nummer ist nach Reboot instabil, wenn weitere USB-Geräte vorhanden sind. Stattdessen den `by-id`-Symlink als `CharDevice` nutzen.
-- Chip ist EFR32MG24 → **EZSP**-Protokoll. ZNP ist für Texas-Instruments-Chips (CC2652); falsche Auswahl führt zu Verbindungsfehler.
-
-## Troubleshooting
-
-| Symptom | Ursache / Fix |
-|---|---|
-| Karte/Integration fehlt nach Deploy | Pod nicht neu gestartet oder Init-Container fehlgeschlagen → Init-Container-Log prüfen; Pod rollen: `kubectl -n home-assistant rollout restart deploy/home-assistant`. |
-| Lovelace-Karte „Custom element doesn't exist" | Ressource nicht registriert oder falsche URL → *Einstellungen → Dashboards → Ressourcen* prüfen (`/local/...`, Typ JavaScript-Modul); Browser-Cache leeren. |
-| Init-Container `cp: no such file` nach Major-Update | Bei einem Major-Release kann sich der Ordnername im Tarball ändern → Pfad in `values.yaml` an das neue Release anpassen. |
-| `curl: not found` im Init-Container | `apk add --no-cache curl` fehlt; alpine bringt curl nicht mit. |
-| Midnight-Theme nicht wählbar | ConfigMap nicht gemountet oder `frontend.themes` nicht aktiv → `kubectl get configmap ha-theme-midnight`; Datei im Pod prüfen (`/config/themes/midnight.yaml`). |
+- [Nuki und MQTT](18-nuki-mqtt.md)
+- [HA-MCP für Claude Code](22-ha-mcp.md)

@@ -1,370 +1,100 @@
-# Installationsleitfaden
+# Installation
 
-Schritt-für-Schritt-Anleitung, um den Home-Server von Null aus zu provisionieren.
+Ein Lauf von [`ansible/site.yml`](../ansible/site.yml) provisioniert den Server vom frischen Ubuntu bis zum laufenden Cluster, in dem ArgoCD alle Apps aus `argocd/apps/` ausrollt. Vorher muss alles aus [Voraussetzungen](02-prerequisites.md) erledigt sein.
 
----
-
-## Überblick
-
-Die komplette Installation wird durch einen einzigen Ansible-Playbook-Run
-erledigt. Dieser Leitfaden begleitet jeden Schritt, vom Repo-Clone bis zur
-Verifikation eines lauffähigen Clusters mit ArgoCD und Tailscale.
-
-**Dauer:** ca. 15–25 Minuten (mehrheitlich Downloads).
-
----
-
-## Schritt 1: Repository klonen
+## Konfigurieren
 
 ```bash
-git clone https://github.com/Jaydee94/home-server.git
-cd home-server
-```
-
-Bei einem Fork stattdessen die URL des Forks verwenden.
-
----
-
-## Schritt 2: Inventory konfigurieren (Server-IP setzen)
-
-Inventory-Datei öffnen und die Platzhalter-IP durch die tatsächliche IP des Servers ersetzen:
-
-```bash
-$EDITOR ansible/inventory/hosts.yml
-```
-
-`192.168.1.100` durch die eigene Server-IP ersetzen:
-
-```yaml
-homeserver:
-  hosts:
-    homeserver:
-      ansible_host: 192.168.1.100        # <-- ANPASSEN
-      ansible_user: ubuntu
-      ansible_ssh_private_key_file: ~/.ssh/id_ed25519
-```
-
-Falls der SSH-User nicht `ubuntu` ist, `ansible_user` ebenfalls anpassen.
-Liegt der Private Key woanders, `ansible_ssh_private_key_file` setzen.
-
-Verbindung testen:
-
-```bash
-ansible -i ansible/inventory/hosts.yml homeserver -m ping
-# Erwartet: homeserver | SUCCESS => { "ping": "pong" }
-```
-
----
-
-## Schritt 3: Variablen setzen
-
-Variablendatei öffnen und alle Werte durchgehen:
-
-```bash
+git clone https://github.com/Jaydee94/home-server.git && cd home-server
+$EDITOR ansible/inventory/hosts.yml      # ansible_host, ansible_user
 $EDITOR ansible/group_vars/all.yml
 ```
 
-**Pflicht-Änderungen:**
+Die Gruppe `homeservers` im Inventory bekommt den kompletten Stack. `ugreen_nas` wird nur von `make nas` angesprochen, `semaphore_targets` bekommt den SSH-Key von Semaphore.
 
-| Variable             | Wert                                                        |
-|----------------------|-------------------------------------------------------------|
-| `timezone`           | Eigene Zeitzone (z. B. `Europe/Berlin`, `America/New_York`) |
-| `argocd_repo_url`    | URL des eigenen GitHub-Repos                                |
-| `local_subnet`       | Heim-LAN-Subnetz (z. B. `192.168.178.0/24`)                 |
-| `tailscale_auth_key` | Via Ansible-Vault setzen (Schritt 4)                        |
+Pflichtwerte in [`all.yml`](../ansible/group_vars/all.yml) sind `timezone`, `argocd_repo_url`, `local_subnet` und die Vault-Werte aus [Voraussetzungen](02-prerequisites.md#vault). Die übrigen Defaults passen zum Referenz-Setup:
 
-**Optional:**
+| Variable | Default | Zweck |
+|---|---|---|
+| `hostname` | `homeserver` | Hostname, k3s-Node-Name, Tailscale-Name |
+| `auto_upgrade` | `true` | `apt dist-upgrade` bei jedem Lauf und `unattended-upgrades` zwischen den Läufen |
+| `auto_reboot_if_required` | `true` | Reboot am Ende von `common`, wenn `/var/run/reboot-required` existiert. In Semaphore-Läufen übersprungen |
+| `unattended_reboot_time` | `"05:00"` | Uhrzeit für den Reboot durch `unattended-upgrades` (`unattended_reboot_enabled`) |
+| `ssh_hardening_enabled` | `true` | sshd nur mit Key, kein Root-Login, kein X11 |
+| `k3s_version`, `helm_version` | gepinnt | Updates kommen als Renovate-PR. Leer heißt: neueste Version bei jedem Lauf. Die ArgoCD-Version steht in `argocd/apps/argocd/Chart.yaml` |
+| `argocd_repo_revision` | `main` | Branch, Tag oder SHA, dem ArgoCD folgt |
+| `tailscale_cidr` | `100.64.0.0/10` | Quellnetz der Tailnet-Peers für UFW |
+| `pihole_dns_ip` | `192.168.178.2` | Primärer Resolver des Hosts, muss zur MetalLB-IP von Pi-hole passen |
+| `network_configure_static_ip` | `false` | Netplan-Datei für die feste IP ([Ubuntu-Installation](00-ubuntu-server-install.md#feste-ip)) |
 
-| Variable                    | Default       | Hinweis                                                                |
-|-----------------------------|---------------|------------------------------------------------------------------------|
-| `auto_upgrade`              | `true`        | OS + alle Komponenten bei jedem Run auf neuesten Stable halten         |
-| `auto_reboot_if_required`   | `true`        | Auto-Reboot am Ende der `common`-Rolle, wenn APT `/var/run/reboot-required` setzt (nicht bei Läufen aus Semaphore) |
-| `unattended_reboot_enabled` / `unattended_reboot_time` | `true` / `05:00` | `unattended-upgrades` rebootet bei ausstehendem Reboot zur angegebenen Uhrzeit |
-| `ssh_hardening_enabled`     | `true`        | sshd-Drop-in: nur Key-Login, kein Root-Login, kein X11. Wird übersprungen, wenn der Ansible-User keinen Key in `authorized_keys` hat |
-| `journald_system_max_use` / `journald_max_retention` | `500M` / `1month` | Größen- und Alterslimit des Journals                  |
-| `tailscale_cidr`            | `100.64.0.0/10` | Quellnetz der Tailnet-Peers für die UFW-Regeln                       |
-| `k3s_version`               | gepinnt       | Per Renovate-PR aktualisiert. Leer ⇒ `k3s_channel` folgen              |
-| `k3s_channel`               | `stable`      | Wird genutzt, wenn `k3s_version` leer ist                              |
-| `helm_version`              | gepinnt       | Helm 3, per Renovate-PR aktualisiert. Leer ⇒ neuestes Helm 3           |
-| `argocd_version`            | gepinnt       | Argo-Helm-Chart, per Renovate-PR aktualisiert. Leer ⇒ neuestes Chart   |
-| `hostname`                  | `homeserver`  | Hostname des Servers                                                   |
-| `pihole_dns_ip`             | `192.168.178.2` | MetalLB-IP für Pi-hole DNS, muss außerhalb des FritzBox-DHCP-Bereichs liegen  |
-| `semaphore_vault_password`  | Vault-Block   | Ansible-Vault-Passwort, das Semaphore zur Laufzeit zum Decrypten nutzt |
-| `scanner_usb_vendor_id` / `scanner_usb_product_id` | leer | USB-IDs aus `lsusb` (Pflicht, wenn die Scanner-Rolle aktiv ist)     |
-| `scanner_smb_share` / `scanner_smb_username` / `scanner_smb_password` | — | NAS-Share + Creds für das Paperless-`consume`-Verzeichnis    |
-| `scanner_gotify_enabled`    | `false`       | Gotify-Push-Notifications aus der Scan-Pipeline ein/aus                |
-| `scanner_gotify_url` / `scanner_gotify_token` | — | Gotify-Endpoint + (vault-verschlüsselter) App-Token                  |
-| `gotify_admin_password`     | Vault-Block   | Optional: Gotify-Admin-Passwort als Vault-Eintrag aufbewahren          |
-
-> **Tipp.** `auto_upgrade: false` setzen, wenn Reproduzierbarkeit wichtig ist
-> (CI, Lab-Snapshots): Ansible installiert dann nur fehlende Pakete und respektiert alle Pins.
-
----
-
-## Schritt 4: Tailscale-Auth-Key mit Ansible-Vault verschlüsseln
-
-**Niemals den Auth-Key im Klartext committen.** Stattdessen mit Ansible-Vault verschlüsseln.
-
-1. Auth-Key im [Tailscale-Admin-Panel](https://login.tailscale.com/admin/settings/keys) erstellen:
-   - **Generate auth key**
-   - **Reusable** deaktivieren (Single-Use ist sicherer)
-   - **Ephemeral** deaktivieren (der Server soll persistent bleiben)
-   - Key kopieren (beginnt mit `tskey-auth-…`)
-
-2. Mit Ansible-Vault verschlüsseln:
+## Ausführen
 
 ```bash
-ansible-vault encrypt_string 'tskey-auth-DEIN_AUTH_KEY' --name 'tailscale_auth_key'
+make install    # make deps (Galaxy-Collections) + ansible-playbook ansible/site.yml --ask-vault-pass
+make check      # Dry-Run mit --check --diff
 ```
 
-Beim ersten Mal wird ein Vault-Passwort vergeben. **Dieses Passwort merken:**
-es wird bei jedem Playbook-Run abgefragt.
+Ein kompletter Erstlauf dauert etwa 15 bis 25 Minuten, die meiste Zeit geht für Downloads drauf. Das Playbook ist idempotent und lässt sich jederzeit erneut starten.
 
-3. Das Kommando liefert etwas wie:
+Das erste Play läuft gegen `homeservers` und führt die Rollen in dieser Reihenfolge aus:
 
-```yaml
-tailscale_auth_key: !vault |
-          $ANSIBLE_VAULT;1.1;AES256
-          39393965316162623733326665376234386665643530...
-          ...
-Encryption successful
-```
+| Rolle | Make | Was sie tut |
+|---|---|---|
+| `common` | `make common` | Hostname, Zeitzone, Pakete und `dist-upgrade`, `unattended-upgrades`, chrony, Swap aus, Kernel-Module und sysctl für k3s, journald-Limit, SSH-Härtung, NIC-Tuning, UFW, optional feste IP, Reboot bei Bedarf, wöchentlicher Cleanup-Timer |
+| `host_dns` | `make host-dns` | entfernt dnsmasq, öffnet Port 53 für LAN und Tailnet, stellt `systemd-resolved` auf Pi-hole (`pihole_dns_ip`) mit dem Router als Fallback |
+| `tailscale` | `make tailscale` | installiert Tailscale aus dem APT-Repo, meldet den Host mit `tailscale_auth_key` an und bietet `local_subnet` als Subnet-Route an |
+| `k3s` | `make k3s` | schreibt `/etc/rancher/k3s/config.yaml`, installiert k3s in `k3s_version`, kopiert die kubeconfig nach `~/.kube/config` des Ansible-Users, installiert Helm |
+| `argocd` | `make argocd` | installiert ArgoCD per Helm (NodePort 30080/30443), wendet die Bootstrap-Application und das Root-`ApplicationSet` an |
+| `scanner` | `make scanner` | SANE, scanbd, CIFS-Mount des Paperless-`consume`-Shares, Scan-Skripte und Healthcheck ([Scanner](10-scanner.md)) |
+| `semaphore_secrets` | `make semaphore` | erzeugt beim ersten Lauf Admin-Passwort, Encryption-Key und SSH-Keypair für Semaphore und legt sie als Secret im Namespace `semaphore` ab |
+| `backup` | `make backup` | nächtlicher restic-Lauf (04:00) auf die NAS, übersprungen ohne `backup_restic_password` ([Backup](26-backup.md)) |
 
-4. Den kompletten Block in `ansible/group_vars/all.yml` als Wert für
-   `tailscale_auth_key` einsetzen (von `tailscale_auth_key:` bis zur letzten Zeile).
+Danach folgen zwei weitere Plays:
 
-5. Verifizieren:
+| Play | Make | Was es tut |
+|---|---|---|
+| `semaphore_targets` | `make semaphore-targets` | trägt den Semaphore-Public-Key in `authorized_keys` aller Hosts der Gruppe `semaphore_targets` ein |
+| `semaphore_bootstrap` | `make semaphore-bootstrap` | wartet auf das Deployment `semaphore` und legt über die REST-API Projekte, Keys, Repositories, Inventories, Templates und Schedules an ([Semaphore](08-semaphore.md)) |
+
+Einzelne Rollen startest du über die Make-Targets oder direkt mit Tags aus `site.yml`:
 
 ```bash
-grep -A5 "tailscale_auth_key:" ansible/group_vars/all.yml
-# Korrekt: tailscale_auth_key: !vault |
-# Falsch:  tailscale_auth_key: "tskey-auth-..."
-```
-
----
-
-## Schritt 5: Ansible-Requirements installieren
-
-Galaxy-Collections auf der Control-Machine installieren:
-
-```bash
-ansible-galaxy collection install -r ansible/requirements.yml
-```
-
-Installiert:
-
-- `ansible.posix`: POSIX-System-Module
-- `community.general`: erweiterte Community-Module
-- `kubernetes.core`: Kubernetes-/Helm-Module
-
-Verifizieren:
-
-```bash
-ansible-galaxy collection list | grep -E "ansible.posix|community.general|kubernetes.core"
-```
-
----
-
-## Schritt 6: Playbook ausführen
-
-Einfachster Weg:
-
-```bash
-make install            # ruft `ansible-galaxy install` + das Playbook auf
-```
-
-Oder Ansible direkt:
-
-```bash
-ansible-playbook \
-  -i ansible/inventory/hosts.yml \
-  ansible/site.yml \
-  --ask-vault-pass
-```
-
-Vault-Passwort eingeben, wenn abgefragt.
-
-**Was das Playbook tut (in Reihenfolge):**
-
-1. **common** (~3 min): APT-Updates, UFW-Firewall, Kernel-Parameter, Swap-off, chrony NTP.
-2. **host_dns** (~30 s): Entfernt dnsmasq, konfiguriert `systemd-resolved` so dass der Host Pi-hole (`.2`) als primären Resolver nutzt (FritzBox als Fallback).
-3. **tailscale** (~1 min): Installiert Tailscale, joint das Tailnet mit dem vault-verschlüsselten Auth-Key.
-4. **k3s** (~5 min): Installiert k3s, schreibt die kubeconfig, installiert Helm.
-5. **argocd** (~10 min): Deployt ArgoCD per Helm-Chart und appliziert das Root-`ApplicationSet`.
-6. **scanner** (~2 min): Installiert `sane` + `scanbd`, mountet die NAS per CIFS, verdrahtet den Fujitsu-USB-Scanner (braucht `scanner_usb_vendor_id`/`scanner_usb_product_id`).
-7. **semaphore_secrets** (~30 s): Rendert das Bootstrap-Secret, das der in-Cluster-Semaphore-Pod liest.
-
-Im Anschluss an die host-zentrischen Rollen laufen zwei zusätzliche Plays:
-
-8. **semaphore_targets** (~30 s pro Target-Host): Pusht den Semaphore-SSH-Public-Key in jeden Host der Inventory-Gruppe `semaphore_targets`.
-9. **semaphore_bootstrap** (~1 min): Spricht die Semaphore-REST-API auf dem Home-Server an und legt Projects, Keys, Repositories, Inventories und Templates idempotent an.
-
-Am Ende druckt das Playbook eine Summary mit den URLs.
-
-**Nur bestimmte Rollen ausführen** (via Tags, siehe Tag pro Rolle in `ansible/site.yml`):
-
-```bash
-# Nur common
-make common
-# oder:
-ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags common --ask-vault-pass
-
-# Nur k3s + argocd
 ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags k3s,argocd --ask-vault-pass
-
-# Host-Resolver auf Pi-hole umstellen (nach Pi-hole-Deploy)
-make host-dns
-
-# Tailscale komplett überspringen
-ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --skip-tags tailscale --ask-vault-pass
+ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --skip-tags scanner --ask-vault-pass
 ```
 
-Alle Convenience-Targets siehst du mit `make help`.
+> [!NOTE]
+> Die Rolle `scanner` bricht ab, wenn `scanner_usb_product_id` oder `scanner_smb_password` fehlen. Ohne Scanner läuft die Installation mit `--skip-tags scanner`.
 
-**Das Playbook ist vollständig idempotent:** mehrfaches Ausführen ist sicher und führt zu keinen unnötigen Änderungen.
+Beim Erstlauf gibt es Pi-hole noch nicht. Der Host löst dann über den Router auf, bis ArgoCD die App `pihole` ausgerollt hat. Hat ArgoCD die App `semaphore` beim ersten Lauf noch nicht synchronisiert, schlägt `semaphore_bootstrap` fehl. Dann später `make semaphore-bootstrap` nachholen.
 
----
-
-## Schritt 7: Installation verifizieren
-
-Per SSH auf den Server und folgende Kommandos laufen lassen:
-
-### k3s-Node-Status
+## Prüfen
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127
-kubectl get nodes
+ssh jaydee@192.168.178.127
+sudo kubectl get nodes                       # homeserver Ready
+sudo kubectl get pods -A                     # alles Running oder Completed
+sudo kubectl get applications -n argocd      # Synced / Healthy
+tailscale status                             # Host verbunden mit 100.x.x.x
 ```
 
-Erwartet:
-
-```
-NAME         STATUS   ROLES                  AGE   VERSION
-homeserver   Ready    control-plane,master   5m    v1.29.3+k3s1
-```
-
-### Alle System-Pods
+ArgoCD ist unter `http://192.168.178.127:30080` erreichbar, Benutzer `admin`. Das Playbook gibt das Passwort nur mit `-e argocd_show_initial_password=true` aus. Sonst liest du es so aus und änderst es nach dem ersten Login:
 
 ```bash
-kubectl get pods -A
+sudo kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
 ```
 
-Alle sollten `Running` oder `Completed` sein. Besonders prüfen:
+Die Subnet-Route `192.168.178.0/24` muss in der [Tailscale-Konsole](https://login.tailscale.com/admin/machines) einmal freigegeben werden. Erst dann erreichen Tailnet-Geräte Pi-hole und die LAN-IPs ([Tailscale](06-tailscale.md), [Pi-hole](15-pihole.md)).
 
-- `kube-system`: Traefik, CoreDNS, metrics-server, local-path-provisioner
-- `argocd`: argocd-server, argocd-repo-server, argocd-application-controller, …
+## kubectl von der Workstation
 
-### ArgoCD-Application-Status
+Die kubeconfig auf dem Server zeigt auf `127.0.0.1:6443`. Das k3s-Zertifikat gilt auch für die Server-IP und `homeserver`, deshalb reicht es, die Adresse zu ersetzen:
 
 ```bash
-kubectl get applications -n argocd
-# oder
-kubectl get applicationsets -n argocd
+ssh jaydee@192.168.178.127 'cat ~/.kube/config' | sed 's/127.0.0.1/192.168.178.127/' > ~/.kube/home-server
+KUBECONFIG=~/.kube/home-server kubectl get nodes
 ```
 
-### Tailscale-Verbindung
+## Später ändern
 
-```bash
-tailscale status
-```
-
-Erwartet: dein Server verbunden mit einer `100.x.x.x`-IP, Status `Connected`.
-
-```bash
-tailscale ip -4
-# Liefert die Tailscale-IP, z. B.: 100.101.102.103
-```
-
-### Initial-Passwort von ArgoCD
-
-```bash
-kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath="{.data.password}" | base64 -d; echo
-```
-
----
-
-## Schritt 8: Services nutzen
-
-### ArgoCD-Web-UI
-
-Im Browser öffnen:
-
-```
-http://<server-ip>:30080
-```
-
-Oder via Tailscale-MagicDNS (sofern aktiviert):
-
-```
-http://homeserver:30080
-```
-
-Login:
-
-- **Username:** `admin`
-- **Passwort:** Output aus Schritt 7
-
-**Wichtig:** Passwort nach dem ersten Login ändern:
-
-1. User-Icon (links oben)
-2. **User Info**
-3. **Update Password**
-
-### ArgoCD-CLI
-
-CLI lokal installieren:
-
-```bash
-# Linux
-curl -sSL -o argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
-chmod +x argocd
-sudo mv argocd /usr/local/bin/
-
-# macOS
-brew install argocd
-```
-
-Login:
-
-```bash
-argocd login <server-ip>:30080 --username admin --password <initial-passwort> --insecure
-```
-
-### kubectl von der Control-Machine
-
-Kubeconfig vom Server holen:
-
-```bash
-# Lokal
-scp -i ~/.ssh/id_ed25519 jaydee@192.168.178.127:~/.kube/config ~/.kube/home-server-config
-
-# Nutzen
-KUBECONFIG=~/.kube/home-server-config kubectl get nodes
-
-# Oder in den Default-Kubeconfig mergen
-KUBECONFIG=~/.kube/config:~/.kube/home-server-config kubectl config view --merge --flatten > ~/.kube/merged-config
-mv ~/.kube/merged-config ~/.kube/config
-kubectl config get-contexts
-kubectl config use-context default   # oder den angezeigten Context-Namen
-```
-
-Hinweis: Die kubeconfig auf dem Server zeigt auf `127.0.0.1:6443`. Für
-Remote-Zugriff entweder:
-
-- SSH-Tunnel: `ssh -i ~/.ssh/id_ed25519 -L 6443:localhost:6443 jaydee@192.168.178.127`
-- Oder die Server-Adresse in der kubeconfig auf die Tailscale-IP umschreiben, bevor sie kopiert wird.
-
----
-
-## Setup aktualisieren
-
-Um Konfigurationsänderungen nach dem ersten Setup anzuwenden, einfach das
-Playbook erneut laufen lassen:
-
-```bash
-ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --ask-vault-pass
-```
-
-Für Application-Changes, die ArgoCD verwaltet: commit + push ins Git-Repo —
-ArgoCD erkennt und appliziert die Änderung automatisch.
+Host-Konfiguration änderst du in `all.yml` und spielst sie mit `make install` oder dem passenden Rollen-Target ein. Semaphore führt das Playbook zusätzlich jeden Tag um 06:00 aus ([Semaphore](08-semaphore.md)). Änderungen an Apps laufen über einen PR auf `main`, ArgoCD übernimmt sie nach dem Merge ([ArgoCD](05-argocd.md)).

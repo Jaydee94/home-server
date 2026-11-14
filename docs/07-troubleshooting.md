@@ -1,578 +1,92 @@
 # Troubleshooting
 
----
+Bei einer Störung von unten nach oben prüfen: Host, k3s, Pods, ArgoCD, DNS, Tailscale. Fallstricke einzelner Dienste stehen in [Gotchas](gotchas.md).
+
+## Diagnose-Einstieg
+
+Der Skill `/cluster-health` erledigt die Schritte 2 bis 4 in einem Durchgang.
+
+| Schritt | Prüfung | Weiter bei Fehler |
+|---|---|---|
+| 1. Host | `ssh jaydee@192.168.178.127`, `free -h`, `df -h /` | [Ansible und SSH](#ansible-und-ssh), [Platte voll](#platte-voll) |
+| 2. k3s | `sudo systemctl status k3s`, `sudo kubectl get nodes` | [k3s startet nicht](#k3s-startet-nicht) |
+| 3. Pods | `sudo kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded` | [Pod hängt in Pending](#pod-hängt-in-pending) |
+| 4. ArgoCD | `sudo kubectl -n argocd get applications` | [App bleibt OutOfSync oder Degraded](#app-bleibt-outofsync-oder-degraded) |
+| 5. DNS | `dig @192.168.178.2 grafana.homeserver +short` | [`*.homeserver` löst nicht auf](#homeserver-löst-nicht-auf) |
+| 6. Tailscale | `tailscale status` | [Tailscale nach dem Playbook getrennt](#tailscale-nach-dem-playbook-getrennt) |
+
+Aktive Alarme und die Logs auch von bereits gelöschten Pods findest du in Grafana ([Monitoring](13-monitoring.md)). Für die Events eines Namespaces:
+
+```bash
+sudo kubectl get events -n <namespace> --sort-by=.lastTimestamp | tail -20
+sudo kubectl logs -n <namespace> <pod> --previous
+```
 
 ## k3s startet nicht
 
-### Symptome
-
-- `sudo systemctl status k3s` zeigt `failed` oder `activating`.
-- `kubectl get nodes` antwortet mit `connection refused` oder Timeout.
-- Playbook bleibt bei „Wait for k3s to be ready" hängen.
-
-### Diagnose
+Zuerst das Log lesen:
 
 ```bash
-# Service-Status
-sudo systemctl status k3s
-
-# Aktuelle Logs
 sudo journalctl -u k3s --since "10 minutes ago" -n 100
-
-# Vollständige Logs
-sudo journalctl -u k3s | tail -200
-
-# Kernel-Anforderungen prüfen
-sudo k3s check-config
-
-# Binary prüfen
-ls -la /usr/local/bin/k3s
-k3s --version
 ```
 
-### Häufige Ursachen & Fixes
+Swap, `br_netfilter`, `overlay` und IP-Forwarding setzt die `common`-Rolle, `/etc/rancher/k3s/config.yaml` schreibt die `k3s`-Rolle. Hat jemand am Host etwas davon geändert, stellt `make common` und danach `make k3s` den Sollzustand wieder her. Hängt das Playbook bei „Wait for the k3s API server to report ready“, läuft k3s zwar, die API kommt aber nicht hoch: auch dann steht der Grund im Journal.
 
-**Port 6443 belegt:**
+## App bleibt OutOfSync oder Degraded
 
 ```bash
-sudo ss -tlnp | grep 6443
-# Belegt von anderem Prozess → stoppen oder k3s umkonfigurieren
+sudo kubectl -n argocd describe application <name> | sed -n '/Conditions/,$p'
+sudo kubectl -n argocd logs deploy/argocd-repo-server --tail=100 | grep -i error
 ```
 
-**Swap aktiv:**
+Render-Fehler (Helm, Kustomize) stehen im Log des repo-servers. Nach fünf Fehlversuchen gibt ArgoCD den automatischen Retry auf. Ist die Ursache behoben, startet ein Hard-Refresh den Sync neu:
 
 ```bash
-swapon --show
-# Falls aktiv:
-sudo swapoff -a
-sudo sed -i '/ swap / s/^/#/' /etc/fstab
+sudo kubectl -n argocd annotate application <name> argocd.argoproj.io/refresh=hard --overwrite
 ```
 
-**`br_netfilter`-Modul fehlt:**
+Meldet die App „pruning skipped“, schützt eine Annotation eine PVC vor dem Löschen. Das ist Absicht, siehe [Gotchas: ArgoCD / GitOps](gotchas.md#argocd--gitops). Dort steht auch, warum ein Feld unter `ignoreDifferences` nie angewendet wird.
+
+## Pod hängt in Pending
 
 ```bash
-lsmod | grep br_netfilter
-# Falls leer:
-sudo modprobe br_netfilter
-echo "br_netfilter" | sudo tee /etc/modules-load.d/k3s.conf
+sudo kubectl describe pod <pod> -n <namespace> | sed -n '/Events/,$p'
+sudo kubectl get pvc -n <namespace>
 ```
 
-**`ip_forward` deaktiviert:**
+`local-path`-PVCs bleiben `Pending`, bis ein Pod sie nutzt (`WaitForFirstConsumer`), das allein ist kein Fehler. Meldet der Scheduler `Insufficient memory`, sind die Requests aller Pods größer als das Allocatable des Nodes (`sudo kubectl describe node homeserver`). Das Allocatable ist um `k3s_kubelet_system_reserved` kleiner als der RAM ([k3s](04-k3s.md#konfiguration)).
+
+## `*.homeserver` löst nicht auf
+
+Pi-hole auf `192.168.178.2` ist der einzige Resolver für die Zone.
 
 ```bash
-cat /proc/sys/net/ipv4/ip_forward
-# Sollte 1 sein. Falls 0:
-sudo sysctl -w net.ipv4.ip_forward=1
-echo "net.ipv4.ip_forward = 1" | sudo tee /etc/sysctl.d/99-k3s.conf
-sudo sysctl --system
+dig @192.168.178.2 grafana.homeserver +short     # erwartet 192.168.178.127
+sudo kubectl -n pihole get svc | grep dns        # EXTERNAL-IP 192.168.178.2
+resolvectl status | grep "Current DNS"           # Host fragt 192.168.178.2
 ```
 
-**YAML-Syntaxfehler in der Config:**
+Zeigt der DNS-Service keine EXTERNAL-IP, liegt es meist an MetalLB ([Gotchas: MetalLB](gotchas.md#metallb--networking)). Über Tailscale braucht der Client Split DNS und eine aktive Subnet-Route ([Tailscale](06-tailscale.md#einrichtung-im-tailnet)). Schlägt die Auflösung nur in Pods fehl, siehe [Gotchas: Pi-hole / DNS](gotchas.md#pi-hole--dns). Mehr in [Pi-hole](15-pihole.md).
+
+## Tailscale nach dem Playbook getrennt
+
+Das Playbook bleibt grün, auch wenn der Tailscale-Login fehlschlägt. Im Log steht dann „WARNING: Tailscale is not connected“. Fast immer ist der Auth-Key abgelaufen: neuen Key erzeugen und verschlüsselt als `tailscale_auth_key` hinterlegen ([Tailscale](06-tailscale.md#einrichtung-im-tailnet)) oder einmal von Hand einloggen ([Tailscale: Betrieb](06-tailscale.md#betrieb)).
+
+## Ansible und SSH
+
+Die UFW lässt SSH nur aus dem LAN, dem Tailnet und dem Pod-CIDR zu, und nur über IPv4. Ein `ssh` über eine IPv6-Adresse oder aus einem fremden Netz läuft deshalb in einen Timeout ([Gotchas: Host](gotchas.md#host-hardening-common-rolle)).
 
 ```bash
-cat /etc/rancher/k3s/config.yaml
-python3 -c "import yaml; yaml.safe_load(open('/etc/rancher/k3s/config.yaml'))"
+make ping                                       # Ansible-Verbindung
+ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'echo ok'
 ```
 
-**k3s neu installieren:**
+„Decryption failed“ heißt falsches Vault-Passwort. Fehlende Collections installiert `make deps`.
+
+## Platte voll
+
+Unbenutzte Images räumt die Image-GC ab 75 % Belegung auf, das Journal ist auf 500 MB begrenzt (`journald_system_max_use`). Wächst die Platte trotzdem, liegt es meist an einem Volume unter `/var/lib/rancher/k3s/storage/`, denn `local-path` kennt keine Quota:
 
 ```bash
-# Deinstallieren
-sudo /usr/local/bin/k3s-uninstall.sh
-
-# Re-Install via Ansible
-ansible-playbook -i ansible/inventory/hosts.yml ansible/site.yml --tags k3s --ask-vault-pass
+sudo du -sh /var/lib/rancher/k3s/storage/* | sort -h | tail
 ```
-
----
-
-## ArgoCD synct nicht
-
-### Symptome
-
-- Applications stehen auf `OutOfSync`, ohne sich zu syncen.
-- Apps zeigen `Unknown` Health.
-- ApplicationSet erzeugt keine Applications.
-- Sync schlägt mit Fehlermeldungen in der UI fehl.
-
-### Diagnose
-
-```bash
-# ArgoCD-Pods
-kubectl get pods -n argocd
-
-# Server-Logs
-kubectl logs -n argocd deployment/argocd-server --tail=100
-
-# Application-Controller-Logs
-kubectl logs -n argocd deployment/argocd-application-controller --tail=100
-
-# Repo-Server-Logs
-kubectl logs -n argocd deployment/argocd-repo-server --tail=100
-
-# ApplicationSet-Controller-Logs
-kubectl logs -n argocd deployment/argocd-applicationset-controller --tail=100
-
-# Apps und Status
-kubectl get applications -n argocd
-kubectl describe application gotify -n argocd
-
-# ApplicationSet
-kubectl get applicationsets -n argocd
-kubectl describe applicationset home-server-apps -n argocd
-```
-
-### Häufige Ursachen & Fixes
-
-**Repository nicht erreichbar:**
-
-```bash
-# Im UI: Settings → Repositories → Connection-Status prüfen
-
-# Per kubectl
-kubectl get secrets -n argocd -l argocd.argoproj.io/secret-type=repository
-
-# Verbindung aus dem argocd-repo-server-Pod testen
-kubectl exec -n argocd deployment/argocd-repo-server -- \
-  git ls-remote https://github.com/YOUR_USER/home-server.git
-```
-
-**Privates Repo ohne Credentials:**
-
-Credentials hinterlegen wie in [05-argocd.md](05-argocd.md#privates-repository) beschrieben.
-
-**Falsche Repo-URL im ApplicationSet:**
-
-```bash
-kubectl get applicationset home-server-apps -n argocd -o yaml | grep repoURL
-# URL muss zum echten Repo passen
-```
-
-**YAML-Syntaxfehler in App-Manifests:**
-
-```bash
-# Parser-Fehler im Repo-Server
-kubectl logs -n argocd deployment/argocd-repo-server | grep -i "error\|ERR"
-
-# Lokal validieren
-find argocd/apps/ -name "*.yaml" -exec python3 -c "
-import yaml, sys
-for f in sys.argv[1:]:
-    try:
-        yaml.safe_load_all(open(f))
-        print(f'OK: {f}')
-    except yaml.YAMLError as e:
-        print(f'ERROR: {f}: {e}')
-" {} +
-```
-
-**ArgoCD-Server-Pod nicht ready:**
-
-```bash
-kubectl rollout status deployment/argocd-server -n argocd
-kubectl describe pod -n argocd -l app.kubernetes.io/name=argocd-server
-```
-
-**Manuellen Sync erzwingen:**
-
-```bash
-# Per CLI
-argocd app sync gotify --force
-
-# Per kubectl (Annotation triggert Refresh)
-kubectl patch application gotify -n argocd \
-  --type merge \
-  -p '{"metadata": {"annotations": {"argocd.argoproj.io/refresh": "hard"}}}'
-```
-
----
-
-## Tailscale verbindet nicht
-
-### Symptome
-
-- `tailscale status` zeigt `stopped` oder `connecting`.
-- Server taucht im Tailscale-Admin-Panel nicht auf.
-- Server nicht über Tailscale-IP erreichbar.
-
-### Diagnose
-
-```bash
-# tailscaled-Service
-sudo systemctl status tailscaled
-
-# Logs
-sudo journalctl -u tailscaled --since "10 minutes ago" -n 100
-
-# Netz-Diagnostik
-tailscale netcheck
-
-# Status
-tailscale status
-
-# Auth-Probleme
-sudo journalctl -u tailscaled | grep -i "auth\|error\|fail"
-```
-
-### Häufige Ursachen & Fixes
-
-**Ungültiger oder abgelaufener Auth-Key:**
-
-```bash
-# Mit neuem Key reconnecten
-sudo tailscale up --authkey=tskey-auth-NEUER_KEY --reset
-```
-
-Die Ansible-Rolle bricht in diesem Zustand nicht ab, sondern meldet
-`WARNING: Tailscale is not connected` und läuft weiter. Dauerhafte Lösung: neuen
-Auth-Key erzeugen und als `tailscale_auth_key` im Vault hinterlegen
-(`ansible-vault encrypt_string ...`), dann loggt der nächste Lauf den Node
-wieder ein.
-
-**tailscaled-Service läuft nicht:**
-
-```bash
-sudo systemctl enable --now tailscaled
-sudo systemctl restart tailscaled
-```
-
-**Firewall blockt Tailscale-UDP:**
-
-```bash
-# UFW-Regeln
-sudo ufw status verbose | grep -i "41641\|tailscale"
-
-# Tailscale freigeben
-sudo ufw allow 41641/udp comment "Tailscale WireGuard"
-```
-
-**Nur DERP-Relay (keine Direktverbindung):**
-
-Wenn `tailscale netcheck` keine direkten Pfade meldet, nutzt Tailscale DERP-Relays.
-Funktioniert, hat aber höhere Latenz. Löst sich meist von selbst.
-
-```bash
-tailscale netcheck
-# Achten auf "No direct connection to X"
-```
-
-**Re-Authentifizieren:**
-
-```bash
-sudo tailscale up --force-reauth
-# Der angezeigten URL folgen
-```
-
-**Falsche IP angezeigt:**
-
-```bash
-tailscale ip -4
-# Muss zur Anzeige im Admin-Panel passen
-```
-
----
-
-## Pod hängt in `Pending`
-
-### Symptome
-
-- `kubectl get pods -A` zeigt Pods im Status `Pending`.
-- Pods starten nicht.
-
-### Diagnose
-
-```bash
-# Pod-Details, Events am Ende beachten
-kubectl describe pod <pod-name> -n <namespace>
-
-# Node-Resources
-kubectl describe node homeserver
-kubectl top nodes
-```
-
-### Häufige Ursachen & Fixes
-
-**Zu wenig Ressourcen:**
-
-```bash
-# Allocatable vs. Requests
-kubectl describe node homeserver | grep -A10 "Allocatable:"
-kubectl describe node homeserver | grep -A10 "Allocated resources:"
-
-# Was zieht Speicher/CPU?
-kubectl top pods -A --sort-by=memory
-kubectl top pods -A --sort-by=cpu
-```
-
-**PVC nicht gebunden:**
-
-```bash
-kubectl get pvc -A
-# Falls STATUS "Pending":
-kubectl describe pvc <pvc-name> -n <namespace>
-
-# local-path-Provisioner
-kubectl logs -n kube-system -l app=local-path-provisioner
-```
-
-**Tolerations/Affinity/NodeSelector greifen nicht:**
-
-```bash
-kubectl describe pod <pod-name> -n <namespace> | grep -A10 "Node-Selectors\|Tolerations\|Events"
-```
-
-**Image-Pull-Fehler (`ImagePullBackOff` / `ErrImagePull`):**
-
-```bash
-kubectl describe pod <pod-name> -n <namespace> | grep -A5 "Events"
-# Bei „image not found" oder „registry unreachable":
-# - Image-Name/-Tag prüfen
-# - Internet vom Node prüfen
-# - Private Registry → imagePullSecrets prüfen
-```
-
----
-
-## Storage-Probleme
-
-### Symptome
-
-- PVC bleibt `Pending`.
-- Pods schlagen mit `volume mount`-Fehlern fehl.
-- Daten zwischen Pod-Restarts verloren.
-
-### Diagnose
-
-```bash
-# PVCs und PVs
-kubectl get pvc -A
-kubectl get pv
-kubectl describe pvc <name> -n <namespace>
-kubectl describe pv <name>
-
-# local-path-Provisioner
-kubectl get pods -n kube-system -l app=local-path-provisioner
-kubectl logs -n kube-system -l app=local-path-provisioner
-
-# Storage-Verzeichnis am Host
-sudo ls -la /var/lib/rancher/k3s/storage/
-sudo df -h /var/lib/rancher/k3s/storage/
-```
-
-### Häufige Ursachen & Fixes
-
-**Disk voll:**
-
-```bash
-df -h /
-# Aufräumen:
-sudo journalctl --vacuum-size=1G
-sudo docker system prune  # falls Docker installiert
-```
-
-**local-path-Provisioner läuft nicht:**
-
-```bash
-kubectl rollout restart deployment/local-path-provisioner -n kube-system
-```
-
-**Falsche StorageClass im PVC:**
-
-```bash
-kubectl get storageclass
-# Default ist "local-path" — PVC sollte das nutzen:
-# spec.storageClassName: local-path
-```
-
-**PV an falsche Claim gebunden:**
-
-```bash
-kubectl get pvc <name> -n <namespace> -o yaml | grep volumeName
-kubectl get pv <pv-name> -o yaml | grep claimRef
-```
-
----
-
-## Netzwerk-Probleme
-
-### Symptome
-
-- Pods erreichen sich gegenseitig nicht.
-- Services nicht erreichbar.
-- Ingress liefert keinen Inhalt.
-- DNS löst nicht auf.
-
-### Diagnose
-
-```bash
-# Flannel
-kubectl get pods -n kube-system -l app=flannel
-kubectl logs -n kube-system -l app=flannel
-
-# CoreDNS
-kubectl get pods -n kube-system -l k8s-app=kube-dns
-kubectl logs -n kube-system -l k8s-app=kube-dns
-
-# DNS-Auflösung aus einem Pod
-kubectl run dns-test --image=busybox:1.28 --rm -it --restart=Never -- nslookup kubernetes.default
-
-# Pod-zu-Pod
-kubectl run ping-test --image=busybox:1.28 --rm -it --restart=Never -- ping -c3 <pod-ip>
-
-# Services
-kubectl get svc -A
-kubectl describe svc <name> -n <namespace>
-
-# Endpoints
-kubectl get endpoints <svc-name> -n <namespace>
-```
-
-**LAN-DNS (`*.homeserver` löst nicht auf):**
-
-Pi-hole auf `192.168.178.2` ist der einzige LAN-Resolver.
-
-```bash
-# Pi-hole erreichbar?
-dig @192.168.178.2 grafana.homeserver +short  # → 192.168.178.127
-
-# Pi-hole-App in ArgoCD
-kubectl get application pihole -n argocd
-
-# DNS-Service hat EXTERNAL-IP?
-kubectl -n pihole get svc | grep dns
-# → sollte 192.168.178.2 zeigen
-
-# Host-Resolver korrekt?
-resolvectl status | grep "Current DNS"
-# → Current DNS Server: 192.168.178.2
-```
-
-Ausführliches Troubleshooting: [docs/15-pihole.md §3](15-pihole.md).
-
-### Häufige Ursachen & Fixes
-
-**Flannel-VXLAN blockiert (Firewall):**
-
-```bash
-# UDP 8472 muss offen sein
-sudo ufw allow 8472/udp comment "Flannel VXLAN"
-```
-
-**`br_netfilter` nicht geladen:**
-
-```bash
-lsmod | grep br_netfilter
-# Falls leer:
-sudo modprobe br_netfilter
-```
-
-**Traefik routet nicht:**
-
-```bash
-kubectl get pods -n kube-system -l app.kubernetes.io/name=traefik
-kubectl logs -n kube-system -l app.kubernetes.io/name=traefik
-kubectl get svc -n kube-system traefik
-
-# Ingress-Details
-kubectl describe ingress <name> -n <namespace>
-kubectl get ingress <name> -n <namespace> -o yaml | grep ingressClassName
-```
-
-**Service ohne Endpoints:**
-
-```bash
-kubectl get endpoints <svc-name> -n <namespace>
-# Falls leer: laufen die Pods und matchen die Labels?
-kubectl get pods -n <namespace> -l <selector-key>=<selector-value>
-```
-
----
-
-## Ansible-Playbook-Fehler
-
-### Häufige Ursachen
-
-**SSH-Verbindung verweigert:**
-
-```bash
-# SSH testen
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "echo connected"
-
-# Inventory
-ansible -i ansible/inventory/hosts.yml homeserver -m ping
-```
-
-**sudo verlangt Passwort:**
-
-```bash
-# Auf dem Server NOPASSWD-sudo eintragen (bereits durch common-Role gesetzt)
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127
-echo "jaydee ALL=(ALL) NOPASSWD:ALL" | sudo tee /etc/sudoers.d/jaydee-nopasswd
-```
-
-**Galaxy-Collection fehlt:**
-
-```bash
-ansible-galaxy collection install -r ansible/requirements.yml --force
-```
-
-**Falsches Vault-Passwort:**
-
-```bash
-# Bei "Decryption failed" wurde das falsche Passwort eingegeben.
-# Falls das Passwort komplett verloren ist, Secret neu verschlüsseln:
-ansible-vault encrypt_string 'tskey-auth-DEIN_KEY' --name 'tailscale_auth_key'
-```
-
----
-
-## Nützliche Debug-Kommandos
-
-### System-weiter Status
-
-```bash
-# Alle nicht-laufenden Pods
-kubectl get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded
-
-# Aktuelle Cluster-Events
-kubectl get events -A --sort-by='.lastTimestamp' | tail -30
-
-# Node-Conditions
-kubectl describe node homeserver | grep -A20 "Conditions:"
-
-# System-Ressourcen
-free -h && df -h && uptime
-
-# journald-Errors
-sudo journalctl -p err --since "1 hour ago"
-```
-
-### Quick-Health-Check-Skript
-
-```bash
-#!/bin/bash
-echo "=== Node Status ==="
-kubectl get nodes
-
-echo ""
-echo "=== Pod Status ==="
-kubectl get pods -A
-
-echo ""
-echo "=== Tailscale Status ==="
-tailscale status
-
-echo ""
-echo "=== ArgoCD Apps ==="
-kubectl get applications -n argocd 2>/dev/null || echo "ArgoCD nicht installiert"
-
-echo ""
-echo "=== Disk-Verbrauch ==="
-df -h /
-
-echo ""
-echo "=== Memory ==="
-free -h
-```
-
-Speichern als `/home/ubuntu/healthcheck.sh`, ausführen mit `bash /home/ubuntu/healthcheck.sh`.

@@ -1,162 +1,82 @@
-# Scanner / Paperless Ingestion
+# Scanner und Paperless-Ingestion
 
-The Fujitsu USB-Scanner sits directly on the home-server. `scanbd` listens
-on the hardware scan button, the role's shell scripts call `scanimage` and
-`convert`, the resulting PDF lands on a CIFS mount of the UGREEN NAS where
-the existing Paperless-NGX stack reads it out of
-`personal_folder/paperless/consume`.
+Der Fujitsu-USB-Scanner hängt direkt am Home-Server. Ein Druck auf die Scan-Taste erzeugt ein PDF, das per REST-API in Paperless-NGX auf der UGREEN NAS landet. Jeder Scan meldet Erfolg oder Fehler per [Gotify](11-gotify.md).
 
+| | |
+|---|---|
+| Rolle | [`ansible/roles/scanner/`](../ansible/roles/scanner/) |
+| Make | `make scanner` |
+| Konfiguration | [`ansible/group_vars/all.yml`](../ansible/group_vars/all.yml), Abschnitt „Scanner / Paperless Ingestion" |
+| Ziel | Paperless-NGX `http://192.168.178.118:8000` ([Rolle `paperless`](../ansible/roles/paperless/README.md)) |
+
+## Ablauf
+
+```text
+Scan-Taste ─> scanbd ─> scan_button.sh ─> touch /var/tmp/scanner/scan-pending
+scanner-trigger.path ─> scanner-trigger.service ─> scan-trigger.sh
+    stoppt scanbd (gibt USB frei), startet scan_to_pdf.sh als saned, startet scanbd neu
+scan_to_pdf.sh: scanimage (ADF Duplex, TIFF) ─> mogrify/convert ─> PDF
+    ├─ scanner_paperless_api_enabled: true  ─> POST /api/documents/post_document/
+    ├─ sonst                                ─> cp nach /mnt/paperless-consume (CIFS auf der NAS)
+    └─ Gotify-Push (Erfolg/Fehler)
 ```
-[Fujitsu USB] --(button)--> scanbd --> scan_button.sh
-                                       └── scan_to_pdf.sh --> /mnt/paperless-consume
-                                                                   │ (CIFS to NAS)
-                                                                   └── Paperless-NGX (NAS)
-                                                       └── curl → Gotify (k3s) → push
-```
 
-Push-Notifications für jeden Scan (Erfolg/Fehler) sind eine optionale
-Erweiterung. Setup in [`docs/11-gotify.md`](11-gotify.md).
+scanbd hält das USB-Interface exklusiv. Deshalb setzt `scan_button.sh` nur ein Flag, und der eigentliche Scan läuft außerhalb von scanbd in `scanner-trigger.service`.
 
-Paperless-NGX, its Postgres and Redis run on the UGREEN NAS and are not
-managed by this playbook; the scanner role only owns the bare-metal
-scanning daemon and the SMB mount that delivers PDFs into the NAS consume
-directory.
+Die Rolle installiert SANE, scanbd, ImageMagick und `cifs-utils`. Sie legt die Gruppe `scanner` an (mit `saned` als Mitglied) und vergibt das USB-Gerät per udev-Regel an diese Gruppe (`MODE=0660`). scanbd läuft als `saned:scanner` in einer gehärteten systemd-Unit (`ProtectSystem=strict`, `MemoryDenyWriteExecute=true` u. a.). Außerdem gibt die Rolle in `/etc/ImageMagick-7/policy.xml` das Schreiben von PDF und TIFF frei. Ein Fehler im Skript schreibt einen Marker `scan-FAILED-<ts>.failed` ins Consume-Verzeichnis.
 
-> The shell snippets below use a `SRV` shorthand for the SSH command into
-> the home-server. Replace `homeserver` with the inventory host or
-> Tailscale IP if your setup differs:
->
-> ```bash
-> SRV='ssh -i ~/.ssh/id_ed25519 jaydee@homeserver'
-> ```
+Der CIFS-Mount (`_netdev,nofail,x-systemd.automount`) blockiert den Boot nicht, wenn die NAS offline ist. `scanner-healthcheck.timer` prüft stündlich Mount und USB-Gerät und startet bei fehlendem Mount die Automount-Unit neu.
 
-## 1. Hardware prerequisites
+## Konfiguration
 
-- Fujitsu scanner (ADF capable) connected via USB to the home-server.
-- The NAS SMB share `//jays-ugreen/personal_folder/paperless/consume`
-  is reachable from the home-server's LAN.
+Werte aus `group_vars/all.yml`, sonst Default aus [`defaults/main.yml`](../ansible/roles/scanner/defaults/main.yml):
 
-## 2. Determine the USB IDs
+| Variable | Wert | Zweck |
+|---|---|---|
+| `scanner_usb_vendor_id` / `scanner_usb_product_id` | `04c5` / `132b` | USB-IDs aus `lsusb \| grep -i fujitsu`. Leere Product-ID bricht die Rolle ab |
+| `scanner_paperless_api_enabled` | `true` | Upload per Paperless-API statt Kopie auf den CIFS-Share |
+| `scanner_paperless_api_url` | `http://192.168.178.118:8000` | Paperless-NGX auf der NAS |
+| `scanner_paperless_api_token` | Vault | API-Token aus dem Paperless-Benutzerprofil |
+| `scanner_smb_share` | `//192.168.178.118/personal_folder/paperless/consume` | CIFS-Ziel, gemountet unter `/mnt/paperless-consume` |
+| `scanner_smb_username` / `scanner_smb_password` | `jaydee` / Vault | Zugang zum Share |
+| `scanner_gotify_enabled` / `scanner_gotify_url` / `scanner_gotify_token` | `true` / `http://gotify.homeserver` / Vault | Push-Benachrichtigungen, siehe [Gotify](11-gotify.md) |
+| `scanner_resolution_dpi` / `scanner_mode` / `scanner_paper_source` | `300` / `Color` / `ADF Duplex` | Scan-Parameter |
+| `scanner_duplex_rotate_back_pages` / `scanner_duplex_back_first` | `true` / `true` | Rückseiten um 180° drehen. Liefert der ADF die Rückseite zuerst, tauscht das Skript zusätzlich die Seitenpaare |
+| `scanner_healthcheck_oncalendar` | `hourly` | Intervall des Healthchecks |
+
+Secrets werden mit Vault verschlüsselt und in `group_vars/all.yml` eingefügt:
 
 ```bash
-$SRV 'lsusb | grep -i fujitsu'
-# Bus 002 Device 005: ID 04c5:11a2 Fujitsu, Ltd ScanSnap iX...
+ansible-vault encrypt_string '<wert>' --name 'scanner_paperless_api_token'
 ```
 
-Set both IDs in `ansible/group_vars/all.yml`:
-
-```yaml
-scanner_usb_vendor_id: "04c5"
-scanner_usb_product_id: "11a2"
-```
-
-If the product ID is left empty the role aborts pre-flight rather than
-roll out a wildcard udev rule.
-
-## 3. Vault-encrypt the SMB password
-
-```bash
-ansible-vault encrypt_string 'YOUR_SMB_PASSWORD' --name 'scanner_smb_password'
-```
-
-Paste the resulting `!vault |` block into `ansible/group_vars/all.yml`.
-The variable is never given a plaintext default in `defaults/main.yml`;
-the role fails pre-flight if it is undefined.
-
-## 4. Apply the role
+## Betrieb
 
 ```bash
 make scanner
+
+# Scan-Log live verfolgen (Taste drücken)
+sudo journalctl -t scanbd-scan -t scanner-trigger -f
+
+sudo systemctl status scanbd scanner-trigger.path --no-pager
+sudo systemctl list-timers scanner-healthcheck.timer
+sudo journalctl -t scanner-healthcheck --since today
+
+# Mount sofort prüfen und reparieren, ohne auf den Timer zu warten
+sudo systemctl start scanner-healthcheck.service
+df -h /mnt/paperless-consume
+
+# Scanner am USB sichtbar? (scanimage -L meldet bei laufendem scanbd BUSY)
+lsusb -d 04c5:132b
 ```
 
-The role runs in this order:
+## Fallstricke
 
-1. Install `sane`, `sane-utils`, `scanbd`, `imagemagick`, `cifs-utils`, `bc`, `util-linux`.
-2. Create the `scanner` group, ensure `saned` is a member.
-3. Create the credentials directory (`0700 root:root`), scripts directory,
-   tmp + log directories and the consume mountpoint.
-4. Render `/etc/cifs-credentials/paperless` (`0600`, `no_log`).
-5. Mount the SMB share at `/mnt/paperless-consume` with `_netdev,nofail,x-systemd.automount`.
-6. Deploy SANE + scanbd configuration and reload the daemon.
-7. Deploy `scan_button.sh` and `scan_to_pdf.sh` with `set -euo pipefail`
-   and an `ERR` trap that writes `scan-FAILED-<ts>.failed` markers.
-8. Patch `/etc/ImageMagick-6/policy.xml` (idempotent `blockinfile`) to
-   re-enable PDF/TIFF writes.
-9. Deploy the scanbd systemd drop-in (`User=saned`, hardening flags).
-10. Deploy the Fujitsu udev rule (`GROUP=scanner, MODE=0660, TAG+=uaccess`).
-11. Deploy and enable the `scanner-healthcheck.timer` (default: hourly).
+- Der Pre-flight verlangt `scanner_smb_password` auch bei aktivem API-Upload, weil die Rolle den CIFS-Mount immer einrichtet.
+- Lehnt ImageMagick die PDF-Erzeugung ab, fehlt der von Ansible verwaltete Block in `/etc/ImageMagick-7/policy.xml`. `make scanner` erneut ausführen.
+- USB-Sperre durch scanbd und `SANE_CONFIG_DIR` beim Lauf als `saned`: siehe [gotchas.md](gotchas.md#scanner--sane).
 
-## 5. Verification
+## Siehe auch
 
-```bash
-# NAS mount
-$SRV 'df -h /mnt/paperless-consume'
-
-# Scanner visible to SANE (as saned)
-$SRV 'sudo -u saned scanimage -L'
-
-# scanbd up
-$SRV 'systemctl status scanbd --no-pager'
-
-# scanbd really runs as saned/scanner
-$SRV 'systemctl show scanbd -p User,Group'
-
-# udev rule resolved
-$SRV 'udevadm test "$(udevadm info -q path -n /dev/bus/usb/002/005)" 2>&1 | tail'
-
-# healthcheck timer scheduled
-$SRV 'systemctl list-timers scanner-healthcheck.timer'
-
-# permissions on credentials
-$SRV 'ls -ld /etc/cifs-credentials /etc/cifs-credentials/paperless'
-```
-
-## 6. Live test
-
-Press the hardware button on the scanner. On the host:
-
-```bash
-$SRV 'journalctl -t scanbd-scan -f'
-```
-
-A new `scan-<ts>.pdf` must appear in `/mnt/paperless-consume/` within a
-few seconds; Paperless-NGX on the NAS picks it up shortly after.
-
-## 7. Troubleshooting
-
-| Symptom | Hint |
-|---|---|
-| Scanner not found | `sudo SANE_DEBUG_FUJITSU=255 scanimage -L` |
-| scanbd silent | `sudo systemctl stop scanbd && sudo -u saned scanbd -d -f` |
-| Mount disappeared | `sudo systemctl start scanner-healthcheck.service` (don't wait for the timer) |
-| Wrong USB perms | `sudo udevadm test $(udevadm info -q path -n /dev/bus/usb/<bus>/<dev>)` |
-| `scan-FAILED-*.failed` in consume | `journalctl -t scanbd-scan --since '1 hour ago'` |
-| ImageMagick PDF refused | check `/etc/ImageMagick-6/policy.xml` for the `ANSIBLE MANAGED — scanner role` block |
-| `scanimage` works as root but not `saned` | `usermod -aG scanner saned` was skipped; re-run `make scanner` |
-
-## 8. Design notes
-
-The role is built around a few opinionated defaults that make the daemon
-safe to run on a bare-metal host:
-
-- **Fail-fast pre-flight.** Missing `scanner_usb_product_id` or
-  `scanner_smb_password` aborts the role rather than rolling out a
-  wildcard udev rule or a broken mount.
-- **Least-privilege daemon.** `scanbd` runs as `saned`/`scanner`, not
-  `root`, with a full hardening drop-in (`ProtectSystem=strict`,
-  `CapabilityBoundingSet=`, `MemoryDenyWriteExecute=true`, …).
-- **Robust shell scripts.** `set -euo pipefail` + `ERR` trap +
-  `flock` (no double-runs from rapid button presses) + journald-tagged
-  logging (`logger -t scanbd-scan`).
-- **Non-root USB access.** udev rule grants the device to
-  `GROUP=scanner` and adds `TAG+=uaccess` instead of relying on root.
-- **Resilient NAS mount.** `_netdev,nofail,x-systemd.automount` lets the
-  server boot when the NAS is offline; the mount comes back automatically
-  when the NAS does.
-- **Self-healing.** An hourly `scanner-healthcheck.timer` re-mounts the
-  share if it disappears and logs scanner reachability to the journal.
-- **Idempotent ImageMagick patch.** `blockinfile` re-enables PDF/TIFF
-  writes; re-running the role is a no-op instead of an in-place `sed`.
-- **Optional Gotify push.** App token lives in a `0640 root:scanner`
-  env-file, never in the rendered shell script. Setup:
-  [`docs/11-gotify.md`](11-gotify.md).
+- [Gotify](11-gotify.md)
+- [Rolle `paperless`](../ansible/roles/paperless/README.md)

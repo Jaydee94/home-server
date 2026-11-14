@@ -1,354 +1,67 @@
-# Tailscale-VPN-Guide
+# Tailscale
 
----
+Tailscale ist der einzige Fernzugang zum Home-Server. Der Server ist Knoten im Tailnet und Subnet-Router für das Heim-LAN, Ports am Router sind keine offen.
 
-## Überblick
+| | |
+|---|---|
+| Rolle | [`ansible/roles/tailscale/`](../ansible/roles/tailscale/) |
+| Make | `make tailscale` |
+| Admin-Konsole | https://login.tailscale.com/admin/machines |
 
-Tailscale baut ein WireGuard-basiertes Mesh-VPN (ein „tailnet") zwischen allen
-eigenen Geräten. Sobald der Home-Server im Tailnet ist, sind seine Services
-von jedem Tailscale-Gerät erreichbar, ohne Port-Forwarding, ohne Dynamic-DNS,
-ohne offene Ports am Router.
+## Konfiguration
 
----
+| Variable | Wert | Zweck |
+|---|---|---|
+| `tailscale_auth_key` | Vault | Auth-Key für den Login, nur nötig, wenn der Node nicht verbunden ist |
+| `tailscale_hostname` | `{{ hostname }}` (`homeserver`) | Name im Tailnet und für MagicDNS |
+| `local_subnet` | `192.168.178.0/24` | Advertised Subnet-Route |
+| `tailscale_cidr` | `100.64.0.0/10` | Quellnetz der Tailnet-Peers für die UFW-Regeln der `common`-Rolle |
+| `tailscale_up_timeout` | `60s` | Obergrenze für `tailscale up`, damit der unbeaufsichtigte Lauf nicht hängt |
+| `tailscale_repo_codename` | Ubuntu-Release | APT-Repo-Codename, nur überschreiben, wenn Tailscale für ein neues Ubuntu noch keine Pakete hat |
 
-## Auth-Key besorgen
-
-Auth-Keys lassen Geräte automatisch dem Tailnet beitreten (praktisch für
-Server, bei denen ein interaktiver Browser-Login nicht passt).
-
-1. Im [Tailscale-Admin-Panel](https://login.tailscale.com/admin) einloggen.
-2. **Settings → Keys**.
-3. **Generate auth key**.
-4. Optionen:
-   - **Reusable:** deaktivieren (Single-Use ist sicherer)
-   - **Ephemeral:** deaktivieren (Server soll persistent bleiben)
-   - **Tags:** optional, z. B. `tag:homeserver` für ACLs
-   - **Expiry:** vernünftiges Ablaufdatum setzen (oder ganz deaktivieren)
-5. **Generate key**.
-6. Key sofort kopieren; er wird nur einmal angezeigt.
-
-**Mit Ansible-Vault verschlüsseln** (niemals plaintext speichern):
+Die Rolle installiert `tailscale` aus dem offiziellen APT-Repo (bei `auto_upgrade: true` immer die neueste Version). Ist der Node nicht verbunden, loggt sie ihn ein:
 
 ```bash
-ansible-vault encrypt_string 'tskey-auth-DEIN_KEY' --name 'tailscale_auth_key'
+tailscale up --auth-key=file:/run/tailscale-authkey --timeout=60s \
+  --hostname=homeserver --advertise-routes=192.168.178.0/24 \
+  --accept-dns=true --accept-routes=false
 ```
 
-Den verschlüsselten Block in `ansible/group_vars/all.yml` einsetzen.
+Bei einem verbundenen Node gleicht sie nur Hostname und Routen per `tailscale set` ab. IP-Forwarding setzt die `common`-Rolle (`/etc/sysctl.d/99-k3s.conf`), die UFW erlaubt `41641/udp` und alles aus `tailscale_cidr`. Wie die Rolle mit abgelaufenen Keys umgeht, steht in [Gotchas: Tailscale](gotchas.md#tailscale).
 
----
+## Einrichtung im Tailnet
 
-## MagicDNS einrichten
+1. Auth-Key unter Settings > Keys erzeugen (nicht ephemeral) und verschlüsselt in `ansible/group_vars/all.yml` ablegen:
 
-Tailscale-MagicDNS löst Hostnamen aller Tailnet-Geräte automatisch auf. Mit
-MagicDNS erreichst du den Home-Server unter `homeserver` oder
-`homeserver.tail12345.ts.net` von jedem Tailscale-Client.
+   ```bash
+   ansible-vault encrypt_string 'tskey-auth-...' --name 'tailscale_auth_key'
+   ```
 
-**MagicDNS aktivieren:**
+2. Nach dem ersten Lauf in der Admin-Konsole beim Server unter „Edit route settings“ die Route `192.168.178.0/24` freigeben.
+3. Unter „DNS“ MagicDNS aktivieren und einen Split-DNS-Nameserver `192.168.178.2` für die Domain `homeserver` anlegen. Dann lösen Tailscale-Clients auch unterwegs `*.homeserver` über Pi-hole auf ([Pi-hole](15-pihole.md)).
 
-1. [Tailscale-Admin-Panel](https://login.tailscale.com/admin) → **DNS**.
-2. **Enable MagicDNS** anschalten.
-3. Optional einen **Global nameserver** (z. B. `1.1.1.1`) für Nicht-Tailscale-Hostnamen setzen.
+Clients brauchen die Option „Use Tailscale subnets“ (Linux: `sudo tailscale up --accept-routes`), sonst erreichen sie weder Pi-hole noch die LAN-IPs.
 
-**`*.homeserver` über Tailscale auflösen (Split DNS):**
+## Zugriff
 
-Pi-hole auf `192.168.178.2` löst alle `*.homeserver`-Namen autoritativ auf.
-Damit Tailscale-Clients (unterwegs) diese Namen ebenfalls auflösen, in der
-Admin-Konsole → **DNS → Nameservers** einen Split-DNS-Eintrag setzen:
-Nameserver `192.168.178.2`, „Restrict to search domain: `homeserver`".
-Voraussetzung: Subnet-Route `192.168.178.0/24` muss approved und auf dem
-Client aktiv sein (`--accept-routes`). Vollständige Anleitung: [docs/15-pihole.md §4](15-pihole.md).
+| Ziel | Adresse |
+|---|---|
+| SSH | `ssh jaydee@homeserver` oder die Tailscale-IP (`tailscale ip -4`) |
+| ArgoCD | `http://homeserver:30080` |
+| Ingress-Apps | `http://<name>.homeserver` (Split DNS und Subnet-Route nötig) |
+| LAN-Geräte | direkt über `192.168.178.x` (Subnet-Route) |
 
-**Nach Aktivierung:**
+Der 7DTD-Gameserver und Jellyfin für geteilte Nodes haben eigene Tailscale-Zugänge, siehe [Gameserver](19-gameserver.md) und [Jellyfin](16-jellyfin.md).
 
-```
-# Kurzer Hostname (im Tailnet)
-http://homeserver:30080        # ArgoCD
-ssh homeserver                 # SSH
-
-# Voller Tailnet-Hostname
-http://homeserver.tail12345.ts.net:30080
-ssh homeserver.tail12345.ts.net
-```
-
-Den Tailnet-Namen findest du im Admin-Panel unter **Settings → General**.
-
-**MagicDNS testen:**
+## Betrieb
 
 ```bash
-# Vom Client mit laufendem Tailscale
-ping homeserver
-nslookup homeserver
-curl http://homeserver:30080
-```
-
----
-
-## Zugriff über die Tailscale-IP
-
-Jedes Gerät im Tailnet bekommt eine stabile IP im Bereich `100.x.x.x` (CGNAT).
-
-Tailscale-IP des Servers ermitteln:
-
-```bash
-# Auf dem Server
-tailscale ip -4
-
-# Oder im Admin-Panel:
-# https://login.tailscale.com/admin/machines
-```
-
-Beispiel mit Server-Tailscale-IP `100.101.102.103`:
-
-```
-http://100.101.102.103:30080    # ArgoCD
-http://100.101.102.103:80       # Traefik HTTP
-ssh 100.101.102.103             # SSH
-kubectl --server=https://100.101.102.103:6443 get nodes
-```
-
----
-
-## Subnet-Routing
-
-Subnet-Routing erlaubt anderen Tailscale-Clients, Geräte im **Heim-LAN** zu
-erreichen, auf denen kein Tailscale läuft, z. B. eine NAS, ein Smart-TV
-oder ein Drucker.
-
-Die Ansible-Rolle konfiguriert den Server so, dass er das eigene Subnetz
-(`local_subnet`, Default `192.168.178.0/24`) advertised.
-
-**Subnet-Routes freischalten:**
-
-Nach dem Playbook-Run die advertised Routes im Admin-Panel approven:
-
-1. [Admin-Panel](https://login.tailscale.com/admin/machines) öffnen.
-2. Home-Server auswählen.
-3. **... → Edit route settings**.
-4. Das advertised Subnet (`192.168.178.0/24`) aktivieren.
-5. **Save**.
-
-**Subnet-Zugriff testen:**
-
-```bash
-# Von einem Tailscale-Client
-ping 192.168.178.1
-curl http://192.168.178.1/      # Router-Admin-Seite (falls erreichbar)
-
-# Server direkt über die LAN-IP
-curl http://192.168.178.100:30080
-```
-
-**Subnet-Routing am Client aktivieren:**
-
-Auf macOS/Windows/iOS/Android-Clients muss in den App-Settings „Use Tailscale
-subnets" aktiviert sein, damit Subnet-Routes greifen.
-
-Auf Linux:
-
-```bash
-sudo tailscale up --accept-routes
-```
-
----
-
-## Client-Geräte verbinden
-
-Tailscale auf allen Geräten installieren:
-
-### Linux
-
-```bash
-# Installation
-curl -fsSL https://tailscale.com/install.sh | sh
-
-# Verbinden (öffnet Browser zur Auth)
-sudo tailscale up
-
-# Verbinden mit Subnet-Routing
-sudo tailscale up --accept-routes
-
-# Status
-tailscale status
-tailscale ip -4
-```
-
-### macOS
-
-```bash
-# Via Homebrew
-brew install --cask tailscale
-
-# Oder Mac App Store:
-# https://apps.apple.com/app/tailscale/id1475387142
-```
-
-Nach der Installation auf das Tailscale-Icon in der Menü-Leiste → **Log In**.
-
-### Windows
-
-Download: <https://tailscale.com/download/windows>
-
-Tailscale-Icon im Tray → **Log In**.
-
-### iOS / Android
-
-App Store bzw. Google Play, „Tailscale".
-
-### Konnektivität verifizieren
-
-Nach dem Verbinden eines Clients:
-
-```bash
-# Vom Client
-tailscale status                         # homeserver sollte in der Liste stehen
-ping homeserver                          # MagicDNS
-curl http://homeserver:30080             # ArgoCD
-ssh jaydee@homeserver                    # SSH
-```
-
----
-
-## Tailscale-Management auf dem Server
-
-**Status:**
-
-```bash
-tailscale status
-```
-
-Zeigt alle Tailnet-Geräte und deren Verbindungsstatus.
-
-**Details:**
-
-```bash
-tailscale status --json | jq .
-tailscale ping homeserver           # Latenz zu einem anderen Tailnet-Gerät
-tailscale netcheck                  # Netz-Diagnostik
-```
-
-**Häufige Server-Kommandos:**
-
-```bash
-# Verbindung trennen
-sudo tailscale down
-
-# Wieder verbinden (nutzt bestehende Auth)
-sudo tailscale up
-
-# Re-Authentifizierung erzwingen
-sudo tailscale up --force-reauth
-
-# Tailscale-IP
-tailscale ip -4
-tailscale ip -6
-
-# Logs
-sudo journalctl -u tailscaled -f
-sudo journalctl -u tailscaled --since "1 hour ago"
-
-# Service-Management
-sudo systemctl status tailscaled
-sudo systemctl restart tailscaled
-```
-
----
-
-## Exit-Node (optional)
-
-Wenn der Home-Server als Exit-Node konfiguriert wird, **routet sämtlicher
-Internet-Traffic** vom Client durch die Heim-Internet-Verbindung. Praktisch
-in unsicheren Netzen (Public WiFi).
-
-**Exit-Node auf dem Server aktivieren:**
-
-```bash
-# Als Exit-Node advertisen
-sudo tailscale up \
-  --advertise-exit-node \
-  --advertise-routes=192.168.178.0/24 \
-  --hostname=homeserver
-```
-
-**Im Admin-Panel approven:**
-
-1. [Admin-Panel](https://login.tailscale.com/admin/machines) → eigener Server.
-2. **... → Edit route settings**.
-3. **Use as exit node** aktivieren.
-4. **Save**.
-
-**Exit-Node auf dem Client nutzen:**
-
-```bash
-# Linux: Home-Server als Exit-Node
-sudo tailscale up --exit-node=homeserver
-
-# Oder über die Tailscale-IP
-sudo tailscale up --exit-node=100.101.102.103
-
-# Exit-Node deaktivieren
-sudo tailscale up --exit-node=
-```
-
-Auf macOS/Windows: Tailscale-Icon → **Exit Node** → eigenen Server wählen.
-
-**Verifizieren:**
-
-```bash
-# Sollte die Heim-IP zeigen, nicht die IP des aktuellen Netzes
-curl ifconfig.me
-```
-
----
-
-## ACL-Konfiguration
-
-Tailscale-ACLs (Access Control Lists) steuern, welches Gerät welches andere
-Gerät erreichen darf. Default ist „all-to-all".
-
-ACL-Policy im [Admin-Panel](https://login.tailscale.com/admin/acls) editieren:
-
-**Beispiel: nur bestimmte Geräte dürfen auf den Home-Server zugreifen:**
-
-```json
-{
-  "acls": [
-    {
-      "action": "accept",
-      "src": ["tag:personal-devices"],
-      "dst": ["tag:homeserver:*"]
-    }
-  ],
-  "tagOwners": {
-    "tag:homeserver": ["autogroup:admin"],
-    "tag:personal-devices": ["autogroup:admin"]
-  }
-}
-```
-
-Auth-Keys werden dann mit den passenden Tags erstellt (`tag:homeserver` für den Server,
-`tag:personal-devices` für Laptops/Phones).
-
----
-
-## Troubleshooting
-
-Detaillierte Schritte in [07-troubleshooting.md](07-troubleshooting.md#tailscale-not-connecting).
-
-Schnell-Checks:
-
-```bash
-# Läuft tailscaled?
-sudo systemctl status tailscaled
-
-# Verbindung aktiv?
-tailscale status
-
-# Netzdiagnose
-tailscale netcheck
-
-# Erreicht der Server die Tailscale-Services?
-curl -sv https://login.tailscale.com/
-
-# Vollständige Logs
+tailscale status                      # Peers und Verbindungszustand
+tailscale status --json | jq .BackendState   # "Running" oder z. B. "NeedsLogin"
+tailscale netcheck                    # UDP, DERP-Latenzen
 sudo journalctl -u tailscaled --since "30 minutes ago"
+
+# Manueller Login, wenn der Auth-Key abgelaufen ist (öffnet einen Login-Link)
+sudo tailscale up --hostname=homeserver --advertise-routes=192.168.178.0/24 \
+  --accept-dns=true --accept-routes=false
 ```

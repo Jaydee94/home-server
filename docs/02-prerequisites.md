@@ -1,250 +1,66 @@
 # Voraussetzungen
 
-Dieses Dokument listet alles auf, was vor dem ersten Playbook-Run vorhanden sein muss.
+Was vor dem ersten `make install` vorhanden sein muss: Hardware, Netz, Accounts, Workstation-Tools und das Vault-Passwort. Die OS-Installation selbst beschreibt [Ubuntu-Server-Installation](00-ubuntu-server-install.md).
 
----
+## Hardware
 
-## Control-Machine
+| Komponente | Minimum | Referenz |
+|---|---|---|
+| CPU | x86-64, 2 Kerne, VT-x für KubeVirt | Intel Core i5 mit iGPU (Quick Sync für Jellyfin) |
+| RAM | 4 GB | 32 GB |
+| Disk | 20 GB | 512 GB NVMe-SSD |
+| Netzwerk | Ethernet | 1 Gbit/s |
 
-Der Rechner, von dem aus Ansible läuft, braucht:
+Der Gameserver läuft als KubeVirt-VM mit 4 vCPU und 8 GiB RAM und braucht `/dev/kvm`. Mit dem Minimum läuft der Grund-Stack, aber nicht alle Apps unter `argocd/apps/`.
 
-### Ansible >= 2.14
+## Netz und Router
 
-```bash
-# Version prüfen
-ansible --version
+- Der Server hat eine feste LAN-IP (Referenz `192.168.178.127`).
+- Die MetalLB-Adressen `192.168.178.2` (Pi-hole DNS), `.3` (Jellyfin) und `.4` (Mosquitto) liegen außerhalb des DHCP-Bereichs der FritzBox. Details in [Pi-hole](15-pihole.md).
+- Für Tailscale ist kein Port-Forwarding nötig. Ausgehendes UDP 41641 sollte offen sein, sonst läuft der Verkehr über DERP-Relays.
+- Scanner, Backup und Media-Stack schreiben per SMB auf die UGREEN NAS (`192.168.178.118`).
 
-# Installation via pip (empfohlen)
-pip3 install --user "ansible>=2.14"
+## Accounts
 
-# Oder via pipx (isolierte Umgebung)
-pipx install ansible
+| Account | Wofür |
+|---|---|
+| GitHub | ArgoCD zieht aus [`argocd_repo_url`](../ansible/group_vars/all.yml) (Default: dieses Repo, Branch `main`). Ein Fork muss öffentlich sein oder ArgoCD braucht Repo-Credentials. |
+| Tailscale | Auth-Key unter [Settings > Keys](https://login.tailscale.com/admin/settings/keys): nicht „Reusable", nicht „Ephemeral". Der Key beginnt mit `tskey-auth-`. |
 
-# Auf Ubuntu/Debian via apt (oft ältere Version)
-sudo apt install ansible
-```
+## Workstation-Tools
 
-### Python >= 3.10
+| Tool | Hinweis |
+|---|---|
+| `ansible` | Paket `ansible` 14.x (enthält `ansible-core`), dieselbe Version wie in CI: `pip install -r .github/requirements-ansible.txt` |
+| Python | 3.13 ist in CI getestet, sehr neue Versionen unterstützt `ansible-core` oft noch nicht |
+| `make`, `git`, `ssh` | Pflicht |
+| `helm`, `yamllint`, `ansible-lint` | nur für `make lint` |
 
-```bash
-# Version prüfen
-python3 --version
+Die Galaxy-Collections aus [`ansible/requirements.yml`](../ansible/requirements.yml) (`ansible.posix`, `community.general`, `kubernetes.core`, `community.docker`) installiert `make install` über `make deps` selbst.
 
-# Zusätzlich zu Ansible benötigte Python-Pakete:
-pip3 install --user netaddr jmespath
-```
+## Vault
 
-`netaddr` wird von `ansible.utils` für CIDR-Berechnungen (UFW-Regeln) genutzt,
-`jmespath` von dem `community.general.json_query`-Filter in der Rolle
-`semaphore_bootstrap`.
+Alle Secrets stehen als Inline-Vault-Werte (`!vault |`) in [`ansible/group_vars/all.yml`](../ansible/group_vars/all.yml), die Datei selbst bleibt Klartext. Alle Werte sind mit demselben Vault-Passwort verschlüsselt, das `make install` per `--ask-vault-pass` abfragt. Semaphore braucht es zur Laufzeit ebenfalls, deshalb liegt es verschlüsselt als `semaphore_vault_password` in derselben Datei.
 
-### SSH-Client
-
-Ein normaler `ssh`-Client muss verfügbar sein. Test:
-
-```bash
-ssh -V
-```
-
----
-
-## Ziel-Server
-
-### Frische Ubuntu-26.04-LTS-Installation
-
-- **Server-Variante** (kein Desktop)
-- Mindestens **4 GB RAM** (Referenz: 32 GB)
-- Mindestens **20 GB Disk** (Referenz: 512 GB NVMe-SSD)
-- Netzwerk-Anbindung (DHCP oder statische IP, statisch empfohlen)
-- Non-Root-User mit `sudo`-Rechten (Ubuntu-Default: `ubuntu`)
-
-### SSH-Key-Authentifizierung
-
-Die Control-Machine muss sich passwortlos per Key am Server anmelden können:
+Einen Wert verschlüsselst du so und ersetzt den alten Block durch die Ausgabe:
 
 ```bash
-# Falls noch kein Key vorhanden ist
-ssh-keygen -t ed25519 -C "home-server-ansible" -f ~/.ssh/id_ed25519
-
-# Public Key auf den Server kopieren (einmaliger Passwort-Login)
-ssh-copy-id -i ~/.ssh/id_ed25519.pub jaydee@192.168.178.127
-
-# Login testen
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "echo 'SSH-Key-Login funktioniert'"
+ansible-vault encrypt_string 'tskey-auth-...' --name 'tailscale_auth_key'
 ```
 
-Liegt der Private Key woanders, in `ansible/inventory/hosts.yml` entsprechend
-`ansible_ssh_private_key_file` anpassen.
+| Variable | Pflicht für |
+|---|---|
+| `tailscale_auth_key` | Rolle `tailscale` |
+| `semaphore_vault_password` | Rolle `semaphore_bootstrap` |
+| `scanner_smb_password`, `scanner_gotify_token`, `scanner_paperless_api_token` | Rolle `scanner` (Tokens nur, wenn Gotify bzw. Paperless-API aktiv sind) |
+| `backup_restic_password` | Rolle `backup`, ohne den Wert wird sie übersprungen ([Backup](26-backup.md)) |
+| `vault_nas_become_password`, `vault_portainer_admin_password` | NAS-Playbook (`make nas`) |
 
-### Python 3 auf dem Server
-
-Ubuntu 26.04 bringt Python 3.12 mit:
+## Prüfen vor dem ersten Lauf
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "python3 --version"
+ssh jaydee@192.168.178.127 'sudo -n whoami'              # root, ohne Passwortabfrage
+ssh jaydee@192.168.178.127 'curl -sfI https://get.k3s.io' # Internet vom Server
+make ping                                                # homeserver | SUCCESS
+grep -n 'CHANGE' ansible/group_vars/all.yml              # Werte mit CHANGE-Kommentar prüfen
 ```
-
----
-
-## Externe Accounts
-
-### Tailscale-Account + Auth-Key
-
-1. Auf [tailscale.com](https://tailscale.com) registrieren (kostenlos für Personal Use).
-2. **Settings → Keys** im Tailscale-Admin-Panel öffnen.
-3. **Generate auth key** anklicken.
-4. Optionen wählen:
-   - **Reusable**: Nein (Single-Use ist sicherer)
-   - **Ephemeral**: Nein (der Server soll im Netz bleiben)
-   - **Tags**: optional (z. B. `tag:homeserver`)
-5. Key kopieren (beginnt mit `tskey-auth-…`).
-6. Mit Ansible-Vault verschlüsseln (siehe [Installation Guide](03-installation.md)).
-
-### Git-Repository für GitOps
-
-ArgoCD zieht die Manifests aus einem Git-Repository. Möglichkeiten:
-
-- **Dieses Repository selbst** (empfohlen, am einfachsten)
-- Ein separates privates Repository
-
-Das Repository muss **öffentlich** sein oder ArgoCD mit Credentials für
-private Repos versorgt werden.
-
-`argocd_repo_url` in `ansible/group_vars/all.yml` auf die eigene Repo-URL setzen.
-
----
-
-## Ansible-Galaxy-Collections
-
-Vor dem Playbook-Run die benötigten Collections installieren:
-
-```bash
-ansible-galaxy collection install -r ansible/requirements.yml
-```
-
-Die `ansible/requirements.yml` liefert:
-
-| Collection           | Version     | Zweck                                      |
-|----------------------|-------------|--------------------------------------------|
-| `ansible.posix`      | >= 1.5.0    | POSIX-Module (sysctl, firewalld, …)        |
-| `community.general`  | >= 7.0.0    | Erweiterte Module (snap, homebrew, …)      |
-| `kubernetes.core`    | >= 2.4.0    | kubectl/Helm-Interaktionsmodule            |
-
----
-
-## Pre-flight-Checks
-
-Vor dem Playbook-Run alle Punkte abhaken; alle sollten grün sein.
-
-### 1. SSH-Verbindung
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "whoami"
-# Erwartet: jaydee
-```
-
-### 2. Passwortloses sudo
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "sudo whoami"
-# Erwartet: root
-# Falls Passwort abgefragt wird, NOPASSWD-sudo konfigurieren:
-# echo 'jaydee ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/jaydee
-```
-
-### 3. Ansible-Ping
-
-```bash
-ansible -i ansible/inventory/hosts.yml homeserver -m ping
-# Erwartet:
-# homeserver | SUCCESS => { "ping": "pong" }
-```
-
-### 4. Python auf dem Ziel verfügbar
-
-```bash
-ansible -i ansible/inventory/hosts.yml homeserver -m ansible.builtin.command \
-  -a "python3 --version"
-# Erwartet: python3 3.x.x
-```
-
-### 5. Internet-Zugriff auf dem Server
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "curl -sf https://get.k3s.io | head -5"
-# Erwartet: Script-Header (keine Fehler)
-```
-
-### 6. Genug Disk-Speicher
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "df -h /"
-# Erwartet: mindestens 20 GB frei
-```
-
-### 7. Genug RAM
-
-```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 "free -h"
-# Erwartet: mindestens 4 GB total
-```
-
-### 8. Inventory aktualisiert
-
-```bash
-grep "ansible_host:" ansible/inventory/hosts.yml
-# Sollte die eigene Server-IP zeigen (nicht den Platzhalter 192.168.1.100).
-```
-
-### 9. group_vars aktualisiert
-
-```bash
-grep "YOUR_USER\|CHANGE_ME\|CHANGE_THIS" ansible/group_vars/all.yml
-# Sollte KEINE Treffer liefern — sonst stehen noch Platzhalter drin.
-```
-
-### 10. Vault-Secret verschlüsselt
-
-```bash
-grep "tailscale_auth_key:" ansible/group_vars/all.yml
-# Korrekt: tailscale_auth_key: !vault |
-# Falsch:  tailscale_auth_key: "CHANGE_ME_USE_VAULT"
-```
-
----
-
-## Optional: Statische IP
-
-Für einen Server ist eine statische IP dringend empfohlen, vor dem Ansible-Run
-konfigurieren.
-
-Auf Ubuntu 26.04 (netplan):
-
-```bash
-# /etc/netplan/00-installer-config.yaml
-network:
-  version: 2
-  ethernets:
-    ens3:           # tatsächlichen Interface-Namen aus `ip link show` einsetzen
-      dhcp4: false
-      addresses:
-        - 192.168.178.127/24
-      routes:
-        - to: default
-          via: 192.168.178.1
-      nameservers:
-        addresses:
-          - 1.1.1.1
-          - 8.8.8.8
-
-# Anwenden:
-sudo netplan apply
-```
-
----
-
-## Anforderungen an den Heimrouter
-
-- Server unter der konfigurierten IP erreichbar.
-- Outbound UDP-Port 41641 **nicht blockieren** (Tailscale).
-- **Kein** Port-Forwarding für Tailscale nötig (DERP-Relay als Fallback).

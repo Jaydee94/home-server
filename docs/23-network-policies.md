@@ -1,21 +1,21 @@
-# 23 – NetworkPolicies
+# NetworkPolicies
 
-Bis auf `ha-mcp` und `home-assistant` (die schon vorher eigene, eng
-geschnittene `NetworkPolicy`-Ressourcen hatten) liefen alle App-Namespaces
-in einem flachen Cluster-Netz: jeder Pod in jedem Namespace konnte jeden
-anderen Pod über dessen ClusterIP erreichen. Dieses Dokument beschreibt das
-Muster, mit dem ein Teil davon geschlossen wurde, und (genauso wichtig)
-welche Namespaces **bewusst ausgenommen** wurden und warum.
+Ein Teil der App-Namespaces nimmt eingehenden Traffic nur noch aus dem eigenen Namespace, von Traefik und von ausdrücklich erlaubten Namespaces an. Die übrigen Namespaces sind bewusst offen, weil eine falsch geschnittene Policy dort LAN-Dienste oder Cluster-Infrastruktur lahmlegen würde.
 
-## Muster: Namespace-Isolation (Ingress-only)
+| | |
+|---|---|
+| Muster | `templates/networkpolicy.yaml` je App, Name `<app>-namespace-isolation` |
+| Library-Template | `common.networkpolicy.isolation` in [`argocd/lib/common`](../argocd/lib/common/README.md) |
 
-Jede betroffene App bekommt eine `templates/networkpolicy.yaml` mit genau
-einer `NetworkPolicy`. `paperless-ai` und `media` rendern sie über das
-Library-Chart (`argocd/lib/common`):
-`{{ include "common.networkpolicy.isolation" (dict "root" $ "name" "media" "namespaces" (list "monitoring" "homepage")) }}`
-(`namespaces` sind die zusätzlich erlaubten Quell-Namespaces, `kube-system`
-ist immer dabei); die übrigen Apps haben noch eine eigene Kopie. Das
-gerenderte Ergebnis ist:
+## Muster: Namespace-Isolation
+
+`media` und `paperless-ai` rendern die Policy über das Library-Chart, die anderen Apps haben eine eigene Kopie mit demselben Inhalt:
+
+```text
+{{ include "common.networkpolicy.isolation" (dict "root" $ "name" "media" "namespaces" (list "monitoring" "homepage")) }}
+```
+
+Gerendert sieht das so aus (`namespaces` ergibt je einen weiteren `namespaceSelector`):
 
 ```yaml
 spec:
@@ -27,122 +27,55 @@ spec:
         - podSelector: {}                # jeder Pod im selben Namespace
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: kube-system   # Traefik-Ingress
+              kubernetes.io/metadata.name: kube-system   # Traefik
 ```
 
-- **Nur `Ingress`, nie `Egress`.** Ausgehender Traffic (DNS-Auflösung,
-  Internet-Zugriff für *arr-Downloads, HA-Extension-Init-Container, apt/curl
-  in Init-Containern, …) bleibt vollständig unangetastet. Das minimiert das
-  Risiko, etwas kaputt zu machen; es gibt in diesem Setup keine
-  Staging-Umgebung, jede Änderung geht direkt gegen den produktiven
-  Single-Node-Cluster.
-- **`podSelector: {}` als erster `from`-Eintrag erlaubt jeglichen Traffic
-  innerhalb desselben Namespace.** Das ist bewusst grob (nicht
-  Port-scharf); Apps mit mehreren zusammenspielenden Komponenten im
-  selben Namespace (z. B. der VictoriaMetrics-Stack aus
-  VMSingle/VMAgent/VMAlert/Alertmanager/Grafana,
-  `media-api-exporter` → Sonarr/Radarr im `media`-Namespace) funktionieren dadurch
-  unverändert weiter, ohne dass jede interne Verbindung einzeln
-  nachvollzogen werden musste.
-- **`kubernetes.io/metadata.name`** ist seit Kubernetes 1.21 ein
-  unveränderliches, automatisch gesetztes Label auf jedem Namespace, kein
-  manuelles Namespace-Labeling nötig (siehe auch `docs/22-ha-mcp.md`).
+Die Policies regeln nur `Ingress`. Ausgehender Traffic (DNS, Internet, Init-Container) bleibt offen, weil es keine Staging-Umgebung gibt und jede Änderung direkt den produktiven Single-Node-Cluster trifft. Innerhalb eines Namespace ist alles erlaubt, damit zusammenspielende Komponenten wie der VictoriaMetrics-Stack ohne Einzelregeln funktionieren. Das Label `kubernetes.io/metadata.name` setzt Kubernetes auf jedem Namespace automatisch.
 
 ## Abgedeckte Namespaces
 
-| Namespace | Zusätzliche Allow-Regel(n) | Grund |
+| Namespace | Zusätzlich erlaubt | Grund |
 |---|---|---|
-| `gameserver-ui` | – | nur Traefik |
-| `gotify` | – | nur Traefik |
-| `headlamp` | – | nur Traefik |
-| `homepage` | – | nur Traefik (Homepage ruft andere Namespaces selbst auf; das ist *deren* Ingress-Regel, nicht Homepages eigene) |
-| `kubeseal-webgui` | – | nur Traefik |
-| `media` | `monitoring`, `homepage` | vmagent scraped `media-api-exporter`; Homepage-Widgets rufen Seerr/Sonarr/Radarr/Prowlarr/SABnzbd direkt per ClusterIP-DNS auf |
-| `monitoring` | `homepage`, `gameserver-ui`, `remedy` | Homepage-Grafana-Widget; gameserver-ui fragt VictoriaMetrics direkt ab (`vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local:8428`); Remedy liest den Alertmanager (`vmalertmanager-monitoring-victoria-metrics-k8s-stack.monitoring.svc:9093`) |
-| `paperless-ai` | – | nur Traefik (Paperless-API-Token und AI-Provider-Key liegen im PVC; kein anderer Namespace ruft die App auf, sie selbst spricht nur ausgehend mit Paperless auf dem NAS und dem AI-Provider) |
-| `rps-arena` | – | nur Traefik (interner app↔redis-Traffic über `podSelector: {}`) |
-| `semaphore` | – | nur Traefik |
-| `smartctl-exporter` | nur `monitoring` (kein Traefik, kein eigener Namespace) | vmagent scraped den Exporter auf Port 9633; der Pod ist privilegiert und hat sonst keinen Konsumenten |
+| `gameserver-ui`, `headlamp`, `homepage`, `kubeseal-webgui`, `paperless-ai`, `semaphore` | keine | nur Traefik |
+| `gotify` | `monitoring` | im Repo gibt es keinen aktuellen Aufrufer aus `monitoring` |
+| `media` | `monitoring`, `homepage` | vmagent scrapt `media-api-exporter`; Homepage-Widgets rufen Seerr, Sonarr, Radarr, Prowlarr und SABnzbd per ClusterIP-DNS auf |
+| `monitoring` | `homepage`, `gameserver-ui`, `remedy` | Homepage-Widget für Grafana; gameserver-ui und Remedy lesen vmsingle (`:8428`), Remedy zusätzlich den Alertmanager (`:9093`) |
+| `ntfy` | `monitoring` | `ntfy-alertmanager` liefert Alerts an `ntfy.ntfy.svc.cluster.local` |
+| `rps-arena` | `monitoring` | vorgehalten für späteres Scraping; app und redis sprechen über `podSelector: {}` |
+| `smartctl-exporter` | nur `monitoring` | kein Traefik, kein Traffic im Namespace; vmagent ist der einzige Konsument des privilegierten Pods |
 
-Alle Cross-Namespace-Abhängigkeiten wurden vorher per
-`grep -rn "svc.cluster.local" argocd/apps/` verifiziert, nicht geraten;
-diese Liste ist vollständig für den heutigen Stand des Repos. Wird eine
-neue App ergänzt, die per ClusterIP-DNS in einen der obigen Namespaces
-hineinruft, muss die jeweilige `networkpolicy.yaml` um einen entsprechenden
-`namespaceSelector`-Eintrag ergänzt werden; sonst bricht die Verbindung
-stillschweigend (Connection Timeout, keine Fehlermeldung, siehe
-`docs/22-ha-mcp.md` Abschnitt 4 für ein Beispiel aus der Praxis).
+Ruft eine neue App per `<svc>.<namespace>.svc.cluster.local` in einen dieser Namespaces, muss die Policy der Ziel-App einen `namespaceSelector` für den Aufrufer bekommen. Sonst läuft die Verbindung ohne Fehlermeldung in einen Timeout. Bestehende Aufrufer findest du mit `grep -rn "svc.cluster.local" argocd/apps/`.
 
-## Bewusst ausgenommene Namespaces
+## Eigene Policies außerhalb des Musters
 
-Diese Namespaces haben **keine** neue NetworkPolicy bekommen. Das ist eine
-Scoping-Entscheidung, keine Lücke, die einfach übersehen wurde; jede
-hätte ein reales Risiko, den laufenden Betrieb zu brechen, ohne
-Staging-Umgebung zum Gegentesten:
+| Namespace | Policy | Regel |
+|---|---|---|
+| `ha-mcp` | `ha-mcp-ingress` | nur Traefik, nur auf den Container-Port; der geheime URL-Pfad ist die einzige Authentifizierung |
+| `home-assistant` | `home-assistant-ingress` | Port 8123 nur aus `kube-system` und `ha-mcp` |
+| `mosquitto` | `mosquitto-broker` | nur Port `mqtt` (TCP), aus jeder Quelle, weil das Nuki-Schloss über die MetalLB-IP `192.168.178.4` aus dem LAN kommt |
+| `remedy` | aus dem Remedy-Chart (`networkPolicy` in `values.yaml`) plus `remedy-postgres-backup-egress` | einziger Namespace mit Egress-Regeln: API-Server, NAS-SSH, Alertmanager, vmsingle; Details in [Remedy](24-remedy.md) |
 
-- **`pihole`:** läuft auf einer dedizierten MetalLB-LAN-IP
-  (`192.168.178.2:53`), die das **gesamte LAN** als DNS-Server nutzt
-  (FritzBox zeigt darauf). Traffic über eine MetalLB-LoadBalancer-IP kommt
-  je nach `externalTrafficPolicy` mit einer Node-IP oder der echten
-  Client-IP als Quelle an; beides matcht **nicht** automatisch gegen
-  `podSelector`/`namespaceSelector`. Eine naive Default-Deny-Policy hier
-  hätte das Risiko, DNS für das ganze Haus zu brechen. Würde man das
-  absichern wollen, bräuchte es eine sorgfältig getestete `ipBlock`-Regel
-  für `local_subnet` (`192.168.178.0/24`) statt der hier verwendeten
-  Namespace-Isolation.
-- **`mosquitto`:** dieselbe Problematik: dedizierte MetalLB-LAN-IP
-  (`192.168.178.4:1883`), an die das Nuki Smart Lock direkt spricht
-  (siehe `docs/18-nuki-mqtt.md`).
-- **`jellyfin`:** hat **drei** parallele Zugriffspfade (Traefik-Ingress,
-  dedizierte MetalLB-LAN-IP für Smart-TVs, Tailscale-Klipper-hostPort) —
-  die letzten beiden umgehen `podSelector`/`namespaceSelector` auf
-  dieselbe Weise wie Pi-hole/Mosquitto. Zusätzlich ruft `media` Jellyfin
-  bereits heute per ClusterIP an (`jellyfin.jellyfin.svc.cluster.local`) —
-  eine korrekte Policy bräuchte mindestens `ipBlock`-Regeln für LAN +
-  Tailscale-CGNAT (`100.64.0.0/10`) plus die `media`-Ausnahme.
-- **`metallb`:** Speaker-Pods sprechen über ein Memberlist-Gossip-Protokoll
-  auf bestimmten UDP-Ports direkt miteinander; eine falsch geschnittene
-  Policy könnte MetalLBs eigene Leader-Election/Failover brechen, was
-  wiederum *alle* LoadBalancer-IPs im Cluster (Pi-hole, Mosquitto, Jellyfin)
-  lahmlegen würde.
-- **`sealed-secrets`:** betreibt einen Admission-Webhook, den der
-  Kubernetes-API-Server direkt erreichen muss. Wird dieser Pfad
-  blockiert, lassen sich keine neuen SealedSecrets mehr entschlüsseln
-  bzw. anlegen; inklusive der Policies aus diesem Dokument selbst, falls
-  sie später mal ein SealedSecret bräuchten.
-- **`kubevirt`:** mehrere Webhooks (virt-api) plus komplexe
-  Pod-zu-Pod-Kommunikation zwischen virt-handler/virt-controller/virt-launcher.
-- **`gameserver`:** die 7DTD-VM (KubeVirt) hängt an derselben
-  virt-handler/virt-controller-Kommunikation wie `kubevirt` und ist
-  ohnehin nur per Tailscale erreichbar (kein In-Cluster-Ingress-Bedarf).
-- **`csi-driver-smb`:** CSI-Treiber-Kommunikation läuft primär über
-  Unix-Sockets/hostPath, nicht über gewöhnliche Pod-IPs; das
-  Risiko/Nutzen-Verhältnis einer Netzwerk-Policy hier ist unklar genug,
-  um es für jetzt auszulassen.
-- **`monitoring-dashboards`:** enthält nur `ConfigMap`s, keine Pods; eine
-  `NetworkPolicy` hätte dort schlicht nichts zu selektieren.
-- **`argocd`:** ArgoCD selbst wurde hier nicht angefasst (siehe
-  offene Punkte unten).
+## Bewusst ausgenommen
 
-## Verifikation nach dem Deploy
+`pihole` und `jellyfin` bekommen Traffic über dedizierte MetalLB-LAN-IPs (`192.168.178.2`, `192.168.178.3`), Jellyfin zusätzlich über einen Klipper-hostPort für Tailscale. Solcher Traffic kommt je nach `externalTrafficPolicy` mit Node- oder Client-IP an und passt auf keinen `podSelector` oder `namespaceSelector`. Eine Absicherung bräuchte getestete `ipBlock`-Regeln für `local_subnet` und `100.64.0.0/10`, bei Jellyfin zusätzlich eine Ausnahme für `media`.
+
+Die Infrastruktur-Namespaces bleiben ebenfalls offen:
+
+| Namespace | Grund |
+|---|---|
+| `metallb` | Speaker-Pods sprechen per Memberlist direkt miteinander; eine Störung trifft alle LoadBalancer-IPs |
+| `sealed-secrets` | der API-Server muss den Controller erreichen, sonst lassen sich keine SealedSecrets mehr entschlüsseln |
+| `kubevirt`, `gameserver` | Webhooks von virt-api und Pod-zu-Pod-Verkehr zwischen virt-handler, virt-controller und virt-launcher |
+| `csi-driver-smb` | Kommunikation läuft vor allem über Unix-Sockets und hostPath |
+| `argocd`, `kube-system`, `cert-manager`, `blackbox-exporter` | nicht angefasst |
+| `monitoring-dashboards` | die App legt nur ConfigMaps in `monitoring` an, keine Pods |
+
+Weitere Hinweise stehen in [gotchas.md](gotchas.md#networkpolicies).
+
+## Betrieb
 
 ```bash
-ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
-  'sudo kubectl get networkpolicy -A'
-
-# Homepage-Dashboard öffnen, prüfen ob alle Widgets (Grafana-Status,
-# Sonarr/Radarr/Prowlarr/SABnzbd/Seerr-Stats) weiterhin Live-Daten zeigen.
-# Grafana öffnen, prüfen ob alle Dashboards weiterhin Daten anzeigen
-# (vmagent-Scraping funktioniert noch).
+sudo kubectl get networkpolicy -A
 ```
 
-## Offene Punkte / mögliche Folge-Schritte
-
-- Die oben ausgenommenen Namespaces (v. a. `pihole`, `mosquitto`,
-  `jellyfin`) ließen sich mit `ipBlock`-Regeln für `local_subnet` und die
-  Tailscale-CGNAT-Range absichern; das braucht aber sorgfältiges Testen
-  gegen eine Kopie des Clusters oder ein Wartungsfenster, nicht einen
-  Fire-and-Forget-Commit.
-- `argocd`, `kube-system` selbst und die restlichen Infra-Namespaces
-  (`metallb`, `sealed-secrets`, `kubevirt`, `csi-driver-smb`) wurden hier
-  nicht angefasst.
+Nach einer Änderung an einer Policy die Homepage-Widgets und die Grafana-Dashboards prüfen: Zeigen sie keine Daten mehr, fehlt eine Allow-Regel.
