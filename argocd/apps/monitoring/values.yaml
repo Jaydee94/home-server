@@ -54,6 +54,113 @@ victoria-metrics-k8s-stack:
           requests:
             storage: 10Gi
 
+  # ---- VictoriaLogs (log storage) --------------------------
+  # VLSingle CR, reconciled by the operator into a Deployment + Service
+  # `vlsingle-monitoring-victoria-metrics-k8s-stack:9428`. Pod logs used to be
+  # gone after a restart; the AppArmor/CrashLoop incidents were only readable
+  # over SSH. The chart ships VLSingle/VLAgent (chart 0.98.1, logs v1.53.0);
+  # the CRDs (operator.victoriametrics.com/v1) exist in the cluster.
+  vlsingle:
+    enabled: true
+    spec:
+      # Replaces the chart default "1" (= 1 month, unit-less).
+      retentionPeriod: "14d"
+      replicaCount: 1
+      # Hardening by the operator: non-root (65534), read-only root fs, no
+      # capabilities. VictoriaLogs only writes to the data volume.
+      useStrictSecurity: true
+      extraArgs:
+        # Data lives on our own PVC (templates/pvc-victorialogs.yaml), mounted
+        # below. The operator's default storage path is not used.
+        storageDataPath: /vl-data
+        # Hard cap below the 10Gi PVC: local-path enforces no quota, so without
+        # this a log flood would eat the node's disk. VictoriaLogs drops the
+        # oldest daily partitions once the data exceeds it, regardless of the
+        # 14d retention.
+        retention.maxDiskSpaceUsageBytes: 8GiB
+      # Switch the operator's own PVC off. The chart default is
+      # `storage.resources.requests.storage: 20Gi`; with it the operator would
+      # create a second, unprotected PVC (owned by the VLSingle CR, so it would
+      # go with the CR) next to ours. `storage: null` does not work here: Helm
+      # only deletes keys with null from user-supplied values, not from the
+      # chart's own values.yaml, and ArgoCD passes no extra values file. The
+      # operator treats a zero request as "no storage" (isStorageEmpty in
+      # factory/vlsingle) and mounts only the volumes below. Documented
+      # pattern: "VLSingle with existing PVC mounted" in the operator docs.
+      storage:
+        resources:
+          requests:
+            storage: "0"
+      volumes:
+        - name: vl-data
+          persistentVolumeClaim:
+            claimName: victorialogs-data
+      volumeMounts:
+        - name: vl-data
+          mountPath: /vl-data
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+
+  # ---- VLAgent (log collector) -----------------------------
+  # With k8sCollector the operator renders a DaemonSet (one pod per node, here
+  # one), which discovers the node's pods via the Kubernetes API and tails
+  # their container logs. Remote write target is VLSingle (/insert/native, set
+  # by the chart).
+  vlagent:
+    enabled: true
+    # The operator creates the ServiceAccount but no RBAC for the collector.
+    # The collector needs to read pod/namespace/node metadata cluster-wide
+    # (same rules as the upstream victoria-logs-collector chart), hence a
+    # ClusterRole(Binding) instead of a namespaced Role.
+    rbac:
+      namespaced: false
+      rules:
+        - apiGroups: [""]
+          resources: ["nodes", "namespaces", "pods"]
+          verbs: ["get", "list", "watch"]
+    spec:
+      # Operator hardening for the collector: root (it must read the root-owned
+      # /var/log/pods, mode 0750), but read-only root fs, all capabilities
+      # dropped, no privilege escalation. Root owner permissions are enough to
+      # read the files, so no DAC_OVERRIDE is needed.
+      useStrictSecurity: true
+      k8sCollector:
+        enabled: true
+        # Not the operator default: for logsPath == "/var/log/containers" the
+        # operator mounts the whole host /var/log and /var/lib read-only. A
+        # trailing slash selects the other branch (no automatic mounts, the
+        # flag is passed as is; vlagent joins file names with path.Join, so
+        # the slash is harmless) and the two mounts below are all that is
+        # needed: /var/log/containers holds symlinks into /var/log/pods
+        # (containerd on k3s, so /var/lib/docker is not needed).
+        logsPath: /var/log/containers/
+      volumes:
+        - name: varlog-containers
+          hostPath:
+            path: /var/log/containers
+        - name: varlog-pods
+          hostPath:
+            path: /var/log/pods
+      volumeMounts:
+        - name: varlog-containers
+          mountPath: /var/log/containers
+          readOnly: true
+        - name: varlog-pods
+          mountPath: /var/log/pods
+          readOnly: true
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+
   # ---- VMAgent ---------------------------------------------
   # Scrapes everything matching a VMServiceScrape / VMPodScrape /
   # VMNodeScrape / VMStaticScrape in any namespace. ServiceMonitors are
@@ -98,6 +205,15 @@ victoria-metrics-k8s-stack:
   vmalert:
     enabled: true
     spec:
+      # With VLSingle enabled the chart points vmalert at the internal VMAuth
+      # (`internal.vmauth` below), which routes /select/logsql to VictoriaLogs
+      # and the rest to vmsingle. That would put one more component into the
+      # alert evaluation path (and vmauth is likely to crash on the same
+      # AppArmor self-signal denial as vmagent). No rule queries logs, so
+      # vmalert keeps talking to vmsingle directly, exactly the URL the chart
+      # used before. To alert on logs later: remove this and check vmauth.
+      datasource:
+        url: http://vmsingle-monitoring-victoria-metrics-k8s-stack.monitoring.svc.cluster.local.:8428
       selectAllByDefault: true
       evaluationInterval: 30s
       # Same AppArmor denial as for vmagent: the rule reload is a SIGHUP to itself
@@ -106,6 +222,27 @@ victoria-metrics-k8s-stack:
       podMetadata:
         annotations:
           container.apparmor.security.beta.kubernetes.io/vmalert: unconfined
+
+  # ---- Internal VMAuth -------------------------------------
+  # Rendered by the chart as soon as VLSingle and VMSingle are both enabled
+  # (vmalert datasource proxy, see `vmalert.spec.datasource` above, which
+  # bypasses it). It reloads its config with a signal to itself, like vmagent
+  # and vmalert, so it gets the same AppArmor annotation. Remove the
+  # annotation once `kernel.apparmor_restrict_unprivileged_unconfined=0` is
+  # active on the host (docs/gotchas.md -> AppArmor / Container-Signale).
+  internal:
+    vmauth:
+      spec:
+        podMetadata:
+          annotations:
+            container.apparmor.security.beta.kubernetes.io/vmauth: unconfined
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 200m
+            memory: 128Mi
 
   # ---- Alertmanager ----------------------------------------
   # Routes critical/warning alerts to ntfy-alertmanager (monitoring namespace,
@@ -286,6 +423,20 @@ victoria-metrics-k8s-stack:
       kube-prometheus:
         url: https://raw.githubusercontent.com/prometheus-operator/kube-prometheus/d88939bfbe7ffa368a62dcc1ff477b1c19fa9674/manifests/grafana-dashboardDefinitions.yaml
 
+  # ---- Grafana datasources ---------------------------------
+  # The chart only provisions a `plugin: true` datasource if its type is in
+  # `grafana.plugins` (the SYNC list, see below). The logs plugin is installed
+  # async, so the entry is repeated here without `plugin: true`; the `url` of
+  # VLSingle is added by the chart. A list replaces the chart default, which
+  # is exactly this one entry plus `plugin: true`.
+  defaultDatasources:
+    victorialogs:
+      datasources:
+        - name: VictoriaLogs
+          access: proxy
+          uid: VictoriaLogs
+          type: victoriametrics-logs-datasource
+
   # ---- Grafana --------------------------------------------
   # Exposed at http://grafana.homeserver via Traefik. Admin password is
   # stored in the SealedSecret `grafana-admin` (monitoring namespace).
@@ -294,8 +445,22 @@ victoria-metrics-k8s-stack:
     enabled: true
     defaultDashboardsTimezone: browser
 
+    # `plugins` becomes GF_PLUGINS_PREINSTALL_SYNC: Grafana installs these
+    # BEFORE it starts and refuses to start if a download fails (Grafana
+    # plugininstaller, failOnErr=true). The metrics plugin is already on the
+    # Grafana PVC (/var/lib/grafana/plugins) and the chart sets
+    # preinstall_auto_update=false, so a restart makes no network call.
     plugins:
       - victoriametrics-metrics-datasource
+
+    # The VictoriaLogs datasource plugin is installed ASYNC instead
+    # (GF_PLUGINS_PREINSTALL, Grafana default is empty): a download failure
+    # (no internet) is only logged and does not block the start. It is then
+    # kept on the PVC, so later restarts do not download it again. Until it is
+    # installed, the "VictoriaLogs" datasource shows "plugin not found" in
+    # Grafana (provisioning does not check the plugin type).
+    env:
+      GF_PLUGINS_PREINSTALL: victoriametrics-logs-datasource
 
     admin:
       existingSecret: "grafana-admin"

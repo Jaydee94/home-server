@@ -1,0 +1,32 @@
+---
+# Data volume of VictoriaLogs (VLSingle `vlsingle-monitoring-victoria-metrics-k8s-stack`,
+# see `victoria-metrics-k8s-stack.vlsingle` in values.yaml, mounted at /vl-data).
+#
+# Own PVC instead of the operator's `spec.storage`: that PVC would be owned by
+# the VLSingle CR and carry no ArgoCD sync options.
+#
+# Size: the node's container logs currently take 285 MB on disk for ~160
+# containers (kubelet rotates at 10 MiB x 5 per container), VictoriaLogs
+# compresses logs roughly 10:1. Even at 1 GB/day of raw logs 14 days stay below
+# 2 GB, so 10Gi leaves a wide margin; `retention.maxDiskSpaceUsageBytes: 8GiB`
+# in values.yaml caps it (local-path enforces no quota; the NVMe has ~340 GB
+# free). PVC size cannot be changed by Helm values later (local-path does not
+# expand), so this is deliberately not tight.
+#
+# Delete=false,Prune=false: see docs/gotchas.md -> ArgoCD / GitOps. Without it
+# the logs are lost if the template ever disappears or the app is deleted
+# cascading.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: victorialogs-data
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 10Gi
