@@ -50,6 +50,9 @@ jobs:
         run: |
           npx next typegen
           npx tsc --noEmit
+      # Lint is part of CI since the typescript-eslint/TypeScript 7 crash was fixed;
+      # without this step a broken lint setup went unnoticed (see renovate.json, typescript-6).
+      - run: npm run lint
       - run: npm run test
 
   # Pull requests (and manual runs from a branch other than main): build the
