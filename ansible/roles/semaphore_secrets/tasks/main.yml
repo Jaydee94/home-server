@@ -132,41 +132,45 @@
 # ---- Bootstrap Secret -------------------------------------
 # Build the Secret with `kubectl create --dry-run | kubectl apply` so it
 # stays idempotent and we never log secret values.
-- name: Render bootstrap Secret manifest
-  ansible.builtin.copy:
-    dest: /tmp/semaphore-bootstrap-secret.yaml
-    owner: root
-    group: root
-    mode: '0600'
-    content: |
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: {{ semaphore_bootstrap_secret_name }}
-        namespace: {{ semaphore_namespace }}
-      type: Opaque
-      stringData:
-        admin_username: {{ semaphore_admin_username | to_json }}
-        admin_email: {{ semaphore_admin_email | to_json }}
-        admin_password: {{ semaphore_admin_password | to_json }}
-        access_key_encryption: {{ semaphore_access_key_encryption | to_json }}
-        ansible_vault_password: {{ semaphore_vault_password | to_json }}
-        ssh_private_key: {{ semaphore_ssh_private_key | to_json }}
-        ssh_public_key: {{ semaphore_ssh_public_key | to_json }}
-  no_log: true
+# The manifest holds the vault password and the SSH private key in clear
+# text. `always` removes it even when the apply fails.
+- name: Apply the bootstrap Secret
+  block:
+    - name: Render bootstrap Secret manifest
+      ansible.builtin.copy:
+        dest: /tmp/semaphore-bootstrap-secret.yaml
+        owner: root
+        group: root
+        mode: '0600'
+        content: |
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: {{ semaphore_bootstrap_secret_name }}
+            namespace: {{ semaphore_namespace }}
+          type: Opaque
+          stringData:
+            admin_username: {{ semaphore_admin_username | to_json }}
+            admin_email: {{ semaphore_admin_email | to_json }}
+            admin_password: {{ semaphore_admin_password | to_json }}
+            access_key_encryption: {{ semaphore_access_key_encryption | to_json }}
+            ansible_vault_password: {{ semaphore_vault_password | to_json }}
+            ssh_private_key: {{ semaphore_ssh_private_key | to_json }}
+            ssh_public_key: {{ semaphore_ssh_public_key | to_json }}
+      no_log: true
 
-- name: Apply bootstrap Secret to the cluster
-  ansible.builtin.command: kubectl apply -f /tmp/semaphore-bootstrap-secret.yaml
-  environment:
-    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
-  register: semaphore_secret_apply
-  changed_when:
-    - "'unchanged' not in semaphore_secret_apply.stdout"
-
-- name: Remove temporary Secret manifest
-  ansible.builtin.file:
-    path: /tmp/semaphore-bootstrap-secret.yaml
-    state: absent
+    - name: Apply bootstrap Secret to the cluster
+      ansible.builtin.command: kubectl apply -f /tmp/semaphore-bootstrap-secret.yaml
+      environment:
+        KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+      register: semaphore_secret_apply
+      changed_when:
+        - "'unchanged' not in semaphore_secret_apply.stdout"
+  always:
+    - name: Remove temporary Secret manifest
+      ansible.builtin.file:
+        path: /tmp/semaphore-bootstrap-secret.yaml
+        state: absent
 
 # ---- Operator summary -------------------------------------
 - name: Display Semaphore bootstrap summary

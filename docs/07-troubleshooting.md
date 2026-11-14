@@ -223,6 +223,12 @@ sudo journalctl -u tailscaled | grep -i "auth\|error\|fail"
 sudo tailscale up --authkey=tskey-auth-NEUER_KEY --reset
 ```
 
+Die Ansible-Rolle bricht in diesem Zustand nicht ab, sondern meldet
+`WARNING: Tailscale is not connected` und läuft weiter. Dauerhafte Lösung: neuen
+Auth-Key erzeugen und als `tailscale_auth_key` im Vault hinterlegen
+(`ansible-vault encrypt_string ...`), dann loggt der nächste Lauf den Node
+wieder ein.
+
 **tailscaled-Service läuft nicht:**
 
 ```bash

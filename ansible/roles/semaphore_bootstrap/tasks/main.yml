@@ -15,6 +15,17 @@
       them without a vault password. Set semaphore_vault_password in
       group_vars/all.yml (ansible-vault encrypted).
 
+# Projects that are not in the list get deleted further down. An empty list
+# (group_vars not loaded) would therefore wipe all of them, including the one
+# that runs this playbook.
+- name: Pre-flight — semaphore_projects must not be empty
+  ansible.builtin.assert:
+    that: "semaphore_projects | length > 0"
+    fail_msg: >-
+      semaphore_projects is empty. Define the projects in
+      ansible/group_vars/all.yml; the role would otherwise delete every
+      existing Semaphore project as an orphan.
+
 - name: Wait for the semaphore Deployment to roll out
   ansible.builtin.command:
     cmd: kubectl -n {{ semaphore_namespace }} rollout status deploy/semaphore --timeout=300s
