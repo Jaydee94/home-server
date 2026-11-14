@@ -16,3 +16,10 @@ sources:
   - https://github.com/clusterzx/paperless-ai
 maintainers:
   - name: home-server-admin
+dependencies:
+  # Shared templates (names/labels, Service, Ingress, ServiceAccount, PVC,
+  # NetworkPolicy). Resolved by `helm dependency build`, also by the ArgoCD
+  # repo-server. See argocd/lib/common/README.md.
+  - name: common
+    version: 0.1.0
+    repository: file://../../lib/common

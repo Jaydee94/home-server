@@ -10,7 +10,12 @@ welche Namespaces **bewusst ausgenommen** wurden und warum.
 ## Muster: Namespace-Isolation (Ingress-only)
 
 Jede betroffene App bekommt eine `templates/networkpolicy.yaml` mit genau
-einer `NetworkPolicy`:
+einer `NetworkPolicy`. `paperless-ai` und `media` rendern sie über das
+Library-Chart (`argocd/lib/common`):
+`{{ include "common.networkpolicy.isolation" (dict "root" $ "name" "media" "namespaces" (list "monitoring" "homepage")) }}`
+(`namespaces` sind die zusätzlich erlaubten Quell-Namespaces, `kube-system`
+ist immer dabei); die übrigen Apps haben noch eine eigene Kopie. Das
+gerenderte Ergebnis ist:
 
 ```yaml
 spec:

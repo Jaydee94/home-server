@@ -5,6 +5,7 @@ import { SshClient } from "@/lib/ssh";
 import { telnetCommand, telnetOptsFromEnv } from "@/lib/telnet";
 import { listBackups, backupFilePath } from "@/lib/backups";
 import { backupsToPrune } from "@/lib/retention";
+import { withServerLock } from "@/lib/oplock";
 import { mkdirSync, createWriteStream, existsSync, unlinkSync, renameSync } from "fs";
 import { join } from "path";
 import { Readable } from "stream";
@@ -22,6 +23,10 @@ export async function POST() {
   const denied = await requireSession();
   if (denied) return denied;
 
+  return withServerLock("Backup", createBackup);
+}
+
+async function createBackup() {
   try {
     const status = await VmClient.inCluster().getStatus();
     if (status.vmiPhase !== "Running" || !status.ipAddress) {
@@ -43,7 +48,14 @@ export async function POST() {
 
     const partialPath = destPath + ".partial";
     try {
-      const sshStream = ssh.stream("sudo tar czf - /opt/7dtd/data/Saves 2>/dev/null");
+      // Der Server läuft währenddessen weiter: tar meldet dann "file changed as we
+      // read it" mit Exit 1, das Archiv ist trotzdem brauchbar (vorher per saveworld
+      // konsistent geschrieben). Exit 1 ist daher kein Fehler; alles andere schon.
+      // stderr wird geloggt statt verworfen, damit echte Probleme sichtbar bleiben.
+      const sshStream = ssh.stream("sudo tar czf - --warning=no-file-changed /opt/7dtd/data/Saves", {
+        allowedExitCodes: [0, 1],
+        onStderr: (text) => console.warn("[backup] tar stderr:", text),
+      });
       await pipeline(Readable.fromWeb(sshStream as NodeReadableStream<Uint8Array>), createWriteStream(partialPath));
       renameSync(partialPath, destPath);
     } catch (err) {

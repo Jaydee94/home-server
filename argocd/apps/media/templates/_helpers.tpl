@@ -86,3 +86,94 @@ left Sonarr's config.xml empty. Same root cause and same fix as vmagent
 appArmorProfile:
   type: Unconfined
 {{- end -}}
+
+{{/*
+Config PVC + Deployment for a Servarr app (Sonarr, Radarr, Prowlarr), without
+Service/Ingress (see media.svcIngress). The three apps differ only in name,
+port and whether the shared media mount is attached.
+Usage: {{ include "media.servarr" (dict "name" "sonarr" "port" 8989 "media" true "root" $) }}
+The PVC "<name>-config" is immutable and local-path deletes the data with the
+claim; the Deployment selector (app.kubernetes.io/name) is immutable too.
+Do not change what this renders for a deployed app.
+*/}}
+{{- define "media.servarr" -}}
+{{- $root := .root -}}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .name }}-config
+  labels:
+    {{- include "media.labels" .name | nindent 4 }}
+  annotations:
+    # Never delete this claim together with the Application (Delete=false) or
+    # when it disappears from the rendered manifests (Prune=false): local-path
+    # would wipe the data. Remove it by hand if that is really intended.
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: {{ $root.Values.config.storageClass }}
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .name }}
+  labels:
+    {{- include "media.labels" .name | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .name }}
+  template:
+    metadata:
+      labels:
+        {{- include "media.labels" .name | nindent 8 }}
+    spec:
+      securityContext:
+        {{- include "media.servarrPodSecurityContext" $root | nindent 8 }}
+      containers:
+        - name: {{ .name }}
+          image: {{ index $root.Values.images .name }}
+          imagePullPolicy: {{ $root.Values.images.pullPolicy }}
+          env:
+            {{- include "media.lsioEnv" (dict "theme" .name "root" $root) | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: {{ .port }}
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          resources:
+            {{- toYaml $root.Values.resources.arr | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            {{- if .media }}
+            - name: media
+              mountPath: /data
+            {{- end }}
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: {{ .name }}-config
+        {{- if .media }}
+        - name: media
+          persistentVolumeClaim:
+            claimName: mediastack-data
+        {{- end }}
+{{- end -}}
