@@ -47,7 +47,7 @@
       ]
     },
     {
-      "description": "Pinned k3s, Helm and ArgoCD chart versions in the Ansible group_vars ('# renovate:' annotation directly above 'key: \"version\"'). Separate from the generic manager because k3s versions contain '+' and carry their own regex versioning.",
+      "description": "Pinned k3s and Helm versions in the Ansible group_vars ('# renovate:' annotation directly above 'key: \"version\"'). Separate from the generic manager because k3s versions contain '+' and carry their own regex versioning.",
       "customType": "regex",
       "managerFilePatterns": ["/ansible/group_vars/all\\.yml$/"],
       "matchStrings": [
@@ -152,12 +152,13 @@
       "automerge": false
     },
     {
-      "description": "NEVER automerge anything in these app directories or in the Ansible group_vars (k3s, Helm and ArgoCD versions), even if the package name above does not match (images vendored in these charts).",
+      "description": "NEVER automerge anything in these app directories or in the Ansible group_vars (k3s and Helm versions), even if the package name above does not match (images vendored in these charts).",
       "matchFileNames": [
         "ansible/group_vars/all.yml",
         "argocd/apps/kubevirt/**", "argocd/apps/home-assistant/**", "argocd/apps/monitoring/**",
         "argocd/apps/sealed-secrets/**", "argocd/apps/metallb/**", "argocd/apps/cert-manager/**",
-        "argocd/apps/pihole/**", "argocd/apps/kubeseal-webgui/**"
+        "argocd/apps/pihole/**", "argocd/apps/kubeseal-webgui/**",
+        "argocd/apps/argocd/**"
       ],
       "automerge": false
     },
