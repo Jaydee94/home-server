@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 import { VmClient } from "@/lib/k8s";
 
 export async function GET() {
@@ -10,6 +11,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   const { action } = await req.json().catch(() => ({}));
   if (action !== "start" && action !== "stop") {
     return NextResponse.json({ error: "action muss start|stop sein" }, { status: 400 });

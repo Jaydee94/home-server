@@ -15,12 +15,17 @@ export default function PlayersPage() {
   const [busy, setBusy] = useState(false);
   const toast = useToast();
 
-  async function load() {
-    const res = await fetch("/api/players");
-    if (res.ok) setPlayers((await res.json()).players);
-    else setPlayers([]);
-  }
-  useEffect(() => { load(); const t = setInterval(load, 10000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    // State wird nur asynchron (im .then) gesetzt, nie synchron im Effect-Body.
+    const load = () =>
+      fetch("/api/players")
+        .then((res) => (res.ok ? res.json().then((d) => d.players as Player[]) : []))
+        .then(setPlayers)
+        .catch(() => setPlayers([]));
+    load();
+    const t = setInterval(load, 10000);
+    return () => clearInterval(t);
+  }, []);
 
   async function broadcast() {
     if (!message.trim()) return;

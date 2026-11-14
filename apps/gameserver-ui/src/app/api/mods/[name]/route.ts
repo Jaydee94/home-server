@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
 import { sanitizeModName, isProtectedMod, escapeForShellSingleQuote } from "@/lib/mods";
@@ -9,6 +10,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ name: string }> }
 ) {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const { name } = await params;
     sanitizeModName(name);

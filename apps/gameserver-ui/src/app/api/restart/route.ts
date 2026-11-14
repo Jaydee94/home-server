@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
 import { telnetOptsFromEnv } from "@/lib/telnet";
@@ -10,6 +11,9 @@ import { withServerLock } from "@/lib/oplock";
 export const maxDuration = 60;
 
 export async function POST() {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   return withServerLock("Neustart", restart);
 }
 

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getStatus = vi.fn();
 const restartServer = vi.fn();
+vi.mock("@/lib/session", () => ({ requireSession: async () => null }));
 vi.mock("@/lib/k8s", () => ({ VmClient: { inCluster: () => ({ getStatus }) } }));
 vi.mock("@/lib/ssh", () => ({ SshClient: { fromEnv: () => ({}) } }));
 vi.mock("@/lib/restart", () => ({ restartServer: (...a: unknown[]) => restartServer(...a) }));

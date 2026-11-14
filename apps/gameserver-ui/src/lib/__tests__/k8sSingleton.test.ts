@@ -8,7 +8,7 @@ vi.mock("@kubernetes/client-node", () => {
     loadFromDefault() {}
     makeApiClient() { h.apiClients++; return {}; }
   }
-  return { KubeConfig, CustomObjectsApi: class {}, BatchV1Api: class {} };
+  return { KubeConfig, CustomObjectsApi: class {} };
 });
 
 import { VmClient } from "@/lib/k8s";

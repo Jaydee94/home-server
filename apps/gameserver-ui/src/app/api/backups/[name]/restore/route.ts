@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 import { VmClient } from "@/lib/k8s";
 import { SshClient, LONG_EXEC_TIMEOUT_MS } from "@/lib/ssh";
 import { backupFilePath } from "@/lib/backups";
@@ -17,6 +18,9 @@ export async function POST(
   _req: Request,
   { params }: { params: Promise<{ name: string }> },
 ) {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   const { name } = await params;
   return withServerLock("Restore", () => restore(name));
 }

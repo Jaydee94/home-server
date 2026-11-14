@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 import { backupFilePath } from "@/lib/backups";
 import { createReadStream, existsSync, unlinkSync, statSync } from "fs";
 import { join } from "path";
@@ -11,6 +12,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ name: string }> },
 ) {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const { name } = await params;
     const path = backupFilePath(backupDir(), name);

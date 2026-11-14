@@ -18,8 +18,10 @@ export default function ModsPage() {
   const toast = useToast();
   const confirm = useConfirm();
 
-  async function load() { const r = await fetch("/api/mods"); setMods(r.ok ? (await r.json()).mods : []); }
-  useEffect(() => { load(); }, []);
+  // Lädt nur; das Setzen des States passiert im Aufrufer (im Effect asynchron per .then).
+  async function fetchMods() { const r = await fetch("/api/mods"); return r.ok ? (await r.json()).mods : []; }
+  async function load() { setMods(await fetchMods()); }
+  useEffect(() => { fetchMods().then(setMods).catch(() => setMods([])); }, []);
 
   async function upload(file: File) {
     if (!file.name.endsWith(".zip")) { toast("error", "Nur .zip-Dateien"); return; }

@@ -2,12 +2,19 @@ import { Client, type ClientChannel, type ConnectConfig } from "ssh2";
 import { readFileSync } from "fs";
 import type { Readable } from "stream";
 
-function buildHostVerifier(): ConnectConfig["hostVerifier"] {
+// Die Warnung "kein Fingerprint gesetzt" kommt einmal pro Prozess, nicht bei jeder
+// der vielen kurzlebigen SSH-Verbindungen (sonst flutet sie das Log).
+let warnedUnpinned = false;
+
+export function buildHostVerifier(): (keyHash: Buffer | string) => boolean {
   const pinned = process.env.VM_SSH_HOST_FINGERPRINT;
   return (keyHash: Buffer | string) => {
     const hex = Buffer.isBuffer(keyHash) ? keyHash.toString("hex") : keyHash;
     if (!pinned) {
-      console.warn("[ssh] VM_SSH_HOST_FINGERPRINT not set — host key not verified");
+      if (!warnedUnpinned) {
+        warnedUnpinned = true;
+        console.warn("[ssh] VM_SSH_HOST_FINGERPRINT not set — host key not verified");
+      }
       return true;
     }
     const match = hex === pinned;

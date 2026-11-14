@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
 import { telnetOptsFromEnv } from "@/lib/telnet";
@@ -29,6 +30,9 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   const { xml } = await req.json().catch(() => ({}));
   if (!xml || typeof xml !== "string") {
     return NextResponse.json({ error: "xml fehlt" }, { status: 400 });

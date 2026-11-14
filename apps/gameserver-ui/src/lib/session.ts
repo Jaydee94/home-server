@@ -7,8 +7,27 @@ export interface SessionData {
   loggedIn?: boolean;
 }
 
+const MIN_SECRET_LENGTH = 32;
+// Nur für Dev/Test. Steht im öffentlichen Repo und darf nie in Production gelten.
+const DEV_FALLBACK_SECRET = "dev-only-secret-change-me-32chars!!";
+
+// In Production ohne (ausreichend langes) SESSION_SECRET hart abbrechen: Mit dem
+// öffentlich bekannten Fallback könnte jeder gültige Session-Cookies fälschen.
+export function resolveSessionSecret(env: Partial<Record<string, string>> = process.env): string {
+  const secret = env.SESSION_SECRET;
+  if (secret && secret.length >= MIN_SECRET_LENGTH) return secret;
+  if (env.NODE_ENV === "production") {
+    throw new Error(`SESSION_SECRET fehlt oder ist kürzer als ${MIN_SECRET_LENGTH} Zeichen — Start in Production verweigert`);
+  }
+  return DEV_FALLBACK_SECRET;
+}
+
 export const sessionOptions: SessionOptions = {
-  password: process.env.SESSION_SECRET ?? "dev-only-secret-change-me-32chars!!",
+  // Getter: wird erst bei der ersten Session-Nutzung (Laufzeit) ausgewertet, nicht
+  // beim Import — `next build` läuft mit NODE_ENV=production, aber ohne Secret.
+  get password() {
+    return resolveSessionSecret();
+  },
   cookieName: "gameserver-ui",
   // secure: false — die UI läuft wie alle Dashboards über plain HTTP im LAN/Tailnet
   cookieOptions: { httpOnly: true, sameSite: "lax", secure: false },

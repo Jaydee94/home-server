@@ -6,6 +6,7 @@ import { join } from "path";
 const getStatus = vi.fn();
 const streamMock = vi.fn();
 const telnetCommand = vi.fn();
+vi.mock("@/lib/session", () => ({ requireSession: async () => null }));
 vi.mock("@/lib/k8s", () => ({ VmClient: { inCluster: () => ({ getStatus }) } }));
 vi.mock("@/lib/ssh", () => ({ SshClient: { fromEnv: () => ({ stream: streamMock }) } }));
 vi.mock("@/lib/telnet", () => ({
