@@ -100,6 +100,10 @@
       APT::Periodic::AutocleanInterval "7";
       APT::Periodic::Unattended-Upgrade "1";
 
+# The reboot at the end of this role is skipped whenever the playbook runs from
+# Semaphore (see "Reboot if package upgrades require it" below) — which is every
+# scheduled run. Without Automatic-Reboot a pending kernel/libc update would
+# therefore never become active. Toggle/time: unattended_reboot_* in group_vars.
 - name: Configure unattended-upgrades to also pull "updates" and clean up
   ansible.builtin.copy:
     dest: /etc/apt/apt.conf.d/51unattended-upgrades-home-server
@@ -116,7 +120,11 @@
           "${distro_id}:${distro_codename}-updates";
       };
       Unattended-Upgrade::Remove-Unused-Dependencies "true";
-      Unattended-Upgrade::Automatic-Reboot "false";
+      // Reboot on its own when a package (kernel, libc, ...) left
+      // /var/run/reboot-required behind. unattended-upgrade schedules it with
+      // `shutdown -r <time>`, so it happens at the next occurrence of that time.
+      Unattended-Upgrade::Automatic-Reboot "{{ unattended_reboot_enabled | bool | lower }}";
+      Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_reboot_time }}";
 
 - name: Ensure unattended-upgrades service is enabled
   ansible.builtin.systemd:
@@ -225,6 +233,111 @@
     state: present
   notify: Reload sysctl
 
+# ---- journald size limit ------------------------------------
+# Without a cap the journal grows to 10 % of the filesystem (4 GB max) and is
+# only trimmed by the weekly homeserver-cleanup timer.
+- name: Ensure journald drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/journald.conf.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Limit journald disk usage and retention
+  ansible.builtin.copy:
+    dest: /etc/systemd/journald.conf.d/size.conf
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      # Managed by Ansible (common role).
+      [Journal]
+      SystemMaxUse={{ journald_system_max_use }}
+      MaxRetentionSec={{ journald_max_retention }}
+  notify: Restart systemd-journald
+
+# ---- SSH hardening ------------------------------------------
+# Key-only logins, no root login, no X11. The drop-in is named 10-* on purpose:
+# sshd uses the FIRST value it reads for a keyword and the Ubuntu installer
+# leaves /etc/ssh/sshd_config.d/50-cloud-init.conf with
+# "PasswordAuthentication yes" behind, which would win over anything sorted
+# after it.
+#
+# Lock-out guard: password logins are only switched off when the user Ansible
+# connects as has at least one key in ~/.ssh/authorized_keys. Otherwise the
+# whole SSH part is skipped with a warning instead of failing the run.
+- name: Read authorized_keys of the connecting user (SSH lock-out guard)
+  ansible.builtin.slurp:
+    src: "~/.ssh/authorized_keys"
+  become: false
+  register: common_ssh_authorized_keys
+  failed_when: false
+  when: ssh_hardening_enabled | bool
+
+- name: Count the keys the connecting user can log in with
+  ansible.builtin.set_fact:
+    common_ssh_key_count: >-
+      {{
+        (common_ssh_authorized_keys.content | default('') | b64decode).splitlines()
+        | map('trim') | reject('match', '^(#.*)?$') | list | length
+      }}
+  when: ssh_hardening_enabled | bool
+
+- name: Harden sshd (key-only, no root login, no X11 forwarding)
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/10-hardening.conf
+    owner: root
+    group: root
+    mode: '0600'
+    content: |
+      # Managed by Ansible (common role). Must sort before 50-cloud-init.conf:
+      # sshd keeps the first value it reads for each keyword.
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      X11Forwarding no
+    validate: /usr/sbin/sshd -t -f %s
+  notify: Reload sshd
+  when:
+    - ssh_hardening_enabled | bool
+    - common_ssh_key_count | int > 0
+
+- name: SSH hardening skipped — the connecting user has no authorized key
+  ansible.builtin.debug:
+    msg: >
+      WARNING: no key found in ~/.ssh/authorized_keys of the user Ansible
+      connects as. Disabling password logins now could lock you out, so
+      /etc/ssh/sshd_config.d/10-hardening.conf was NOT written. Add a public
+      key for that user and re-run.
+  when:
+    - ssh_hardening_enabled | bool
+    - common_ssh_key_count | int == 0
+
+# Apply the sshd/journald changes right away instead of at the end of the play:
+# a later role failing would otherwise leave them written but not active.
+- name: Apply pending sshd / journald changes now
+  ansible.builtin.meta: flush_handlers
+
+- name: Read the effective sshd configuration
+  ansible.builtin.command: /usr/sbin/sshd -T
+  register: common_sshd_effective
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: ssh_hardening_enabled | bool
+
+- name: Warn if password logins are still enabled
+  ansible.builtin.debug:
+    msg: >
+      WARNING: sshd still reports "passwordauthentication yes". Another file
+      in /etc/ssh/sshd_config.d/ that sorts before 10-hardening.conf (or a
+      Match block) overrides the hardening drop-in.
+  when:
+    - ssh_hardening_enabled | bool
+    - common_ssh_key_count | int > 0
+    - "'passwordauthentication yes' in (common_sshd_effective.stdout | default('') | lower)"
+
 # ---- NIC Tuning (e1000e TX-Ring / TSO-Fix) ------------------
 # The Intel e1000e NIC (eno1) triggers "Hardware Unit Hang" kernel panics under
 # high pod-network load when the TX ring is at its default size of 256.
@@ -260,13 +373,30 @@
 
 # ---- UFW Firewall -------------------------------------------
 # NOTE: we never call `state: reset` — that would wipe SSH access mid-playbook.
-# Allow SSH FIRST so enabling UFW later cannot lock us out.
-- name: Allow SSH (port 22) before any other firewall changes
+#
+# Nothing on this host is meant to be reachable from outside the LAN / Tailnet
+# (see CLAUDE.md → Networking), so host services are opened per source network
+# instead of for "Anywhere". The k3s API (6443), kubelet (10250), Flannel VXLAN
+# (8472/udp) and the ArgoCD NodePorts (30080/30443) need no rule of their own:
+# every legitimate client comes from one of the networks that are allowed
+# wholesale below (LAN, Tailnet, pod CIDR, service CIDR).
+#
+# Allow SSH FIRST so enabling UFW later cannot lock us out. The pod CIDR is
+# listed because Semaphore runs as a pod on this host and reaches sshd with its
+# pod IP as source address.
+- name: Allow SSH (port 22) from LAN, Tailnet and pods before any other firewall changes
   community.general.ufw:
     rule: allow
     port: "22"
     proto: tcp
-    comment: "SSH"
+    src: "{{ item.src }}"
+    comment: "{{ item.comment }}"
+  loop:
+    - {src: "{{ local_subnet }}", comment: "SSH from LAN"}
+    - {src: "{{ tailscale_cidr }}", comment: "SSH from Tailnet"}
+    - {src: "{{ k3s_pod_cidr }}", comment: "SSH from pods (Semaphore)"}
+  loop_control:
+    label: "{{ item.comment }}"
 
 - name: Set UFW default incoming policy to deny
   community.general.ufw:
@@ -292,47 +422,12 @@
     proto: tcp
     comment: "HTTPS Traefik ingress"
 
-- name: Allow k3s API server (port 6443)
-  community.general.ufw:
-    rule: allow
-    port: "6443"
-    proto: tcp
-    comment: "k3s Kubernetes API"
-
-- name: Allow ArgoCD NodePort HTTP (port 30080)
-  community.general.ufw:
-    rule: allow
-    port: "30080"
-    proto: tcp
-    comment: "ArgoCD web UI HTTP"
-
-- name: Allow ArgoCD NodePort HTTPS (port 30443)
-  community.general.ufw:
-    rule: allow
-    port: "30443"
-    proto: tcp
-    comment: "ArgoCD web UI HTTPS"
-
 - name: Allow Tailscale WireGuard (UDP 41641)
   community.general.ufw:
     rule: allow
     port: "41641"
     proto: udp
     comment: "Tailscale WireGuard VPN"
-
-- name: Allow Flannel VXLAN overlay network (UDP 8472)
-  community.general.ufw:
-    rule: allow
-    port: "8472"
-    proto: udp
-    comment: "Flannel VXLAN pod overlay network"
-
-- name: Allow kubelet API (port 10250)
-  community.general.ufw:
-    rule: allow
-    port: "10250"
-    proto: tcp
-    comment: "k3s kubelet API"
 
 - name: Allow all traffic from k3s pod CIDR
   community.general.ufw:
@@ -355,8 +450,28 @@
 - name: Allow all traffic from Tailscale network
   community.general.ufw:
     rule: allow
-    src: "100.64.0.0/10"
+    src: "{{ tailscale_cidr }}"
     comment: "Tailscale VPN network"
+
+# Earlier versions of this role opened these ports for "Anywhere" (IPv4 and
+# IPv6). Delete those rules from hosts that still carry them — only now that the
+# source-based rules above exist, so SSH is never without an allow rule. A
+# no-op once the rules are gone.
+- name: Remove the former world-open rules
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+    delete: true
+  loop:
+    - {port: "22", proto: tcp}      # SSH
+    - {port: "6443", proto: tcp}    # k3s API
+    - {port: "10250", proto: tcp}   # kubelet API
+    - {port: "8472", proto: udp}    # Flannel VXLAN
+    - {port: "30080", proto: tcp}   # ArgoCD NodePort HTTP
+    - {port: "30443", proto: tcp}   # ArgoCD NodePort HTTPS
+  loop_control:
+    label: "{{ item.port }}/{{ item.proto }}"
 
 - name: Enable UFW
   community.general.ufw:
@@ -450,15 +565,17 @@
     - lookup('env', 'SEMAPHORE_TASK_ID') | length == 0
 
 # Semaphore runs as a Pod on this very host — rebooting kills the Pod that's
-# executing the playbook, so the task hangs forever. Skip the reboot and tell
-# the operator to do it manually after the run finishes.
+# executing the playbook, so the task hangs forever. Skip the reboot here;
+# unattended-upgrades does it at `unattended_reboot_time` (Automatic-Reboot).
 - name: Reboot required but Semaphore is running this task — warn instead of self-killing
   ansible.builtin.debug:
     msg: >
       A reboot is required (/var/run/reboot-required exists) but this playbook
       is running inside Semaphore (SEMAPHORE_TASK_ID is set). Auto-reboot is
-      skipped to avoid killing the executor Pod. Reboot manually after the run
-      finishes: `ssh jaydee@homeserver "sudo reboot"`.
+      skipped to avoid killing the executor Pod.
+      {{ 'unattended-upgrades will reboot the host at ' ~ unattended_reboot_time ~ ' instead.'
+         if unattended_reboot_enabled | bool
+         else 'Reboot manually after the run finishes: `ssh jaydee@homeserver "sudo reboot"`.' }}
   when:
     - common_reboot_required.stat.exists
     - lookup('env', 'SEMAPHORE_TASK_ID') | length > 0
