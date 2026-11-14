@@ -154,7 +154,10 @@ describe("SshClient gegen echten SSH-Server", () => {
     await client().sftpPut(data, "/tmp/mod_upload_test.zip");
     expect(state.files.get("/tmp/mod_upload_test.zip")?.length).toBe(40 * chunk.length);
     await waitFor(() => state.openSessions === 0);
-  });
+    // Großzügiges Limit: Auf den CI-Runnern (reines JS-Krypto, 2 Kerne) kostet jeder
+    // SFTP-Roundtrip gegen den Test-Server ein Vielfaches der lokalen Zeit; die ~80
+    // WRITE-Pakete dieses Uploads rissen dort das Standardlimit von 5 s.
+  }, 30_000);
 
   it("sftpPut lädt weiterhin einen Buffer hoch", async () => {
     await client().sftpPut(Buffer.from("inhalt"), "/tmp/buffer.bin");
