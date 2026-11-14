@@ -63,13 +63,11 @@ k3s_service_cidr: "10.43.0.0/16"
 helm_version: "v3.22.1"
 
 # ---- ArgoCD ------------------------------------------------
-# Argo Helm chart version (NOT the ArgoCD app version). Pinned and tracked by
-# Renovate; empty ⇒ the latest chart is installed on every run.
-# See https://artifacthub.io/packages/helm/argo/argo-cd
-# renovate: datasource=helm depName=argo-cd registryUrl=https://argoproj.github.io/argo-helm
-argocd_version: "10.18.0"
+# ArgoCD manages itself: chart version and Helm values live in
+# argocd/apps/argocd/ (Chart.yaml, values.yaml), Renovate bumps the chart
+# there. The argocd role only bootstraps a fresh cluster (or recovers with
+# `make argocd-recover`) from those same files.
 argocd_namespace: argocd
-argocd_server_insecure: true
 # Git repo ArgoCD pulls from. Must be reachable by argocd-repo-server pod.
 argocd_repo_url: "https://github.com/Jaydee94/home-server.git"   # CHANGE if you forked
 # Branch/tag/SHA ArgoCD tracks. Pinned to `main` (the GitOps branch) instead of

@@ -112,7 +112,7 @@ spec:
         # so CRD schema updates of every other chart (VictoriaMetrics operator,
         # MetalLB, sealed-secrets, cert-manager) would never be applied while the
         # app still reports Synced. /spec/conversion and /status stay ignored for
-        # all CRDs through argocd-cm (ansible/roles/argocd/templates/argocd-values.yaml.j2).
+        # all CRDs through argocd-cm (argocd/apps/argocd/values.yaml).
         - group: apiextensions.k8s.io
           kind: CustomResourceDefinition
           name: cdis.cdi.kubevirt.io
