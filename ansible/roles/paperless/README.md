@@ -26,8 +26,9 @@ The rendered `docker-compose.yml` defines:
   the shared `paperless_net` network at `http://paperless:8000`.
 
 In addition to the Compose stack, the role installs a `cron` job that
-runs a Paperless `document_exporter` every night, archives the export
-directory, and prunes archives older than the configured retention.
+runs a Paperless `document_exporter` every night, checks the export for
+plausibility, archives it, and prunes archives older than the configured
+retention (see [Backup and restore](#backup-and-restore)).
 
 ## Requirements
 
@@ -65,7 +66,7 @@ shown verbatim.
 | `paperless_db_dir`        | `{{ paperless_base_dir }}/db`        | Postgres data directory                         |
 | `paperless_consume_dir`   | `{{ paperless_base_dir }}/consume`   | Inbox watched for new documents                 |
 | `paperless_export_dir`    | `{{ paperless_base_dir }}/export`    | `document_exporter` output (read by backup job) |
-| `paperless_backup_dir`    | `{{ paperless_base_dir }}/backups`   | Archived backups and `backup.log`               |
+| `paperless_backup_dir`    | `{{ paperless_base_dir }}/backups`   | Archived backups (NAS: `/volume1/paperless-backups`) |
 
 ### Networking
 
@@ -95,10 +96,22 @@ shown verbatim.
 
 ### Backup
 
-| Variable                          | Default        | Purpose                                              |
-| --------------------------------- | -------------- | ---------------------------------------------------- |
-| `paperless_backup_schedule`       | `0 2 * * *`    | Five-field crontab schedule for the nightly backup   |
-| `paperless_backup_retention_days` | `7`            | Number of days of `.tar.gz` archives to keep         |
+| Variable                                    | Default                                    | Purpose |
+| ------------------------------------------- | ------------------------------------------ | ------- |
+| `paperless_backup_schedule`                 | `0 2 * * *`                                | Five-field crontab schedule for the nightly backup |
+| `paperless_backup_retention_days`           | `7`                                        | Number of days of `.tar.gz` archives to keep |
+| `paperless_backup_log_file`                 | `{{ paperless_base_dir }}/backup.log`      | Cron output of the backup script |
+| `paperless_backup_status_file`              | `{{ paperless_base_dir }}/backup-last-success` | `key=value` file written after every good run (timestamp, archive, sizes, document count) |
+| `paperless_backup_exporter_args`            | `[--delete, --no-progress-bar]`            | Extra arguments for `document_exporter` |
+| `paperless_backup_min_files`                | `10`                                       | Minimum number of files in the export, otherwise the run fails |
+| `paperless_backup_min_manifest_bytes`       | `1024`                                     | Minimum size of `manifest.json` |
+| `paperless_backup_max_shrink_percent`       | `50`                                       | Fail if the export shrank by more than this vs. the last good run (`0` = off, `FORCE=1` overrides once) |
+| `paperless_backup_required_mount`           | `""`                                       | Path that must be a mount point, otherwise the run aborts (NAS: `/volume1`) |
+| `paperless_backup_secondary_dir`            | `""`                                       | Optional second target directory; the finished archive is copied there too |
+| `paperless_backup_secondary_retention_days` | `{{ paperless_backup_retention_days }}`    | Retention in the second target |
+| `paperless_backup_notify_url`               | `""`                                       | Optional ntfy-compatible URL for a push on failure |
+| `paperless_backup_notify_on_success`        | `false`                                    | Also push after a successful run |
+| `paperless_backup_textfile_dir`             | `""`                                       | node-exporter textfile directory for `paperless_backup.prom` |
 
 ### Paperless-AI sidecar
 
@@ -137,15 +150,36 @@ The role templates `backup-paperless.sh.j2` to
 `{{ paperless_base_dir }}/backup-paperless.sh` and registers a cron entry
 matching `paperless_backup_schedule` (default: every night at 02:00).
 
-The script:
+The script (`set -euo pipefail`, one run at a time via `flock`):
 
-1. Runs `docker compose exec -T paperless document_exporter ../export`,
-   writing a fresh export into `{{ paperless_export_dir }}`.
-2. Creates a timestamped archive
-   `{{ paperless_backup_dir }}/paperless-backup-YYYYMMDD_HHMMSS.tar.gz`.
-3. Removes archives older than `paperless_backup_retention_days`.
+1. Aborts if `paperless_backup_required_mount` is set and not mounted.
+2. Runs `docker compose exec -T paperless document_exporter ../export
+   --delete --no-progress-bar`, updating the export in
+   `{{ paperless_export_dir }}`. `--delete` removes files from the export
+   directory that no longer belong to the current export (deleted or
+   renamed documents); it does not touch `media/` or existing archives.
+3. Checks the export: `manifest.json` exists, is large enough and was
+   rewritten by this run; minimum number of files; not drastically smaller
+   than the last good export; enough free space for the archive.
+4. Creates `{{ paperless_backup_dir }}/paperless-backup-YYYYMMDD_HHMMSS.tar.gz`
+   (written as `.partial`, verified with `gzip -t`, then renamed; mode `0600`).
+5. Writes the status file and, if configured, `paperless_backup.prom`
+   (`paperless_backup_last_success_timestamp_seconds`,
+   `paperless_backup_last_run_success`, `paperless_backup_archive_size_bytes`,
+   `paperless_backup_documents`).
+6. Removes archives older than `paperless_backup_retention_days` — only in
+   runs that passed all checks, so a broken export never rotates good
+   archives away.
+7. Optionally copies the archive to `paperless_backup_secondary_dir`
+   (must exist and be on another filesystem; a failed copy fails the run
+   but keeps the primary archive).
 
-Output is appended to `{{ paperless_backup_dir }}/backup.log`.
+Any failure is logged with the failing stage, sets
+`paperless_backup_last_run_success 0` and, if `paperless_backup_notify_url`
+is set, sends a push (`curl -H "Title: …" -d "…" <url>`).
+
+Output is appended to `{{ paperless_backup_log_file }}`. Operational notes
+for the NAS (target volume, second target, alerting): `docs/26-backup.md`.
 
 To restore, copy the most recent archive into the export directory,
 extract it, and run the importer inside the container:
@@ -208,8 +242,9 @@ On the target host, after a successful run:
 ├── .env
 ├── docker-compose.yml
 ├── backup-paperless.sh
-├── backups/
-│   ├── backup.log
+├── backup.log
+├── backup-last-success
+├── backups/            # or paperless_backup_dir elsewhere
 │   └── paperless-backup-*.tar.gz
 ├── consume/
 ├── data/

@@ -126,7 +126,9 @@
     dest: "{{ paperless_base_dir }}/backup-paperless.sh"
     owner: "{{ paperless_user }}"
     group: "{{ paperless_group }}"
-    mode: '0755'
+    mode: '0750'
+  # The notify URL (ntfy topic) is a credential of sorts: no diff if one is set.
+  diff: "{{ paperless_backup_notify_url | length == 0 }}"
 
 - name: Configure daily backup cron job
   ansible.builtin.cron:
@@ -137,7 +139,7 @@
     month: "{{ paperless_backup_schedule.split(' ')[3] }}"
     weekday: "{{ paperless_backup_schedule.split(' ')[4] }}"
     user: root
-    job: "{{ paperless_base_dir }}/backup-paperless.sh >> {{ paperless_backup_dir }}/backup.log 2>&1"
+    job: "{{ paperless_base_dir }}/backup-paperless.sh >> {{ paperless_backup_log_file }} 2>&1"
 
 - name: Add user to docker group
   ansible.builtin.user:

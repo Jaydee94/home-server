@@ -19,6 +19,15 @@ paperless_admin_password: "{{ vault_paperless_admin_password }}"
 paperless_db_password: "{{ vault_paperless_db_password }}"
 paperless_secret_key: "{{ vault_paperless_secret_key }}"
 
+# Backup-Archive auf das RAID-Volume statt auf die 19-GB-Systempartition (eMMC),
+# auf der /opt/paperless liegt — siehe docs/26-backup.md.
+paperless_backup_dir: /volume1/paperless-backups
+paperless_backup_required_mount: /volume1
+paperless_backup_textfile_dir: "{{ node_exporter_base_dir }}/textfile"
+# Optional, Default aus = nur Log (siehe docs/26-backup.md):
+# paperless_backup_notify_url: "https://ntfy.sh/<topic>"
+# paperless_backup_secondary_dir: /mnt/@usb/<disk>/paperless-backups
+
 # ---- Node Exporter / cAdvisor -------------------------------
 node_exporter_base_dir: /opt/node-exporter
 cadvisor_port: 18080

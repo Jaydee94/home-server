@@ -3,6 +3,9 @@
 # renovate: datasource=docker depName=prom/node-exporter
 node_exporter_image: prom/node-exporter:v1.12.1
 node_exporter_base_dir: /opt/node-exporter
+# Textfile collector: *.prom files in this host directory are exported by
+# node-exporter (mounted read-only). Used by the Paperless backup script.
+node_exporter_textfile_dir: "{{ node_exporter_base_dir }}/textfile"
 # renovate: datasource=docker depName=gcr.io/cadvisor/cadvisor
 cadvisor_image: gcr.io/cadvisor/cadvisor:v0.55.1
 cadvisor_port: 18080
