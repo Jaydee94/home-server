@@ -121,6 +121,41 @@ describe("SshClient.stream", () => {
     lastClient().channel!.emit("close", 2);
     await expect(reader.read()).rejects.toThrow("Stream exit 2");
   });
+
+  it("allowedExitCodes: ein tolerierter Exit-Code beendet den Stream regulär", async () => {
+    const reader = client().stream("tar czf - x", { allowedExitCodes: [0, 1] }).getReader();
+    await tick();
+    lastClient().channel!.emit("close", 1);
+    expect((await reader.read()).done).toBe(true);
+  });
+
+  it("allowedExitCodes: andere Exit-Codes bleiben ein Fehler", async () => {
+    const reader = client().stream("tar czf - x", { allowedExitCodes: [0, 1] }).getReader();
+    await tick();
+    lastClient().channel!.emit("close", 2);
+    await expect(reader.read()).rejects.toThrow("Stream exit 2");
+  });
+
+  it("onStderr erhält die gesammelte Fehlerausgabe am Ende", async () => {
+    const onStderr = vi.fn();
+    const reader = client().stream("tar czf - x", { allowedExitCodes: [0, 1], onStderr }).getReader();
+    await tick();
+    const conn = lastClient();
+    (conn.channel as unknown as { stderr: NodeJS.WritableStream }).stderr.write("tar: file changed as we read it\n");
+    await tick();
+    conn.channel!.emit("close", 1);
+    await reader.read();
+    expect(onStderr).toHaveBeenCalledWith("tar: file changed as we read it");
+  });
+
+  it("ohne stderr-Ausgabe wird onStderr nicht aufgerufen", async () => {
+    const onStderr = vi.fn();
+    const reader = client().stream("true", { onStderr }).getReader();
+    await tick();
+    lastClient().channel!.emit("close", 0);
+    await reader.read();
+    expect(onStderr).not.toHaveBeenCalled();
+  });
 });
 
 describe("SshClient.exec", () => {

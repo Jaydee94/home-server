@@ -14,7 +14,10 @@ Browser → Traefik (LAN/Tailnet) → Namespace gameserver-ui
                   KubeVirt API: VirtualMachine + VirtualMachineInstance
 ```
 
-- **Authentifizierung:** Single-Admin, iron-session-Cookie, bcrypt-Hash aus SealedSecret `gameserver-ui-auth`
+- **Authentifizierung:** Single-Admin, iron-session-Cookie. Das Admin-Passwort liegt im Klartext (`ADMIN_PASSWORD`, Key `adminPassword`) im SealedSecret `gameserver-ui-auth`; der Login vergleicht es timing-sicher (SHA-256 beider Seiten + `timingSafeEqual`). Es gibt **keinen** Hash und keine `ADMIN_PASSWORD_HASH`-Variable.
+  - `SESSION_SECRET` (Key `sessionSecret`, mind. 32 Zeichen) ist in Production Pflicht: fehlt es oder ist es zu kurz, verweigert die App zur Laufzeit jede Session-Nutzung (der Build läuft ohne Secret). Der Dev-Fallback gilt nur außerhalb von `NODE_ENV=production`.
+  - Login-Rate-Limit: 5 Fehlversuche pro Minute und IP (letzter `X-Forwarded-For`-Eintrag), danach `429` mit `Retry-After`. In-Memory, geht beim Pod-Neustart verloren.
+  - Neben der Middleware prüfen alle zustandsändernden API-Routen die Session selbst (`requireSession()`).
 - **VM-Steuerung:** PATCH `spec.runStrategy` (`Always` = starten, `Halted` = stoppen)
 - **Container-Neustart:** `POST /api/restart` → `saveworld` + `sudo docker restart 7dtd-server` via SSH (bei Online-Spielern 30 s Broadcast-Countdown). Startet nur den 7DTD-Container neu (nicht die VM); lädt u. a. neue Mods.
 - **Spielversion:** `GET /api/version` → Telnet `version` → `parseVersion` (`V 2.6 (b14)`)
@@ -33,30 +36,38 @@ SESSION_SECRET=$(openssl rand -hex 32)
 # 2. Admin-Passwort festlegen
 read -s -p "Admin-Passwort: " PW; echo
 
-# 3. bcrypt-Hash erzeugen
-HASH=$(cd apps/gameserver-ui && node -e \
-  "console.log(require('bcryptjs').hashSync(process.argv[1],10))" "$PW")
-
-# 4. SESSION_SECRET sealen
+# 3. SESSION_SECRET sealen
 SEALED_SESSION=$(echo -n "$SESSION_SECRET" | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
   'sudo kubeseal --raw --namespace gameserver-ui --name gameserver-ui-auth \
    --controller-name sealed-secrets-controller \
    --controller-namespace sealed-secrets \
    --from-file=/dev/stdin')
 
-# 5. HASH sealen
-SEALED_HASH=$(echo -n "$HASH" | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
+# 4. Passwort sealen (Klartext; die App vergleicht es timing-sicher, es gibt keinen Hash)
+SEALED_PASSWORD=$(echo -n "$PW" | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
   'sudo kubeseal --raw --namespace gameserver-ui --name gameserver-ui-auth \
    --controller-name sealed-secrets-controller \
    --controller-namespace sealed-secrets \
    --from-file=/dev/stdin')
 
-# 6. Beide Werte in argocd/apps/gameserver-ui/values.yaml eintragen:
+# 5. Beide Werte in argocd/apps/gameserver-ui/values.yaml eintragen:
 #    sealedSecret.encryptedSessionSecret: "<SEALED_SESSION>"
-#    sealedSecret.encryptedAdminPasswordHash: "<SEALED_HASH>"
+#    sealedSecret.encryptedAdminPassword: "<SEALED_PASSWORD>"
 ```
 
-Anschließend committen und pushen; ArgoCD synct automatisch.
+Anschließend committen und pushen; ArgoCD synct automatisch. `SESSION_SECRET` und `ADMIN_PASSWORD` sind im Deployment nicht mehr `optional`: Ohne das Secret `gameserver-ui-auth` (Keys `sessionSecret`, `adminPassword`) startet der Pod nicht (`CreateContainerConfigError`).
+
+### SSH-Host-Key pinnen (optional)
+
+Ohne `VM_SSH_HOST_FINGERPRINT` wird der Host-Key der VM nicht geprüft; die App loggt das einmal pro Prozessstart als Warnung. Zum Pinnen den SHA-256-Fingerprint (hex, ohne `:`) des VM-Host-Keys ermitteln, sealen (wie oben, `--name gameserver-ui-ssh`) und eintragen:
+
+```yaml
+# argocd/apps/gameserver-ui/values.yaml
+sshSecret:
+  encryptedHostFingerprint: "<SEALED_FINGERPRINT>"
+```
+
+Das Template rendert den Key `hostFingerprint` nur, wenn der Wert gesetzt ist; ohne Wert ändert sich nichts. Nach einer Neuinstallation der VM ändert sich der Host-Key — dann Fingerprint aktualisieren, sonst schlagen alle SSH-Verbindungen fehl.
 
 ## Image-Rollout (Digest-Pin)
 
@@ -79,7 +90,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \
   'sudo kubectl -n gameserver-ui logs -l app=gameserver-ui --tail=50'
 ```
 
-Ursache meistens: `SESSION_SECRET` oder `ADMIN_PASSWORD_HASH` fehlen (SealedSecret noch nicht versiegelt oder Controller hat Secret noch nicht entschlüsselt). Lösung: Seal-Prozedur oben durchführen, danach Pod neu starten:
+Ursache meistens: `SESSION_SECRET` (mind. 32 Zeichen) oder `ADMIN_PASSWORD` fehlen bzw. sind zu kurz (SealedSecret noch nicht versiegelt oder Controller hat Secret noch nicht entschlüsselt). Lösung: Seal-Prozedur oben durchführen, danach Pod neu starten:
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 \

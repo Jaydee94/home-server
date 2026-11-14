@@ -12,7 +12,8 @@ export default function LoginPage() {
   async function submit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     const res = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }) });
-    if (res.ok) router.push("/"); else setError("Falsches Passwort");
+    if (res.ok) router.push("/");
+    else setError(res.status === 429 ? "Zu viele Fehlversuche — bitte eine Minute warten" : "Falsches Passwort");
   }
 
   return (

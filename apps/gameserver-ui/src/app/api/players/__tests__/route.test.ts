@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Session-Prüfung ist hier nicht Thema (siehe auth.test.ts): angemeldet.
+vi.mock("@/lib/session", () => ({ requireSession: async () => null }));
+
 const { getStatus, telnetCommandMock, parseLpMock } = vi.hoisted(() => ({
   getStatus: vi.fn(),
   telnetCommandMock: vi.fn(),

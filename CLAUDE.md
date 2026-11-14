@@ -26,7 +26,7 @@ ArgoCD  → argocd/bootstrap/root-applicationset.yaml
            discovers every dir under argocd/apps/* → auto-syncs on push to main
 ```
 
-**Adding an app:** `mkdir -p argocd/apps/my-app` + add YAML/Helm → commit+push → ArgoCD picks up in ~3 min. With an ingress: add the hostname to `ingressTls.hosts` in `argocd/apps/cert-manager/values.yaml` (HTTPS certificate).
+**Adding an app:** `mkdir -p argocd/apps/my-app` + add YAML/Helm → commit+push → ArgoCD picks up in ~3 min. With an ingress: add the hostname to `ingressTls.hosts` in `argocd/apps/cert-manager/values.yaml` (HTTPS certificate). Own chart: reuse Service/Ingress/PVC/NetworkPolicy templates from the library `argocd/lib/common` (`file://../../lib/common`, see its README) instead of copying them.
 
 ## Server Access
 
