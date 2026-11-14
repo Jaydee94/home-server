@@ -20,7 +20,7 @@ Browser → Traefik (LAN/Tailnet) → Namespace gameserver-ui
 - **Spielversion:** `GET /api/version` → Telnet `version` → `parseVersion` (`V 2.6 (b14)`)
 - **Metriken:** VictoriaMetrics-Abfragen via `/api/metrics`: CPU-Auslastung (`kubevirt_vmi_vcpu_seconds_total`) und RAM `X.X / Y.Y GB` (`kubevirt_vmi_memory_resident_bytes` / `kubevirt_vm_resource_requests`)
 - **RBAC:** Cross-Namespace: ServiceAccount im Namespace `gameserver-ui`, Role/RoleBinding im Namespace `gameserver` (nur `get/list` auf VMI, `get/list/patch` auf VM)
-- **Image:** `ghcr.io/jaydee94/gameserver-ui`; Build via GitHub Actions (`.github/workflows/gameserver-ui.yml`), Tag `sha-<short-sha>`
+- **Image:** `ghcr.io/jaydee94/gameserver-ui`; Build via GitHub Actions (`.github/workflows/gameserver-ui.yml`), Tags `sha-<short-sha>` und `stable`; deployt wird per Digest (siehe „Image-Rollout“)
 
 ## Seal-Prozedur
 
@@ -58,18 +58,17 @@ SEALED_HASH=$(echo -n "$HASH" | ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 
 
 Anschließend committen und pushen; ArgoCD synct automatisch.
 
-## Image-Tag pinnen
+## Image-Rollout (Digest-Pin)
 
-Nach jedem CI-Build den neuen `sha-<short-sha>`-Tag in `values.yaml` eintragen:
+`image.tag` in `argocd/apps/gameserver-ui/values.yaml` ist `stable@sha256:<digest>` mit `pullPolicy: IfNotPresent` — das Manifest benennt genau ein Image.
 
-```bash
-# Letzten erfolgreichen Build ermitteln
-gh run list --workflow=gameserver-ui --repo jaydee94/home-server --limit 1
+1. Merge nach `main` mit Änderungen unter `apps/gameserver-ui/` → der Workflow baut und pusht `sha-<short-sha>` und `stable`. Das allein rollt nichts aus.
+2. Renovate (Manager `helm-values`) bemerkt den neuen Digest hinter `stable` und öffnet einen PR, der den Digest in `values.yaml` ersetzt.
+3. Merge dieses PRs → ArgoCD rollt das neue Image aus.
 
-# Tag in values.yaml setzen
-# image.tag: "sha-<short-sha>"
-# image.pullPolicy: IfNotPresent
-```
+Rollback: den Digest-PR reverten. Von Hand pinnen (z. B. wenn Renovate nicht warten soll): Digest aus der Zusammenfassung des Workflow-Runs nehmen (`gh run view <id>` bzw. Run-Seite, Abschnitt „Pushed ghcr.io/jaydee94/gameserver-ui“) und als `stable@sha256:…` eintragen.
+
+Pull Requests bauen das Image zur Kontrolle ebenfalls, pushen aber nichts.
 
 ## Troubleshooting
 
