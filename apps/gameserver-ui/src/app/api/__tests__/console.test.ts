@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Session-Prüfung ist hier nicht Thema (siehe auth.test.ts): angemeldet.
+vi.mock("@/lib/session", () => ({ requireSession: async () => null }));
+
 vi.mock("@/lib/k8s", () => ({ VmClient: { inCluster: () => ({ getStatus: async () => ({ vmiPhase: "Running", ipAddress: "10.0.0.1" }) }) } }));
 vi.mock("@/lib/ssh", () => ({ SshClient: { fromEnv: () => ({}) } }));
 vi.mock("@/lib/telnet", () => ({ telnetCommand: vi.fn(async () => "Day 7, 08:30"), telnetOptsFromEnv: () => ({ port: 8081, password: "x" }) }));

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 import { VmClient } from "@/lib/k8s";
 import { SshClient, LONG_EXEC_TIMEOUT_MS } from "@/lib/ssh";
 import { writeFileSync, mkdirSync } from "fs";
@@ -24,6 +25,9 @@ export async function GET() {
 }
 
 export async function PUT(req: Request) {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const { xml } = await req.json().catch(() => ({}));
     if (!xml || typeof xml !== "string") {

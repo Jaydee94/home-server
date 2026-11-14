@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/lib/session";
 import { VmClient } from "@/lib/k8s";
 import { SshClient } from "@/lib/ssh";
 import { telnetCommand, telnetOptsFromEnv } from "@/lib/telnet";
@@ -18,6 +19,9 @@ export async function GET() {
 }
 
 export async function POST() {
+  const denied = await requireSession();
+  if (denied) return denied;
+
   try {
     const status = await VmClient.inCluster().getStatus();
     if (status.vmiPhase !== "Running" || !status.ipAddress) {
