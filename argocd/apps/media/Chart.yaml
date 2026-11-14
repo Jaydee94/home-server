@@ -25,3 +25,9 @@ keywords:
 home: https://wiki.servarr.com
 maintainers:
   - name: home-server-admin
+dependencies:
+  # Shared namespace-isolation NetworkPolicy. Resolved by `helm dependency
+  # build`, also by the ArgoCD repo-server. See argocd/lib/common/README.md.
+  - name: common
+    version: 0.1.0
+    repository: file://../../lib/common

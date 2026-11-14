@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useVmStatus } from "@/lib/useVmStatus";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -52,10 +52,17 @@ export default function Dashboard() {
       setHorde(bloodMoonLabel(gt, freq));
     })().catch(() => {});
   }, [running]);
-  const loadMetrics = useCallback(async () => {
-    const r = await fetch("/api/metrics"); if (r.ok) setMetrics(await r.json());
+  useEffect(() => {
+    // State wird nur asynchron (im .then) gesetzt, nie synchron im Effect-Body.
+    const loadMetrics = () =>
+      fetch("/api/metrics")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((m) => { if (m) setMetrics(m); })
+        .catch(() => {});
+    loadMetrics();
+    const t = setInterval(loadMetrics, 15000);
+    return () => clearInterval(t);
   }, []);
-  useEffect(() => { loadMetrics(); const t = setInterval(loadMetrics, 15000); return () => clearInterval(t); }, [loadMetrics]);
 
   async function act(action: "start" | "stop") {
     if (action === "stop" && !(await confirm({ title: "Server stoppen?", body: "Der 7DTD-Server wird heruntergefahren.", danger: true }))) return;

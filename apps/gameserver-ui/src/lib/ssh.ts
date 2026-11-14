@@ -2,12 +2,19 @@ import { Client, type ClientChannel, type ConnectConfig } from "ssh2";
 import { readFileSync } from "fs";
 import type { Readable } from "stream";
 
-function buildHostVerifier(): ConnectConfig["hostVerifier"] {
+// Die Warnung "kein Fingerprint gesetzt" kommt einmal pro Prozess, nicht bei jeder
+// der vielen kurzlebigen SSH-Verbindungen (sonst flutet sie das Log).
+let warnedUnpinned = false;
+
+export function buildHostVerifier(): (keyHash: Buffer | string) => boolean {
   const pinned = process.env.VM_SSH_HOST_FINGERPRINT;
   return (keyHash: Buffer | string) => {
     const hex = Buffer.isBuffer(keyHash) ? keyHash.toString("hex") : keyHash;
     if (!pinned) {
-      console.warn("[ssh] VM_SSH_HOST_FINGERPRINT not set — host key not verified");
+      if (!warnedUnpinned) {
+        warnedUnpinned = true;
+        console.warn("[ssh] VM_SSH_HOST_FINGERPRINT not set — host key not verified");
+      }
       return true;
     }
     const match = hex === pinned;
@@ -39,6 +46,13 @@ export interface ExecOptions {
   timeoutMs?: number;
   /** Wird in den stdin des Kommandos gepiped (danach EOF). */
   stdin?: Readable;
+}
+
+export interface StreamOptions {
+  /** Exit-Codes, die als regulares Ende gelten (Standard: nur 0). */
+  allowedExitCodes?: number[];
+  /** Erhält am Ende die gesammelte stderr-Ausgabe (getrimmt), falls es welche gab. */
+  onStderr?: (text: string) => void;
 }
 
 export class SshClient {
@@ -120,7 +134,9 @@ export class SshClient {
   // SSH-Verbindung geschlossen — sonst bliebe pro Aufruf eine Session samt
   // `docker logs -f` offen. Liest der Konsument nicht, pausiert der SSH-Kanal,
   // statt die Ausgabe unbegrenzt im Speicher zu puffern.
-  stream(command: string): ReadableStream<Uint8Array> {
+  stream(command: string, options: StreamOptions = {}): ReadableStream<Uint8Array> {
+    const allowed = options.allowedExitCodes ?? [0];
+    let stderr = "";
     const config = this.connectConfig();
     const conn = new Client();
     let channel: ClientChannel | undefined;
@@ -152,12 +168,20 @@ export class SshClient {
               controller.enqueue(d);
               if ((controller.desiredSize ?? 0) <= 0) stream.pause();
             });
-            // stderr wird nicht ausgewertet, muss aber abfließen — sonst kann ein
-            // volles Kanal-Fenster das Kommando blockieren.
-            stream.stderr.resume();
+            // stderr muss abfließen — sonst kann ein volles Kanal-Fenster das Kommando
+            // blockieren. Nur mit `onStderr` wird (begrenzt) mitgeschrieben.
+            if (options.onStderr) {
+              stream.stderr.on("data", (d: Buffer) => {
+                if (stderr.length < 16_384) stderr += d.toString();
+              });
+            } else {
+              stream.stderr.resume();
+            }
             stream.on("close", (code: number) => {
+              const text = stderr.trim();
+              if (text && !finished) options.onStderr?.(text);
               finish(() => {
-                if (code !== 0) controller.error(new Error(`Stream exit ${code}`));
+                if (!allowed.includes(code)) controller.error(new Error(`Stream exit ${code}`));
                 else controller.close();
               });
             });

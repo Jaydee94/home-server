@@ -1,0 +1,10 @@
+---
+apiVersion: v2
+name: common
+description: >-
+  Shared Helm templates for the local charts under argocd/apps/ (names/labels,
+  Service, Ingress, ServiceAccount, PVC, namespace-isolation NetworkPolicy).
+  Library chart: it renders nothing on its own. Lives outside argocd/apps/ so
+  the ApplicationSet does not turn it into an Application. See README.md.
+type: library
+version: 0.1.0

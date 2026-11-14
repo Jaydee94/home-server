@@ -27,8 +27,10 @@ export default function BackupsPage() {
     else { toast("error", "Inhalt nicht lesbar"); setOpenFile(null); }
   }
 
-  async function load() { const r = await fetch("/api/backups"); setBackups(r.ok ? (await r.json()).backups : []); }
-  useEffect(() => { load(); }, []);
+  // Lädt nur; das Setzen des States passiert im Aufrufer (im Effect asynchron per .then).
+  async function fetchBackups() { const r = await fetch("/api/backups"); return r.ok ? (await r.json()).backups : []; }
+  async function load() { setBackups(await fetchBackups()); }
+  useEffect(() => { fetchBackups().then(setBackups).catch(() => setBackups([])); }, []);
 
   async function create() {
     if (!(await confirm({ title: "Backup erstellen?", body: "Die Welt wird gespeichert und archiviert. Das kann einige Minuten dauern." }))) return;

@@ -16,7 +16,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (d?.xml) setServerName(extractConfigValue(d.xml, "ServerName") ?? "7DTD Server");
     }).catch(() => {});
   }, []);
-  useEffect(() => setMobileOpen(false), [path]);
+  // Mobiles Menü bei Seitenwechsel schließen: State beim Rendern anpassen statt im
+  // Effect (https://react.dev/learn/you-might-not-need-an-effect).
+  const [prevPath, setPrevPath] = useState(path);
+  if (path !== prevPath) { setPrevPath(path); setMobileOpen(false); }
 
   if (path === "/login") return <>{children}</>;
 

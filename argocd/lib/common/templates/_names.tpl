@@ -1,14 +1,20 @@
 {{/*
+Name and label helpers. Call with the root context of the consuming chart
+(`.` / `$`); .Chart.Name and .Values.nameOverride therefore come from the app
+chart, not from this library.
+*/}}
+
+{{/*
 Expand the name of the chart.
 */}}
-{{- define "ha-mcp.name" -}}
+{{- define "common.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Create a default fully qualified app name.
 */}}
-{{- define "ha-mcp.fullname" -}}
+{{- define "common.fullname" -}}
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -24,16 +30,16 @@ Create a default fully qualified app name.
 {{/*
 Create chart name and version as used by the chart label.
 */}}
-{{- define "ha-mcp.chart" -}}
+{{- define "common.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" }}
 {{- end }}
 
 {{/*
 Common labels
 */}}
-{{- define "ha-mcp.labels" -}}
-helm.sh/chart: {{ include "ha-mcp.chart" . }}
-{{ include "ha-mcp.selectorLabels" . }}
+{{- define "common.labels" -}}
+helm.sh/chart: {{ include "common.chart" . }}
+{{ include "common.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 {{- end }}
@@ -41,19 +47,20 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Selector labels
+Selector labels. Immutable on a Deployment/StatefulSet: never change what this
+renders for a chart that is already deployed.
 */}}
-{{- define "ha-mcp.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "ha-mcp.name" . }}
+{{- define "common.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "common.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
 Create the name of the service account to use
 */}}
-{{- define "ha-mcp.serviceAccountName" -}}
+{{- define "common.serviceAccountName" -}}
 {{- if .Values.serviceAccount.create }}
-{{- default (include "ha-mcp.fullname" .) .Values.serviceAccount.name }}
+{{- default (include "common.fullname" .) .Values.serviceAccount.name }}
 {{- else }}
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}

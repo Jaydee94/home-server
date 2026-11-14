@@ -38,6 +38,23 @@ describe("restartServer", () => {
     expect(f.sleep).not.toHaveBeenCalled();
   });
 
+  it("bricht standardmäßig ab, wenn Telnet nicht erreichbar ist", async () => {
+    const f = fakes("");
+    f.telnet.mockRejectedValue(new Error("Telnet timeout"));
+    await expect(restartServer(f.ssh, OPTS, { sleep: f.sleep, telnet: f.telnet })).rejects.toThrow("Telnet timeout");
+    expect(f.execFn).not.toHaveBeenCalled();
+  });
+
+  it("tolerateTelnetFailure: startet auch ohne Telnet neu (Server down, z. B. kaputte Config)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const f = fakes("");
+    f.telnet.mockRejectedValue(new Error("Telnet timeout"));
+    await restartServer(f.ssh, OPTS, { sleep: f.sleep, telnet: f.telnet, tolerateTelnetFailure: true });
+    expect(f.execFn).toHaveBeenCalledWith("sudo docker restart 7dtd-server", expect.anything());
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
   it("warnt Spieler per Broadcast + Countdown wenn Spieler online sind", async () => {
     const lp =
       "Total of 1 in the game\n0. id=1, Hans, pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0), remote=True, health=100, deaths=0, zombies=0, players=0, score=0, level=1, pltfmid=Steam_1, crossid=EOS_1, ip=127.0.0.1, ping=0";

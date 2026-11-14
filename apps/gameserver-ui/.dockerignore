@@ -1,2 +1,7 @@
 node_modules
 .next
+coverage
+.env*
+**/*.test.ts
+**/*.test.tsx
+src/**/__tests__
