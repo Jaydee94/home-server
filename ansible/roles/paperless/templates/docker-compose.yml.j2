@@ -1,3 +1,11 @@
+# !!! DO NOT RENAME THE PROJECT !!!
+# `name: paperless` must stay exactly like this. It is the project name of the
+# stack that holds the production data on the NAS. Any other value (or dropping
+# the line) makes `docker compose` treat this file as a NEW project and start a
+# second stack — including a second Postgres — on the very same bind-mounted
+# ./db directory. That already happened once with `paperless-ngx-nas`
+# (commit a16fad6 / PR #357). The same applies to the service names (`db`,
+# `broker`, `paperless`) and the ./db bind mount: do not rename or move them.
 name: paperless
 
 services:
@@ -11,7 +19,11 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: "{{ paperless_db_user }}"
-      POSTGRES_PASSWORD: "{{ paperless_db_password }}"
+      # No secret in this file: Compose interpolates the value from the .env
+      # next to it (mode 0640). It resolves to the same string as before, so the
+      # container config is unchanged; Postgres only reads POSTGRES_PASSWORD
+      # when it initialises an EMPTY data directory, never for an existing one.
+      POSTGRES_PASSWORD: "${PAPERLESS_DBPASS:?PAPERLESS_DBPASS missing in .env}"
       POSTGRES_DB: "{{ paperless_db_name }}"
     volumes:
       - "./db:/var/lib/postgresql/data"

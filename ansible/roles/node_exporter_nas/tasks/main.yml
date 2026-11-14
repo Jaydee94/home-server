@@ -5,6 +5,14 @@
     state: directory
     mode: '0755'
 
+- name: Create node-exporter textfile collector directory
+  ansible.builtin.file:
+    path: "{{ node_exporter_textfile_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
 - name: Deploy node-exporter docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2
@@ -15,5 +23,4 @@
   community.docker.docker_compose_v2:
     project_src: "{{ node_exporter_base_dir }}"
     state: present
-    recreate: always
     remove_orphans: true

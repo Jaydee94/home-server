@@ -23,11 +23,22 @@ home-assistant:
             pathType: Prefix
     tls: []
 
-  # GitOps-Installation der HA-Erweiterungen. Jeder Init-Container kopiert das
-  # gepinnte Release beim Pod-Start in den geteilten /config-PVC. Idempotent: das
-  # Ziel wird vorher überschrieben/gelöscht, sodass die installierte Version stets
-  # dem Git-Stand entspricht. Renovate hält die VERSION-Pins über den regex-Manager
-  # in renovate.json aktuell. Setup-Details: docs/17-homeassistant.md.
+  # GitOps-Installation der HA-Erweiterungen. Jeder Init-Container installiert das
+  # gepinnte Release in den geteilten /config-PVC und merkt sich die installierte
+  # Version in /config/.extension-versions/<name>.
+  #   * Stimmt der Marker mit dem Pin überein, wird nichts geladen: der Pod startet
+  #     auch ohne Internet/GitHub/DNS (Pi-hole läuft im selben Cluster, z. B. nach
+  #     einem Stromausfall).
+  #   * Scheitert der Download (neuer Pin oder noch kein Marker), bleibt die
+  #     vorhandene Kopie liegen und der Pod startet mit ihr; der nächste Pod-Start
+  #     versucht es erneut. Nur wenn noch gar keine Kopie existiert, schlägt der
+  #     Init-Container fehl.
+  #   * Geladen wird nach /tmp; das Ziel wird erst nach erfolgreichem Download
+  #     ersetzt.
+  # Renovate hält die Pins über den regex-Manager in renovate.json aktuell: die
+  # "# renovate:"-Zeile über dem Container und die erste Zuweisung im Skript
+  # gehören zusammen und dürfen nicht umformatiert werden.
+  # Setup-Details: docs/17-homeassistant.md.
   initContainers:
     # Bubble-Card — Lovelace-Frontend-Ressource (#86). Bezieht die gebaute
     # dist/bubble-card.js aus dem Repo-Tree am Tag (kein Release-Asset, analog HACS
@@ -40,9 +51,26 @@ home-assistant:
         - |
           set -eu
           VERSION=3.4.3
-          apk add --no-cache curl
-          mkdir -p /config/www
-          curl -fsSL "https://github.com/Clooos/Bubble-Card/raw/v${VERSION}/dist/bubble-card.js" -o /config/www/bubble-card.js
+          NAME=bubble-card
+          DEST=/config/www/bubble-card.js
+          MARKER="/config/.extension-versions/${NAME}"
+          if [ -e "${DEST}" ] && [ "$(cat "${MARKER}" 2>/dev/null || true)" = "${VERSION}" ]; then
+            echo "${NAME} ${VERSION} is already installed, skipping the download"
+            exit 0
+          fi
+          if apk add --no-cache curl \
+            && curl -fsSL "https://github.com/Clooos/Bubble-Card/raw/v${VERSION}/dist/bubble-card.js" -o "/tmp/${NAME}.js"; then
+            mkdir -p "$(dirname "${DEST}")" /config/.extension-versions
+            cp "/tmp/${NAME}.js" "${DEST}.new"
+            mv "${DEST}.new" "${DEST}"
+            echo "${VERSION}" > "${MARKER}"
+            echo "${NAME} ${VERSION} installed"
+          elif [ -e "${DEST}" ]; then
+            echo "WARNING: download of ${NAME} ${VERSION} failed, keeping the installed copy ($(cat "${MARKER}" 2>/dev/null || echo "version unknown"))"
+          else
+            echo "ERROR: download of ${NAME} ${VERSION} failed and no copy is installed" >&2
+            exit 1
+          fi
       volumeMounts:
         - name: home-assistant
           mountPath: /config
@@ -56,9 +84,26 @@ home-assistant:
         - |
           set -eu
           VERSION=7.2.0
-          apk add --no-cache curl
-          mkdir -p /config/www/hourly-weather
-          curl -fsSL "https://github.com/decompil3d/lovelace-hourly-weather/releases/download/${VERSION}/hourly-weather.js" -o /config/www/hourly-weather/hourly-weather.js
+          NAME=hourly-weather
+          DEST=/config/www/hourly-weather/hourly-weather.js
+          MARKER="/config/.extension-versions/${NAME}"
+          if [ -e "${DEST}" ] && [ "$(cat "${MARKER}" 2>/dev/null || true)" = "${VERSION}" ]; then
+            echo "${NAME} ${VERSION} is already installed, skipping the download"
+            exit 0
+          fi
+          if apk add --no-cache curl \
+            && curl -fsSL "https://github.com/decompil3d/lovelace-hourly-weather/releases/download/${VERSION}/hourly-weather.js" -o "/tmp/${NAME}.js"; then
+            mkdir -p "$(dirname "${DEST}")" /config/.extension-versions
+            cp "/tmp/${NAME}.js" "${DEST}.new"
+            mv "${DEST}.new" "${DEST}"
+            echo "${VERSION}" > "${MARKER}"
+            echo "${NAME} ${VERSION} installed"
+          elif [ -e "${DEST}" ]; then
+            echo "WARNING: download of ${NAME} ${VERSION} failed, keeping the installed copy ($(cat "${MARKER}" 2>/dev/null || echo "version unknown"))"
+          else
+            echo "ERROR: download of ${NAME} ${VERSION} failed and no copy is installed" >&2
+            exit 1
+          fi
       volumeMounts:
         - name: home-assistant
           mountPath: /config
@@ -72,12 +117,32 @@ home-assistant:
         - |
           set -eu
           VERSION=1.7.0
-          apk add --no-cache curl tar
-          rm -rf /config/custom_components/ai_automation_suggester
-          mkdir -p /config/custom_components
-          curl -fsSL "https://github.com/ITSpecialist111/ai_automation_suggester/archive/refs/tags/v${VERSION}.tar.gz" -o /tmp/ai.tgz
-          tar -xzf /tmp/ai.tgz -C /tmp
-          cp -r "/tmp/ai_automation_suggester-${VERSION}/custom_components/ai_automation_suggester" /config/custom_components/ai_automation_suggester
+          NAME=ai_automation_suggester
+          DEST="/config/custom_components/${NAME}"
+          MARKER="/config/.extension-versions/${NAME}"
+          SRC="/tmp/ai_automation_suggester-${VERSION}/custom_components/${NAME}"
+          STAGE="/config/.extension-versions/.staging-${NAME}"
+          if [ -d "${DEST}" ] && [ "$(cat "${MARKER}" 2>/dev/null || true)" = "${VERSION}" ]; then
+            echo "${NAME} ${VERSION} is already installed, skipping the download"
+            exit 0
+          fi
+          if apk add --no-cache curl tar \
+            && curl -fsSL "https://github.com/ITSpecialist111/ai_automation_suggester/archive/refs/tags/v${VERSION}.tar.gz" -o "/tmp/${NAME}.tgz" \
+            && tar -xzf "/tmp/${NAME}.tgz" -C /tmp \
+            && [ -d "${SRC}" ]; then
+            mkdir -p /config/custom_components /config/.extension-versions
+            rm -rf "${STAGE}"
+            cp -r "${SRC}" "${STAGE}"
+            rm -rf "${DEST}"
+            mv "${STAGE}" "${DEST}"
+            echo "${VERSION}" > "${MARKER}"
+            echo "${NAME} ${VERSION} installed"
+          elif [ -d "${DEST}" ]; then
+            echo "WARNING: download of ${NAME} ${VERSION} failed, keeping the installed copy ($(cat "${MARKER}" 2>/dev/null || echo "version unknown"))"
+          else
+            echo "ERROR: download of ${NAME} ${VERSION} failed and no copy is installed" >&2
+            exit 1
+          fi
       volumeMounts:
         - name: home-assistant
           mountPath: /config
@@ -91,12 +156,32 @@ home-assistant:
         - |
           set -eu
           VERSION=2.0.3
-          apk add --no-cache curl tar
-          rm -rf /config/custom_components/dreame_vacuum
-          mkdir -p /config/custom_components
-          curl -fsSL "https://github.com/Tasshack/dreame-vacuum/archive/refs/tags/v${VERSION}.tar.gz" -o /tmp/dreame.tgz
-          tar -xzf /tmp/dreame.tgz -C /tmp
-          cp -r "/tmp/dreame-vacuum-${VERSION}/custom_components/dreame_vacuum" /config/custom_components/dreame_vacuum
+          NAME=dreame_vacuum
+          DEST="/config/custom_components/${NAME}"
+          MARKER="/config/.extension-versions/${NAME}"
+          SRC="/tmp/dreame-vacuum-${VERSION}/custom_components/${NAME}"
+          STAGE="/config/.extension-versions/.staging-${NAME}"
+          if [ -d "${DEST}" ] && [ "$(cat "${MARKER}" 2>/dev/null || true)" = "${VERSION}" ]; then
+            echo "${NAME} ${VERSION} is already installed, skipping the download"
+            exit 0
+          fi
+          if apk add --no-cache curl tar \
+            && curl -fsSL "https://github.com/Tasshack/dreame-vacuum/archive/refs/tags/v${VERSION}.tar.gz" -o "/tmp/${NAME}.tgz" \
+            && tar -xzf "/tmp/${NAME}.tgz" -C /tmp \
+            && [ -d "${SRC}" ]; then
+            mkdir -p /config/custom_components /config/.extension-versions
+            rm -rf "${STAGE}"
+            cp -r "${SRC}" "${STAGE}"
+            rm -rf "${DEST}"
+            mv "${STAGE}" "${DEST}"
+            echo "${VERSION}" > "${MARKER}"
+            echo "${NAME} ${VERSION} installed"
+          elif [ -d "${DEST}" ]; then
+            echo "WARNING: download of ${NAME} ${VERSION} failed, keeping the installed copy ($(cat "${MARKER}" 2>/dev/null || echo "version unknown"))"
+          else
+            echo "ERROR: download of ${NAME} ${VERSION} failed and no copy is installed" >&2
+            exit 1
+          fi
       volumeMounts:
         - name: home-assistant
           mountPath: /config
