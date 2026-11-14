@@ -4,10 +4,12 @@ Deploys [Paperless-ngx](https://docs.paperless-ngx.com/) on a Linux host
 using Docker Compose, together with its Postgres database, Redis broker,
 an optional Paperless-AI sidecar, and a daily document-exporter backup.
 
-The role provisions the Docker host (on Debian/Ubuntu and RHEL-family
-systems), creates a dedicated unprivileged system user, renders the
-Compose stack from templates, and brings it up via the
-`community.docker.docker_compose_v2` module.
+The role expects a host that already runs Docker with the Compose v2
+plugin (pre-flight check: `docker compose version`), creates a dedicated
+unprivileged system user, renders the Compose stack from templates, and
+brings it up via the `community.docker.docker_compose_v2` module.
+Installing Docker is opt-in (`paperless_install_docker: true`,
+Debian/Ubuntu only) and must stay off on the UGREEN NAS.
 
 ## What gets deployed
 
@@ -31,12 +33,14 @@ directory, and prunes archives older than the configured retention.
 
 ## Requirements
 
-- A Debian/Ubuntu or RHEL-family host. The role installs `docker-ce`,
-  `docker-ce-cli`, `containerd.io`, and `docker-compose-plugin` on
-  Debian/Ubuntu via the official Docker apt repository, and `docker` via
-  `yum`/`dnf` on RHEL-family systems.
-- SSH access with `become: true` (root) to install packages, create the
-  system user, write to `/opt/paperless`, and install the cron entry.
+- A host with a running Docker engine and the Compose v2 plugin. The role
+  fails early if `docker compose version` does not work. With
+  `paperless_install_docker: true` it installs `docker-ce`,
+  `docker-ce-cli`, `containerd.io`, and `docker-compose-plugin` from the
+  official Docker apt repository (Debian/Ubuntu only, keyring +
+  `signed-by`). Leave it at `false` on the UGREEN NAS.
+- SSH access with `become: true` (root) to create the system user, write
+  to `/opt/paperless`, and install the cron entry.
 - For Paperless-AI: an outgoing network path from the NAS to the LLM
   provider configured inside Paperless-AI (this role does not manage
   provider credentials).
@@ -89,7 +93,7 @@ shown verbatim.
 | ----------------------- | ----------------------------- | --------------------------------------------- |
 | `paperless_db_user`     | `paperless`                   | Postgres role                                 |
 | `paperless_db_name`     | `paperless`                   | Database name                                 |
-| `paperless_db_password` | `paperless_pass_change_me`    | **Change this.** Override via Ansible Vault.  |
+| `paperless_db_password` | `""`                          | **Required** (pre-flight `assert`). Set via Ansible Vault. Only written to `.env`; the Compose file reads it as `${PAPERLESS_DBPASS}`. |
 | `paperless_db_uid`      | `70`                          | UID that owns `{{ paperless_db_dir }}` — must match the `postgres:alpine` user |
 | `paperless_db_gid`      | `70`                          | GID that owns `{{ paperless_db_dir }}`        |
 
@@ -127,9 +131,18 @@ to the `admin` / `admin` default. `paperless_admin_user` and
 
 ### Compose internals
 
-| Variable                  | Default               | Purpose                                          |
-| ------------------------- | --------------------- | ------------------------------------------------ |
-| `paperless_compose_file`  | `docker-compose.yml`  | Filename of the rendered Compose file            |
+| Variable                   | Default               | Purpose                                          |
+| -------------------------- | --------------------- | ------------------------------------------------ |
+| `paperless_compose_file`   | `docker-compose.yml`  | Filename of the rendered Compose file            |
+| `paperless_install_docker` | `false`               | Install Docker Engine from the Docker apt repo (Debian/Ubuntu). Keep `false` on the NAS |
+
+The Compose project name is hard-coded to `name: paperless` and must not
+be changed: a different name starts a second stack (and a second
+Postgres) on the same `db/` directory.
+
+Secrets live only in `.env` (mode `0640`). The `.env` and Compose template
+tasks run with `diff: false` (the `.env` task also with `no_log: true`),
+so `make nas-check` (`--check --diff`) does not print them.
 
 ## Backup and restore
 
