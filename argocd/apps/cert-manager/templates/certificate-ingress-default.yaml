@@ -1,0 +1,32 @@
+{{- if .Values.ingressTls.enabled }}
+# Default certificate for every Traefik ingress — see values.yaml (ingressTls).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: homeserver-ingress-default
+  namespace: {{ .Values.ingressTls.namespace }}
+  annotations:
+    # After the CA (wave 1) and the CA issuer (wave 2).
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  secretName: {{ .Values.ingressTls.secretName }}
+  duration: 2160h    # 90 days
+  renewBefore: 720h  # renew 30 days early; Traefik picks the new secret up live
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  usages:
+    - digital signature
+    - key encipherment
+    - server auth
+  dnsNames:
+    {{- toYaml .Values.ingressTls.hosts | nindent 4 }}
+  {{- with .Values.ingressTls.ipAddresses }}
+  ipAddresses:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  issuerRef:
+    name: homeserver-ca-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+{{- end }}

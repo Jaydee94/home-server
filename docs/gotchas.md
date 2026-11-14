@@ -31,6 +31,13 @@ Verweis aus CLAUDE.md: hier die vollständige Liste.
 - **MetalLB: IP-Konflikt nach Annotation-Removal bleibt `<pending>`**: Wenn ein Service von LoadBalancer auf ClusterIP wechselt und die `metallb.io/ip-allocated-from-pool`-Annotation per `kubectl annotate svc … key-` entfernt wird, hält der MetalLB-Controller die IP dennoch im In-Memory-State. Fix: `kubectl -n metallb rollout restart deployment metallb-controller`.
 - **Jellyfin `jellyfin-tailscale`-Service absichtlich OHNE `loadBalancerClass`**: Klipper SOLL ihn übernehmen und hostPort `0.0.0.0:8096` binden, damit Tailscale Shared Nodes Jellyfin direkt über `http://<tailscale-ip>:8096` erreichen. Nicht „korrigieren". Details: `docs/16-jellyfin.md`.
 
+## TLS / HTTPS
+
+- **Ein Zertifikat für alle Ingresses**: `argocd/apps/cert-manager` stellt ein Zertifikat der Homeserver-CA mit allen `*.homeserver`-Hostnamen aus und hängt es als Traefik-Default ein (`TLSStore default` in `kube-system`). Damit ist jede App unter `https://<name>.homeserver` gültig erreichbar; HTTP bleibt unverändert (kein Redirect, damit Cluster-interne `http://`-Aufrufe und Geräte ohne CA weiter funktionieren).
+- **Neue App mit Ingress**: Hostnamen in `argocd/apps/cert-manager/values.yaml` unter `ingressTls.hosts` eintragen — sonst liefert HTTPS für diesen Namen eine Zertifikatswarnung. Kein Wildcard: Browser lehnen `*.homeserver` ab (Wildcard direkt unter einer TLD).
+- **CA auf Geräten vertrauen** (einmalig pro Gerät): `sudo kubectl -n cert-manager get secret homeserver-ca-secret -o jsonpath='{.data.ca\.crt}' | base64 -d > homeserver-ca.crt` und die Datei als vertrauenswürdige Stammzertifizierungsstelle importieren. Gültig bis 2036.
+- **Prüfen**: `echo | openssl s_client -connect 192.168.178.127:443 -servername grafana.homeserver 2>/dev/null | openssl x509 -noout -issuer -ext subjectAltName` → Issuer „Homeserver Root CA“. Steht dort „TRAEFIK DEFAULT CERT“, fehlt das Secret `homeserver-ingress-tls` oder der TLSStore.
+
 ## Pi-hole / DNS
 
 - **Pi-hole ist der einzige DNS-Server (dnsmasq abgelöst)**: Läuft auf MetalLB-IP `192.168.178.2:53`. Host fragt es via `host_dns`-Rolle. LAN-weit aktiv erst wenn FritzBox „Lokaler DNS-Server = 192.168.178.2" gesetzt ist. Details: `docs/15-pihole.md`.
