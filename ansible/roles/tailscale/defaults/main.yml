@@ -6,3 +6,7 @@
 # a known-good codename:
 #   tailscale_repo_codename: noble
 tailscale_repo_codename: "{{ ansible_distribution_release }}"
+
+# Upper bound for `tailscale up`. Without it an expired node/auth key makes the
+# command wait forever for an interactive login and hangs the whole play.
+tailscale_up_timeout_seconds: 45
