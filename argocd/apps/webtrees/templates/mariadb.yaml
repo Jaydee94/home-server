@@ -63,9 +63,13 @@ spec:
           image: "{{ .Values.mariadb.image.repository }}:{{ .Values.mariadb.image.tag }}"
           imagePullPolicy: {{ .Values.mariadb.image.pullPolicy }}
           # The entrypoint starts as root, fixes the ownership of the data
-          # directory and switches to the mysql user with gosu.
+          # directory and switches to the mysql user with gosu. gosu is a Go
+          # binary and spins at 100% CPU when AppArmor denies the SIGURG its
+          # runtime sends between threads (docs/gotchas.md#apparmor--container-signale).
           securityContext:
             allowPrivilegeEscalation: false
+            appArmorProfile:
+              type: Unconfined
             capabilities:
               drop:
                 - ALL

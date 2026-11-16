@@ -21,7 +21,7 @@ Zentrale Sammlung der nicht offensichtlichen Fallstricke dieses Setups. Service-
 - **Auf Ubuntu 26.04 verweigert AppArmor Signale innerhalb von Containern.** Mit `kernel.apparmor_restrict_unprivileged_unconfined=1` (Ubuntu-Default) bekommen Container das gestapelte Label `cri-containerd.apparmor.d//&unconfined`, das containerd-Profil erlaubt Signale aber nur an `cri-containerd.apparmor.d`. Betroffen waren QEMU (KubeVirt), vmagent/vmalert (SIGHUP), Sonarr/Radarr (.NET bricht lautlos ab, Sonarrs `config.xml` wurde dabei geleert) und Postgres (SIGURG).
 - **Die `common`-Rolle setzt den Sysctl deshalb auf `0`.** Die Datei `/etc/sysctl.d/99-apparmor-containers.conf` wirkt nur auf neu gestartete Prozesse, nach dem ersten Ausrollen also einmal rebooten.
 - **Signal-Denials stehen im Kernel-Log.** `sudo journalctl -k | grep 'apparmor="DENIED".*operation="signal"'` zeigt sie, `sudo cat /proc/<pid>/attr/current` das Label eines Prozesses. Schnelltest: `sudo kubectl run t --rm -i --restart=Never --image=<alpine-image> --command -- sh -c 'cat /proc/self/attr/current; sleep 20 & kill -USR1 $!; echo rc=$?'`.
-- **Die `Unconfined`-Ausnahmen stammen aus der Zeit vor dem Sysctl-Fix.** Betroffen sind KubeVirt-VM, vmagent, vmalert, das interne vmauth und Sonarr/Radarr/Prowlarr. Sie können weg, sobald nach dem Reboot keine Signal-Denials mehr im Kernel-Log stehen.
+- **Die `Unconfined`-Ausnahmen stammen aus der Zeit vor dem Sysctl-Fix.** Betroffen sind KubeVirt-VM, vmagent, vmalert, das interne vmauth, Sonarr/Radarr/Prowlarr sowie webtrees und seine MariaDB (dort hing `gosu` bei 100 % CPU). Sie können weg, sobald nach dem Reboot keine Signal-Denials mehr im Kernel-Log stehen.
 
 ## ArgoCD / GitOps
 
