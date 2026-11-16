@@ -6,72 +6,72 @@
 # resource with that name doesn't exist yet.
 # ============================================================
 
-- name: Pre-flight — semaphore_vault_password must not be empty
+- name: Pre-flight — semaphore_bootstrap_vault_password must not be empty
   ansible.builtin.assert:
-    that: "semaphore_vault_password | length > 0"
+    that: "semaphore_bootstrap_vault_password | length > 0"
     fail_msg: >-
-      semaphore_vault_password is empty. This repo uses vault-encrypted secrets
+      semaphore_bootstrap_vault_password is empty. This repo uses vault-encrypted secrets
       (tailscale_auth_key, scanner_smb_password, etc.) — Semaphore cannot decrypt
-      them without a vault password. Set semaphore_vault_password in
+      them without a vault password. Set semaphore_bootstrap_vault_password in
       group_vars/all.yml (ansible-vault encrypted).
 
 # Projects that are not in the list get deleted further down. An empty list
 # (group_vars not loaded) would therefore wipe all of them, including the one
 # that runs this playbook.
-- name: Pre-flight — semaphore_projects must not be empty
+- name: Pre-flight — semaphore_bootstrap_projects must not be empty
   ansible.builtin.assert:
-    that: "semaphore_projects | length > 0"
+    that: "semaphore_bootstrap_projects | length > 0"
     fail_msg: >-
-      semaphore_projects is empty. Define the projects in
+      semaphore_bootstrap_projects is empty. Define the projects in
       ansible/group_vars/all.yml; the role would otherwise delete every
       existing Semaphore project as an orphan.
 
 - name: Wait for the semaphore Deployment to roll out
   ansible.builtin.command:
-    cmd: kubectl -n {{ semaphore_namespace }} rollout status deploy/semaphore --timeout=300s
+    cmd: kubectl -n {{ semaphore_bootstrap_namespace }} rollout status deploy/semaphore --timeout=300s
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   changed_when: false
 
 - name: Wait for the Semaphore HTTP API to respond
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/ping"
+    url: "{{ semaphore_bootstrap_api_base }}/api/ping"
     status_code: 200
     return_content: false
-  register: semaphore_ping
-  retries: "{{ semaphore_api_ready_retries }}"
-  delay: "{{ semaphore_api_ready_delay }}"
-  until: semaphore_ping.status == 200
+  register: semaphore_bootstrap_ping
+  retries: "{{ semaphore_bootstrap_api_ready_retries }}"
+  delay: "{{ semaphore_bootstrap_api_ready_delay }}"
+  until: semaphore_bootstrap_ping.status == 200
 
 - name: Authenticate against Semaphore
   ansible.builtin.include_tasks: login.yml
 
 - name: Provision each Semaphore project
   ansible.builtin.include_tasks: project.yml
-  loop: "{{ semaphore_projects }}"
+  loop: "{{ semaphore_bootstrap_projects }}"
   loop_control:
     loop_var: project_spec
     label: "{{ project_spec.name }}"
 
 - name: List all projects for orphan cleanup
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/projects"
+    url: "{{ semaphore_bootstrap_api_base }}/api/projects"
     method: GET
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     return_content: true
-  register: sem_all_projects
+  register: semaphore_bootstrap_all_projects
 
-- name: Delete orphan projects not in semaphore_projects
+- name: Delete orphan projects not in semaphore_bootstrap_projects
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ item.id }}"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ item.id }}"
     method: DELETE
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     status_code: [204]
   loop: >-
-    {{ sem_all_projects.json
-       | rejectattr('name', 'in', semaphore_projects | map(attribute='name') | list)
+    {{ semaphore_bootstrap_all_projects.json
+       | rejectattr('name', 'in', semaphore_bootstrap_projects | map(attribute='name') | list)
        | list }}
   loop_control:
     label: "{{ item.name }}"
@@ -82,7 +82,7 @@
       - "=================================================="
       - "Semaphore projects provisioned"
       - "=================================================="
-      - "URL:        {{ semaphore_api_base }}"
-      - "Projects:   {{ semaphore_projects | map(attribute='name') | join(', ') }}"
-      - "Login:      {{ semaphore_admin_username }} / (see {{ semaphore_admin_password_path }})"
+      - "URL:        {{ semaphore_bootstrap_api_base }}"
+      - "Projects:   {{ semaphore_bootstrap_projects | map(attribute='name') | join(', ') }}"
+      - "Login:      {{ semaphore_bootstrap_admin_username }} / (see {{ semaphore_bootstrap_admin_password_path }})"
       - "=================================================="

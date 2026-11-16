@@ -13,38 +13,38 @@
 # (host_dns role points systemd-resolved at Pi-hole on 192.168.178.2).
 # Override to e.g. `http://semaphore.semaphore.svc.cluster.local:3000`
 # if the Pi-hole DNS path is not yet up when the role runs.
-semaphore_api_base: "http://semaphore.homeserver"
+semaphore_bootstrap_api_base: "http://semaphore.homeserver"
 
 # Kubernetes namespace where Semaphore runs (must match semaphore_secrets role).
-semaphore_namespace: semaphore
+semaphore_bootstrap_namespace: semaphore
 
 # Where `semaphore_secrets` persisted the admin password.
-semaphore_admin_password_path: "/etc/semaphore-secrets/admin_password"
-semaphore_admin_username: admin
+semaphore_bootstrap_admin_password_path: "/etc/semaphore-secrets/admin_password"
+semaphore_bootstrap_admin_username: admin
 
 # Path to the Semaphore-owned SSH private key on the home-server.
-semaphore_ssh_private_key_path: "/etc/semaphore-secrets/id_ed25519"
+semaphore_bootstrap_ssh_private_key_path: "/etc/semaphore-secrets/id_ed25519"
 
 # Readiness polling — start of the API may lag behind the rollout
 # because the initContainer must finish creating the admin user first.
-semaphore_api_ready_retries: 60   # 60 * 5s = 5 min
-semaphore_api_ready_delay: 5
+semaphore_bootstrap_api_ready_retries: 60   # 60 * 5s = 5 min
+semaphore_bootstrap_api_ready_delay: 5
 
 # Vault password Semaphore uses to decrypt ansible-vault secrets in triggered
 # playbooks. Must not be empty — the role fails early with a clear message if
 # it is. Set this in group_vars/all.yml (ansible-vault encrypted).
-semaphore_vault_password: ""
+semaphore_bootstrap_vault_password: ""
 
 # SSH login used by Semaphore when connecting to managed targets.
 # Must match ansible_user on all targets.
-semaphore_ssh_login: "jaydee"
+semaphore_bootstrap_ssh_login: "jaydee"
 
 # Three access keys are created in every project — name them once here.
 # `login` is only relevant for the ssh-type entry.
-semaphore_default_keys:
+semaphore_bootstrap_default_keys:
   - name: semaphore-ssh-key
     type: ssh
-    login: "{{ semaphore_ssh_login }}"
+    login: "{{ semaphore_bootstrap_ssh_login }}"
   - name: git-none
     type: none
   - name: vault-password
@@ -54,17 +54,17 @@ semaphore_default_keys:
 # tasks. ANSIBLE_VAULT_PASSWORD_FILE only reaches the playbook process if
 # injected via a per-template environment — without this, vault-encrypted
 # vars cannot be decrypted during a Semaphore-triggered run.
-semaphore_default_environment:
+semaphore_bootstrap_default_environment:
   name: default-env
   env:
     ANSIBLE_VAULT_PASSWORD_FILE: /var/run/semaphore-secrets/ansible_vault_password
 
 # ============================================================
 # Desired state: list of projects to provision in Semaphore.
-# The single source of truth is `semaphore_projects` in
+# The single source of truth is `semaphore_bootstrap_projects` in
 # ansible/group_vars/all.yml — the role ships no project list of its own (a
 # second copy here had already drifted from the one in group_vars). The role
 # refuses to run with an empty list, because it deletes every Semaphore
 # project that is not part of it.
 # ============================================================
-semaphore_projects: []
+semaphore_bootstrap_projects: []

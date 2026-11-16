@@ -14,7 +14,7 @@ scanner_smb_username: "paperless"
 scanner_consume_mountpoint: "/mnt/paperless-consume"
 scanner_smb_credentials_path: "/etc/cifs-credentials/paperless"
 scanner_smb_mount_options: >-
-  rw,vers=3.0,uid=root,gid=scanner,file_mode=0664,dir_mode=0775,_netdev,nofail,x-systemd.automount,x-systemd.idle-timeout=600
+  rw,vers=3.0,uid=root,gid=scanner,file_mode=0664,dir_mode=0775,_netdev,nofail
 
 # ---- Lokale Pfade -----------------------------------------
 scanner_tmp_dir: "/var/tmp/scanner"

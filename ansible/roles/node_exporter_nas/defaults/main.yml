@@ -1,11 +1,11 @@
 ---
 # Default variables for the node-exporter role
 # renovate: datasource=docker depName=prom/node-exporter
-node_exporter_image: prom/node-exporter:v1.12.1
-node_exporter_base_dir: /opt/node-exporter
+node_exporter_nas_image: prom/node-exporter:v1.12.1
+node_exporter_nas_base_dir: /opt/node-exporter
 # Textfile collector: *.prom files in this host directory are exported by
 # node-exporter (mounted read-only). Used by the Paperless backup script.
-node_exporter_textfile_dir: "{{ node_exporter_base_dir }}/textfile"
+node_exporter_nas_textfile_dir: "{{ node_exporter_nas_base_dir }}/textfile"
 # renovate: datasource=docker depName=gcr.io/cadvisor/cadvisor
-cadvisor_image: gcr.io/cadvisor/cadvisor:v0.55.1
-cadvisor_port: 18080
+node_exporter_nas_cadvisor_image: gcr.io/cadvisor/cadvisor:v0.55.1
+node_exporter_nas_cadvisor_port: 18080
