@@ -19,6 +19,12 @@ serviceAccount:
 # for that are kept.
 securityContext:
   allowPrivilegeEscalation: false
+  # The entrypoint stops its setup-wizard Apache with SIGTERM, and Apache
+  # signals its own workers. AppArmor on Ubuntu 26.04 denies signals inside the
+  # container while kernel.apparmor_restrict_unprivileged_unconfined=1
+  # (docs/gotchas.md#apparmor--container-signale). Can go once that sysctl is 0.
+  appArmorProfile:
+    type: Unconfined
   capabilities:
     drop:
       - ALL
