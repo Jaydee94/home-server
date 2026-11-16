@@ -1,0 +1,6 @@
+---
+# Namespace isolation: ingress only from pods in this namespace (webtrees,
+# MariaDB, the dump CronJob) and from Traefik (kube-system). The tree holds
+# data about living people, and nothing else in the cluster calls webtrees.
+# Egress stays unrestricted. See docs/23-network-policies.md.
+{{ include "common.networkpolicy.isolation" (dict "root" $ "name" "webtrees") }}

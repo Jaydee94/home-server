@@ -1,0 +1,104 @@
+{{- if .Values.backup.enabled }}
+{{- $name := include "webtrees.mariadb.fullname" . }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-backup
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "webtrees.mariadb.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-options: Delete=false,Prune=false
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.backup.persistence.size }}
+  storageClassName: {{ .Values.backup.persistence.storageClassName }}
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}-dump
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "webtrees.mariadb.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backup.schedule | quote }}
+  timeZone: Europe/Berlin
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: OnFailure
+          automountServiceAccountToken: false
+          securityContext:
+            # uid/gid of the mysql user in the official image.
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
+            fsGroup: 999
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: dump
+              # Same image as the server, so client and server versions match.
+              image: "{{ .Values.mariadb.image.repository }}:{{ .Values.mariadb.image.tag }}"
+              imagePullPolicy: {{ .Values.mariadb.image.pullPolicy }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: DB_HOST
+                  value: {{ $name }}
+                - name: DB_NAME
+                  value: {{ .Values.env.DB_NAME | quote }}
+                - name: KEEP_DAYS
+                  value: {{ .Values.backup.keepDays | quote }}
+              command:
+                - /bin/bash
+                - -ceu
+                - |
+                  set -o pipefail
+                  out="/backup/webtrees-$(date +%Y%m%d-%H%M%S).sql.gz"
+                  MYSQL_PWD="$(cat /run/secrets/webtrees/db-root-password)" \
+                    mariadb-dump --host="$DB_HOST" --user=root \
+                    --single-transaction --routines --triggers "$DB_NAME" \
+                    | gzip > "$out.tmp"
+                  mv "$out.tmp" "$out"
+                  find /backup -name 'webtrees-*.sql.gz' -mtime +"$KEEP_DAYS" -delete
+                  ls -lh /backup
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+                - name: secrets
+                  mountPath: /run/secrets/webtrees
+                  readOnly: true
+          volumes:
+            - name: backup
+              persistentVolumeClaim:
+                claimName: {{ $name }}-backup
+            - name: secrets
+              secret:
+                secretName: {{ include "webtrees.secretName" . }}
+                items:
+                  - key: db-root-password
+                    path: db-root-password
+{{- end }}

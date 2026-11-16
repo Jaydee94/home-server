@@ -1,0 +1,124 @@
+---
+image:
+  # Community image (no official one exists), rebuilt for every webtrees
+  # release: https://github.com/NathanVaughn/webtrees-docker
+  repository: ghcr.io/nathanvaughn/webtrees
+  tag: "2.2.6"
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+# The entrypoint runs as root: it remaps www-data to PUID/PGID, chowns the data
+# volume and then starts Apache, which drops to www-data. Only the capabilities
+# for that are kept.
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+    add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+      - NET_BIND_SERVICE
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: true
+  className: traefik
+  annotations: {}
+  hosts:
+    - host: webtrees.homeserver
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# /var/www/webtrees/data: config.ini.php, media files, GEDCOM uploads, cache.
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 5Gi
+  accessMode: ReadWriteOnce
+  mountPath: /var/www/webtrees/data
+
+# Non-secret settings of the image's entrypoint, see the README of
+# NathanVaughn/webtrees-docker. Passwords come from the SealedSecret as *_FILE,
+# so they do not show up under "Server information" in the control panel.
+# WT_* is only read on the very first start, when the database is empty.
+env:
+  LANG: "de"
+  BASE_URL: "http://webtrees.homeserver"
+  PRETTY_URLS: "1"
+  HTTPS: "0"
+  HTTPS_REDIRECT: "0"
+  DB_TYPE: "mysql"
+  DB_PORT: "3306"
+  DB_USER: "webtrees"
+  DB_NAME: "webtrees"
+  DB_PREFIX: "wt_"
+  WT_USER: "admin"
+  WT_NAME: "Administrator"
+  # Placeholder, no mail is sent. Change it in "Mein Konto" after the first login.
+  WT_EMAIL: "admin@webtrees.homeserver"
+  PHP_MEMORY_LIMIT: "1024M"
+  PHP_MAX_EXECUTION_TIME: "300"
+  PHP_POST_MAX_SIZE: "100M"
+  PHP_UPLOAD_MAX_FILE_SIZE: "100M"
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: "1"
+    # PHP_MEMORY_LIMIT plus Apache; large GEDCOM imports need the headroom.
+    memory: 1536Mi
+
+# SealedSecret "webtrees" with the keys db-password, db-root-password and
+# wt-password. Sealing: docs/27-webtrees.md.
+sealedSecret:
+  encryptedData:
+    db-password: AgCYVONoexRwO+XhLAro3MRWuNClF8hSBtDUe0vkGoumyMuKRRrfT+21FjCmWaaRU4WxGLKvq83A9H+NR7IDElLvzWqEjWyMMomEyl99tyU6yxSIOCwe2ixAD6PJjt+QbDd6OagtT7gkJlxnVMLR3XCmt7yRAY861j7tIpGg6lP6wWv9J+oIQHAmRRhSkpYvvg5VVbaxkrShqzwOebfpeO+rDqyNV2uAi/fFf05GquA0I2R7mOVEso7u8XgVH441k3Mb4W5kvsneu1c6+vNRYdBqnETqLBaOpnEmeO3TfT6bUdlOO1WzYMkY7Qw5m+LbS8pKMqTuSB+8XUdBrMqXl9x/LVNCBfJmSYx/A+L6w3Vu0uPnkoIkU0UGRnh9E4Tc4/IbX9POOUTXXOPpRPkLXba1lI+K2Zdddbo9d80jH4VMPNM4uJKdrH0J4sZ9oNWQzDjr1D9JoDm4Pc92CBjmK52uKrdSbrgPow3kuZ/H6u6HPZapcjcFooPipLl9xlU5fR56QHPnuOuZCd/+tyKfxyFTYyUy6Sw+8ZBUmJwMUhoKQNNPT1DEpssvTu3FTlIJxTTDptCt7QpInKUOZ0zleaQmD3lRxmIWFSanOECYhmTmMoiH10k0XMdK3t0bUKD9jI05UEH60AaDFkvlfod2itdavoG1l79wy2OsbAFXxSF5BM5EIk4GPFtpCPhyYHD5kB8sig3bEMVmJaAUzjIxCN/k3/rxCWkLoVrYVLTOIZlHIQ==
+    db-root-password: AgAJgUjSkQpxetuSqR7o/lSTOH48+CsFVRegzTSoiLqqlXaShnXBENjhQGC3IHoTMseM0eNh9iYS50nFD8VEmLgGNWiMzLdOb9L1NTlDlfW6eHeWl4jTjK8abHxpTU91GFCFP8FcIS2qdx5Co6znCBdQdI58vKUleFbNI+G1N+L0+J26kVUM6Hbz16y68KO5Url9RmdFDB1+TkAFbfNsVZEyql5txH63S+uLS6VuQbEUDahC/ZwJvRABHgvQOId83/1aTPUvuPdwbDxMqQvypLbdVqfDtMS51gZu2vXdd/v/DLRcwjnuFpYNCyy7XNdtnBG3FE73zQKSeFCEWc7mo496i0FGekPmGFeRGCWi0tS7aYB3q29LXC3wuvUP+HGLav/cvtCzp3LO93029oempWbhSa1RH+2mDuCMIueVqrlyhZbj/tozQulnkSV4PKkPNyUJqQgKyo+deycoYY46o0DB2HbjdD71X84lJx2utARKLMyU+68Sf61i2UvwI7mQ3khIP/bGXGW9GHeGMXJibe2nxlBpTwd7MkpD6KEN3MrnnTAuZJMgzVudU3kT6W+mdWdomItUsjJkuGmT9PO8nIFvtlYF3QQpxMAYnVARSW0JO+ZLwr9kuad+Sz653agfpxjev3oaVVMK7k9uWj7+ghoQEXqWuzI4AT7tO/mQTXjnyxgGm4eNGgsKO3/gftxiIypjobSxKRKLZwsR1eEgCC2Cn/kyy1JjunG3Ojd7HG3I+A==
+    wt-password: AgA0zChAo2efZdt4ydmrzjpqQ3mmTaqdFuDlZ8uD6VrxCmRrrPqdiWHSqlJrGWoW6zseUxPrXnCN8yAne6Ww48Dxpv6RnmVrHvwD538ZdDiI1g/9mQJQvv5Hu0YyRKsLgh0ISgY5ikE5ca8hWc5mO8ujOiXD9odWtbFkZNP7vqD+V1cdAr6UqftwdcGRkc4aHEceY4GR1lnFhl2OjKpq0EL/VJd09fAQfw4DVcKfttd7B+reHDhOpFnAt+4ukBd8HHCsm2owLpZF+qLX2XKKWYrRRoJIFBqcm2ki4t8uwb1lip+0+Bjxd8eQmvxIvOwJx9XFS6a8cUK/EdlO1hocQty7vqrsWDt1MpXZl/fTDOd4OL87wOj7JroJ61n383NsUUQJVjA8O9gMHHjgxYikBAmM3vueRu1xD71gulD+enqGEVngn5CC8nXe09oIZc1t0gmHhHByZD0qsTRRiAubP3sGre7aikkIM6KnZ1IqFRc31ef/YwdgF4PU6U7M7dF8ebDe6ocRoD/ZWpf25TSioBLI2mG6VqQwhLmVpV6r91YRXiiCcVlLQ8QWXiwOskBygHVph+0y3WPfvVydR0Im8BlRtm6FYXnnTRhvQHCZplr/yjDWiD/t6gFFfjozCbf/nIDDguhs+Az/sfdMX7xFM0ZvGLm1J9mr77FgWK6HhP6sriZNUseHTf1NJqIA4monOZv12neY92ZNKLqrKz9CeDh8RM+8iQ==
+
+mariadb:
+  image:
+    # 11.8 is the current LTS line. MARIADB_AUTO_UPGRADE runs mariadb-upgrade
+    # when the data directory is from an older version.
+    repository: docker.io/library/mariadb
+    tag: "11.8.9"
+    pullPolicy: IfNotPresent
+  persistence:
+    storageClassName: local-path
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+# Nightly logical dump into its own PVC, one hour before the restic backup
+# (04:00) picks up all local-path volumes. The live InnoDB files in the backup
+# are only crash-consistent; the dump is the clean restore point.
+backup:
+  enabled: true
+  schedule: "30 3 * * *"
+  keepDays: 14
+  persistence:
+    storageClassName: local-path
+    size: 2Gi

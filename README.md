@@ -44,7 +44,7 @@ Am Ende gibt das Playbook die ArgoCD-URL und den Befehl zum Auslesen des Admin-P
 | Monitoring | VictoriaMetrics, VictoriaLogs, Grafana, Alertmanager mit Push über ntfy |
 | Automatisierung | Semaphore UI für Playbook-Läufe, Renovate für Versions-Updates |
 | Backup | restic, nächtlich auf die UGREEN NAS |
-| Anwendungen | Home Assistant, Mosquitto, Jellyfin, Media-Stack, Paperless-AI, Homepage, Gotify, Headlamp, Remedy, 7 Days to Die (KubeVirt), RPS-Arena |
+| Anwendungen | Home Assistant, Mosquitto, Jellyfin, Media-Stack, Paperless-AI, Homepage, Gotify, Headlamp, Remedy, webtrees, 7 Days to Die (KubeVirt), RPS-Arena |
 
 Referenz-Hardware: Intel i5, 32 GB RAM, 512 GB NVMe. Paperless-NGX, Portainer und die Mediendaten liegen auf einer UGREEN NAS, die das Playbook `ansible/ugreen-nas.yml` verwaltet.
 
@@ -65,6 +65,7 @@ Alle Hostnamen löst Pi-hole im LAN und im Tailnet auf. HTTPS funktioniert, soba
 | Paperless-AI, Remedy, kubeseal-webgui | http://{paperless-ai,remedy,kubeseal-webgui}.homeserver |
 | Gameserver-UI | http://gameserver.homeserver |
 | RPS-Arena | http://rps-arena.homeserver, http://192.168.178.127:30808 |
+| webtrees | http://webtrees.homeserver |
 | Mosquitto | mqtt://192.168.178.4:1883 |
 | Portainer, Paperless-NGX (NAS) | http://jays-ugreen:9000, http://jays-ugreen:8000 |
 
@@ -124,6 +125,7 @@ Anwendungen
 - [Jellyfin](docs/16-jellyfin.md), [Media-Stack](docs/21-media-stack.md)
 - [Gameserver](docs/19-gameserver.md), [Gameserver-UI](docs/20-gameserver-ui.md), [RPS-Arena](docs/25-rps-arena.md)
 - [Remedy](docs/24-remedy.md)
+- [webtrees](docs/27-webtrees.md)
 
 Betrieb
 

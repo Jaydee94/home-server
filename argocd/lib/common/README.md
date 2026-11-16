@@ -8,6 +8,7 @@ Nutzer:
 |---|---|
 | `paperless-ai` | alle Templates |
 | `ha-mcp` | Namen und Labels, Service, Ingress, ServiceAccount |
+| `webtrees` | Namen und Labels, Service, Ingress, ServiceAccount, PVC, NetworkPolicy; MariaDB hat eigene Labels in `_helpers.tpl` |
 | `media` | nur die NetworkPolicy; die Servarr-Deployments nutzen den lokalen Helper `media.servarr` in `argocd/apps/media/templates/_helpers.tpl` |
 
 ## Templates
