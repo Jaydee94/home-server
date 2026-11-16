@@ -65,6 +65,8 @@
 - name: Query VAAPI capabilities (Intel Quick Sync diagnostics)
   # --display drm: headless server, no X11/Wayland session to connect to.
   ansible.builtin.command: vainfo --display drm
+  # Read-only, so it also runs under --check; the debug below needs its output.
+  check_mode: false
   register: common_vainfo
   changed_when: false
   failed_when: false
@@ -75,6 +77,8 @@
 
 - name: Look up the host's "render" group GID (needed for Jellyfin's podSecurityContext.supplementalGroups)
   ansible.builtin.command: getent group render
+  # Read-only, so it also runs under --check; the debug below needs its output.
+  check_mode: false
   register: common_render_group
   changed_when: false
   failed_when: false
