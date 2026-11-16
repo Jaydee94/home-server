@@ -103,12 +103,10 @@ pihole:
   adminPassword: ""
 
   adlists:
-    # Werbung & Tracker (Hagezi Pro)
+    # Werbung & Tracker (Hagezi Pro – umfassend, ~700k Einträge)
     - https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt
-    # Malware / Phishing / Threat Intelligence (Hagezi TIF)
-    - https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/tif.txt
-    # OISD Big – ausgewogene Allgemeinliste
-    - https://big.oisd.nl/
+    # OISD Normal – ausgewogene Allgemeinliste (~250k Einträge, statt big ~1,8M)
+    - https://oisd.nl/
     # StevenBlack Unified Hosts
     - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
     # URLhaus – aktive Malware-Domains

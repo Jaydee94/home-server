@@ -22,3 +22,14 @@ resources:
   # renovate: depName=kubevirt/containerized-data-importer
   - https://github.com/kubevirt/containerized-data-importer/releases/download/v1.66.1/cdi-operator.yaml
   - cdi-cr.yaml
+
+patches:
+  # Single-node: virt-operator defaults to 2 replicas for HA. 1 is sufficient here.
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: virt-operator
+        namespace: kubevirt
+      spec:
+        replicas: 1
