@@ -150,28 +150,44 @@
     enabled: true
 
 # ---- Swap ---------------------------------------------------
-- name: Check for active swap devices
-  ansible.builtin.command: swapon --noheadings --show=NAME
-  register: common_active_swap
-  changed_when: false
+# A swapfile acts as an OOM safety net: vm.swappiness=0 (set below) tells the
+# kernel to use it only when physical RAM is nearly exhausted, so normal workloads
+# never touch it. Without any swap, a temporary spike (e.g. pihole gravity rebuild)
+# can trigger the OOM killer and crash a pod. k3s is told not to fail on swap via
+# fail-swap-on=false in the k3s config template.
+- name: Check if swapfile exists
+  ansible.builtin.stat:
+    path: "{{ swap_file_path }}"
+  register: common_swapfile
 
-- name: Disable swap immediately
-  ansible.builtin.command: swapoff -a
-  when: common_active_swap.stdout | trim | length > 0
+- name: Create swapfile
+  ansible.builtin.command: fallocate -l {{ swap_file_size_mb }}M {{ swap_file_path }}
+  when: not common_swapfile.stat.exists
   changed_when: true
 
-- name: Remove swap entries from /etc/fstab
-  ansible.builtin.replace:
-    path: /etc/fstab
-    regexp: '^([^#].*\s+swap\s+.*)$'
-    replace: '# \1'
+- name: Set swapfile permissions (root-only)
+  ansible.builtin.file:
+    path: "{{ swap_file_path }}"
+    owner: root
+    group: root
+    mode: '0600'
 
-- name: Ensure swap is not re-enabled by systemd
-  ansible.builtin.systemd:
-    name: swap.target
-    enabled: false
-    state: stopped
-    masked: true
+- name: Format swapfile
+  ansible.builtin.command: mkswap {{ swap_file_path }}
+  when: not common_swapfile.stat.exists
+  changed_when: true
+
+- name: Enable swapfile
+  ansible.builtin.command: swapon {{ swap_file_path }}
+  when: not common_swapfile.stat.exists
+  changed_when: true
+
+- name: Persist swapfile in /etc/fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^{{ swap_file_path | regex_escape }}\s'
+    line: "{{ swap_file_path }} none swap sw 0 0"
+    state: present
 
 # ---- Kernel Modules -----------------------------------------
 - name: Create modules-load.d config for k3s/Kubernetes

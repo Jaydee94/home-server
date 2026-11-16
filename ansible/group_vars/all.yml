@@ -43,6 +43,12 @@ journald_max_retention: "1month"
 # stops managing the file; it does not remove an already deployed one.
 ssh_hardening_enabled: true
 
+# ---- Swap --------------------------------------------------
+# OOM safety net: vm.swappiness=0 means the kernel only uses this in a near-OOM
+# situation. k3s is configured with fail-swap-on=false (k3s-config.yaml.j2).
+swap_file_path: /swapfile
+swap_file_size_mb: 4096   # 4 GB
+
 # ---- k3s ---------------------------------------------------
 # Pinned. Renovate raises a PR for new releases (customManager for this file in
 # renovate.json), so a k3s upgrade goes through CI and a merge instead of
