@@ -105,7 +105,7 @@ mariadb:
     # 11.8 is the current LTS line. MARIADB_AUTO_UPGRADE runs mariadb-upgrade
     # when the data directory is from an older version.
     repository: docker.io/library/mariadb
-    tag: "11.8.9"
+    tag: "13.0.2"
     pullPolicy: IfNotPresent
   persistence:
     storageClassName: local-path
