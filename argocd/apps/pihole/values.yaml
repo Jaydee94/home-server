@@ -106,7 +106,7 @@ pihole:
     # Werbung & Tracker (Hagezi Pro – umfassend, ~700k Einträge)
     - https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/pro.txt
     # OISD Normal – ausgewogene Allgemeinliste (~250k Einträge, statt big ~1,8M)
-    - https://oisd.nl/
+    - https://dbl.oisd.nl/
     # StevenBlack Unified Hosts
     - https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
     # URLhaus – aktive Malware-Domains
