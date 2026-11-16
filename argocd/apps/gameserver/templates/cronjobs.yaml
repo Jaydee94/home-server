@@ -8,6 +8,8 @@ metadata:
 spec:
   schedule: {{ .Values.schedule.start | quote }}
   timeZone: {{ .Values.schedule.timezone | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
       template:
@@ -37,6 +39,8 @@ metadata:
 spec:
   schedule: {{ .Values.schedule.stop | quote }}
   timeZone: {{ .Values.schedule.timezone | quote }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
   jobTemplate:
     spec:
       template:

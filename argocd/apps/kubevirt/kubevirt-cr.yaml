@@ -11,4 +11,8 @@ spec:
     developerConfiguration:
       featureGates:
         - ExpandDisks
+  # Single-node: 1 replica is sufficient for virt-api, virt-controller, virt-exportproxy.
+  # HCO sets this automatically on SNO; on plain KubeVirt it must be explicit.
+  infra:
+    replicas: 1
   workloadUpdateStrategy: {}
