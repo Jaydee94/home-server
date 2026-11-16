@@ -70,13 +70,21 @@ spec:
                 - -ceu
                 - |
                   set -o pipefail
+                  export MYSQL_PWD="$(cat /run/secrets/webtrees/db-root-password)"
                   out="/backup/webtrees-$(date +%Y%m%d-%H%M%S).sql.gz"
-                  MYSQL_PWD="$(cat /run/secrets/webtrees/db-root-password)" \
-                    mariadb-dump --host="$DB_HOST" --user=root \
+                  trap 'rm -f "$out.tmp"' EXIT
+                  # A fresh pod can need a moment before the NetworkPolicy
+                  # lets its IP through; wait for the server instead of failing.
+                  for i in $(seq 1 30); do
+                    mariadb-admin --host="$DB_HOST" --user=root ping --silent && break
+                    sleep 2
+                  done
+                  mariadb-dump --host="$DB_HOST" --user=root \
                     --single-transaction --routines --triggers "$DB_NAME" \
                     | gzip > "$out.tmp"
                   mv "$out.tmp" "$out"
                   find /backup -name 'webtrees-*.sql.gz' -mtime +"$KEEP_DAYS" -delete
+                  find /backup -name 'webtrees-*.sql.gz.tmp' -mmin +60 -delete
                   ls -lh /backup
               resources:
                 requests:
