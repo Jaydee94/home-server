@@ -117,6 +117,8 @@ semaphore_vault_password: !vault |
           65333537343963356237356265306462303432356530623732363037343833386131613439386663
           3637353530353538660a633234343661316332626135623264366564356337653733613763396663
           3664
+semaphore_secrets_vault_password: "{{ semaphore_vault_password }}"
+semaphore_bootstrap_vault_password: "{{ semaphore_vault_password }}"
 
 # ---- Semaphore projects (auto-bootstrap) ------------------
 # After Semaphore is reachable, the `semaphore_bootstrap` role calls the
@@ -127,11 +129,11 @@ semaphore_vault_password: !vault |
 #                      deployed to the UGREEN NAS)
 #
 # This list is the single source of truth (the role default is empty). To add
-# a third project, extend it here. `semaphore_default_environment` comes from
+# a third project, extend it here. `semaphore_bootstrap_default_environment` comes from
 # ansible/roles/semaphore_bootstrap/defaults/main.yml. Projects that are not
 # in this list are deleted by the role on the next run.
 
-semaphore_projects:
+semaphore_bootstrap_projects:
   - name: home-server
     description: "Deploy / re-provision the home-server itself."
     repository:
@@ -139,7 +141,7 @@ semaphore_projects:
       url: "{{ argocd_repo_url }}"
       branch: main
     environments:
-      - "{{ semaphore_default_environment }}"
+      - "{{ semaphore_bootstrap_default_environment }}"
     inventories:
       - name: homeservers
         type: static
@@ -167,7 +169,7 @@ semaphore_projects:
       url: "{{ argocd_repo_url }}"
       branch: main
     environments:
-      - "{{ semaphore_default_environment }}"
+      - "{{ semaphore_bootstrap_default_environment }}"
     inventories:
       - name: ugreen-nas
         type: static

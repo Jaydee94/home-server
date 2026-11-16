@@ -12,76 +12,76 @@
 
 - name: List existing schedules in project {{ project_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/schedules"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/schedules"
     method: GET
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     return_content: true
-  register: sem_sched_existing
+  register: semaphore_bootstrap_sched_existing
 
 - name: Decide if schedule exists - {{ schedule_spec.name }}
   ansible.builtin.set_fact:
-    schedule_exists: >-
-      {{ (sem_sched_existing.json
+    semaphore_bootstrap_schedule_exists: >-
+      {{ (semaphore_bootstrap_sched_existing.json
           | selectattr('name', 'equalto', schedule_spec.name)
           | list | length) > 0 }}
 
 - name: Find existing schedule id for '{{ schedule_spec.name }}'
   ansible.builtin.set_fact:
-    schedule_id: >-
-      {{ (sem_sched_existing.json
+    semaphore_bootstrap_schedule_id: >-
+      {{ (semaphore_bootstrap_sched_existing.json
            | selectattr('name', 'equalto', schedule_spec.name)
            | list | first | default({})).id | default(none) }}
-  when: schedule_exists
+  when: semaphore_bootstrap_schedule_exists
 
 - name: Assert that schedule template exists - {{ schedule_spec.name }}
   ansible.builtin.assert:
-    that: "schedule_spec.template in project_template_map"
+    that: "schedule_spec.template in semaphore_bootstrap_project_template_map"
     fail_msg: >-
       Schedule '{{ schedule_spec.name }}' references unknown template
       '{{ schedule_spec.template }}' in project '{{ project_spec.name }}'.
-      Available templates: {{ project_template_map.keys() | list }}.
+      Available templates: {{ semaphore_bootstrap_project_template_map.keys() | list }}.
 
-# Jinja dict literal so project_id/template_id stay JSON integers —
+# Jinja dict literal so semaphore_bootstrap_project_id/semaphore_bootstrap_template_id stay JSON integers —
 # Semaphore's Go decoder rejects stringified ints (see template.yml).
 - name: Create schedule '{{ schedule_spec.name }}'
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/schedules"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/schedules"
     method: POST
     body_format: json
     body: >-
       {{
         {
-          'project_id': project_id | int,
-          'template_id': project_template_map[schedule_spec.template] | int,
+          'semaphore_bootstrap_project_id': semaphore_bootstrap_project_id | int,
+          'semaphore_bootstrap_template_id': semaphore_bootstrap_project_template_map[schedule_spec.template] | int,
           'name': schedule_spec.name,
           'cron_format': schedule_spec.cron,
           'active': schedule_spec.active | default(true),
         }
       }}
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     status_code: [200, 201, 204]
-  when: not schedule_exists
+  when: not semaphore_bootstrap_schedule_exists
 
 - name: Update schedule '{{ schedule_spec.name }}'
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/schedules/{{ schedule_id | int }}"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/schedules/{{ semaphore_bootstrap_schedule_id | int }}"
     method: PUT
     body_format: json
     body: >-
       {{
         {
-          'id': schedule_id | int,
-          'project_id': project_id | int,
-          'template_id': project_template_map[schedule_spec.template] | int,
+          'id': semaphore_bootstrap_schedule_id | int,
+          'semaphore_bootstrap_project_id': semaphore_bootstrap_project_id | int,
+          'semaphore_bootstrap_template_id': semaphore_bootstrap_project_template_map[schedule_spec.template] | int,
           'name': schedule_spec.name,
           'cron_format': schedule_spec.cron,
           'active': schedule_spec.active | default(true),
         }
       }}
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     status_code: [200, 204]
-  when: schedule_exists
+  when: semaphore_bootstrap_schedule_exists
   changed_when: false

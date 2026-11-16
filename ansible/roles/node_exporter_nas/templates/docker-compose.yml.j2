@@ -1,10 +1,10 @@
 services:
   node-exporter:
-    image: "{{ node_exporter_image }}"
+    image: "{{ node_exporter_nas_image }}"
     restart: unless-stopped
     pid: host
     volumes:
-      - "{{ node_exporter_textfile_dir }}:/textfile:ro"
+      - "{{ node_exporter_nas_textfile_dir }}:/textfile:ro"
       - "/proc:/host/proc:ro"
       - "/sys:/host/sys:ro"
       - "/:/rootfs:ro"
@@ -17,7 +17,7 @@ services:
       - "9100:9100"
 
   cadvisor:
-    image: "{{ cadvisor_image }}"
+    image: "{{ node_exporter_nas_cadvisor_image }}"
     restart: unless-stopped
     privileged: true
     devices:
@@ -36,7 +36,7 @@ services:
       - '--store_container_labels=true'
       - '--whitelisted_container_labels=com.docker.compose.project,com.docker.compose.service,com.docker.compose.container-number'
     ports:
-      - "{{ cadvisor_port }}:8080"
+      - "{{ node_exporter_nas_cadvisor_port }}:8080"
 
 networks:
   default:

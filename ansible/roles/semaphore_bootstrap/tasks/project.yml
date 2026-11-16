@@ -10,23 +10,23 @@
 
 - name: List existing projects for {{ project_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/projects"
+    url: "{{ semaphore_bootstrap_api_base }}/api/projects"
     method: GET
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     return_content: true
-  register: sem_projects_list
+  register: semaphore_bootstrap_projects_list
 
 - name: Find project id for {{ project_spec.name }}
   ansible.builtin.set_fact:
-    project_id: >-
-      {{ (sem_projects_list.json
+    semaphore_bootstrap_project_id: >-
+      {{ (semaphore_bootstrap_projects_list.json
            | selectattr('name', 'equalto', project_spec.name)
            | list | first | default({})).id | default(none) }}
 
 - name: Create project {{ project_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/projects"
+    url: "{{ semaphore_bootstrap_api_base }}/api/projects"
     method: POST
     body_format: json
     body:
@@ -35,40 +35,40 @@
       max_parallel_tasks: 0
       type: ""
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     status_code: [200, 201]
     return_content: true
-  register: sem_project_create
-  when: project_id in [none, "None", ""]
+  register: semaphore_bootstrap_project_create
+  when: semaphore_bootstrap_project_id in [none, "None", ""]
 
 - name: Capture new project id for {{ project_spec.name }}
   ansible.builtin.set_fact:
-    project_id: "{{ sem_project_create.json.id }}"
+    semaphore_bootstrap_project_id: "{{ semaphore_bootstrap_project_create.json.id }}"
   when:
-    - project_id in [none, "None", ""]
-    - sem_project_create is not skipped
+    - semaphore_bootstrap_project_id in [none, "None", ""]
+    - semaphore_bootstrap_project_create is not skipped
 
 - name: Provision default access keys in project {{ project_spec.name }}
   ansible.builtin.include_tasks: key.yml
-  loop: "{{ semaphore_default_keys }}"
+  loop: "{{ semaphore_bootstrap_default_keys }}"
   loop_control:
     loop_var: key_spec
     label: "{{ key_spec.name }}"
 
 - name: Re-list keys in project {{ project_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/keys"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/keys"
     method: GET
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     return_content: true
-  register: sem_keys_list
+  register: semaphore_bootstrap_keys_list
 
 - name: Build key name→id map for project {{ project_spec.name }}
   ansible.builtin.set_fact:
-    project_key_map: >-
-      {{ dict(sem_keys_list.json
-              | map(attribute='name') | zip(sem_keys_list.json | map(attribute='id'))) }}
+    semaphore_bootstrap_project_key_map: >-
+      {{ dict(semaphore_bootstrap_keys_list.json
+              | map(attribute='name') | zip(semaphore_bootstrap_keys_list.json | map(attribute='id'))) }}
 
 - name: Provision repository for project {{ project_spec.name }}
   ansible.builtin.include_tasks: repository.yml
@@ -82,18 +82,18 @@
 
 - name: Re-list inventories in project {{ project_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/inventory"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/inventory"
     method: GET
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     return_content: true
-  register: sem_inv_list
+  register: semaphore_bootstrap_inv_list
 
 - name: Build inventory name→id map for project {{ project_spec.name }}
   ansible.builtin.set_fact:
-    project_inventory_map: >-
-      {{ dict(sem_inv_list.json
-              | map(attribute='name') | zip(sem_inv_list.json | map(attribute='id'))) }}
+    semaphore_bootstrap_project_inventory_map: >-
+      {{ dict(semaphore_bootstrap_inv_list.json
+              | map(attribute='name') | zip(semaphore_bootstrap_inv_list.json | map(attribute='id'))) }}
 
 - name: Provision environments for project {{ project_spec.name }}
   ansible.builtin.include_tasks: environment.yml
@@ -104,18 +104,18 @@
 
 - name: Re-list environments in project {{ project_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/environment"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/environment"
     method: GET
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     return_content: true
-  register: sem_env_list
+  register: semaphore_bootstrap_env_list
 
 - name: Build environment name→id map for project {{ project_spec.name }}
   ansible.builtin.set_fact:
-    project_environment_map: >-
-      {{ dict(sem_env_list.json
-              | map(attribute='name') | zip(sem_env_list.json | map(attribute='id'))) }}
+    semaphore_bootstrap_project_environment_map: >-
+      {{ dict(semaphore_bootstrap_env_list.json
+              | map(attribute='name') | zip(semaphore_bootstrap_env_list.json | map(attribute='id'))) }}
 
 - name: Provision templates for project {{ project_spec.name }}
   ansible.builtin.include_tasks: template.yml
@@ -126,18 +126,18 @@
 
 - name: Re-list templates in project {{ project_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/templates"
     method: GET
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     return_content: true
-  register: sem_tpl_list
+  register: semaphore_bootstrap_tpl_list
 
 - name: Build template name→id map for project {{ project_spec.name }}
   ansible.builtin.set_fact:
-    project_template_map: >-
-      {{ dict(sem_tpl_list.json
-              | map(attribute='name') | zip(sem_tpl_list.json | map(attribute='id'))) }}
+    semaphore_bootstrap_project_template_map: >-
+      {{ dict(semaphore_bootstrap_tpl_list.json
+              | map(attribute='name') | zip(semaphore_bootstrap_tpl_list.json | map(attribute='id'))) }}
 
 - name: Provision schedules for project {{ project_spec.name }}
   ansible.builtin.include_tasks: schedule.yml

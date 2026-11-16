@@ -7,8 +7,8 @@
 # Re-runnable: the key gets fetched from the home-server every time.
 
 # Path on the home-server where semaphore_secrets stored the public key.
-semaphore_public_key_path: /etc/semaphore-secrets/id_ed25519.pub
+semaphore_targets_public_key_path: /etc/semaphore-secrets/id_ed25519.pub
 
 # Which user to authorize on the target. Override per host/group if needed
 # (e.g. ansible_user differs from the user Semaphore should SSH as).
-semaphore_authorize_user: "{{ ansible_user }}"
+semaphore_targets_authorize_user: "{{ ansible_user }}"

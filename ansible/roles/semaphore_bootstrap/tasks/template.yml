@@ -1,40 +1,40 @@
 ---
 # ============================================================
 # Provision one task template inside the current project.
-# Wires repository_id + inventory_id + playbook path together.
+# Wires semaphore_bootstrap_repository_id + semaphore_bootstrap_inventory_id + playbook path together.
 # ============================================================
 
 - name: List existing templates in project {{ project_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/templates"
     method: GET
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     return_content: true
-  register: sem_tpl_existing
+  register: semaphore_bootstrap_tpl_existing
 
 - name: Decide if template exists for {{ template_spec.name }}
   ansible.builtin.set_fact:
-    template_exists: >-
-      {{ (sem_tpl_existing.json
+    semaphore_bootstrap_template_exists: >-
+      {{ (semaphore_bootstrap_tpl_existing.json
           | selectattr('name', 'equalto', template_spec.name)
           | list | length) > 0 }}
 
 - name: Find existing template id for {{ template_spec.name }}
   ansible.builtin.set_fact:
-    template_id: >-
-      {{ (sem_tpl_existing.json
+    semaphore_bootstrap_template_id: >-
+      {{ (semaphore_bootstrap_tpl_existing.json
            | selectattr('name', 'equalto', template_spec.name)
            | list | first | default({})).id | default(none) }}
-  when: template_exists
+  when: semaphore_bootstrap_template_exists
 
 - name: Assert inventory exists in project - {{ project_spec.name }}
   ansible.builtin.assert:
-    that: "template_spec.inventory in project_inventory_map"
+    that: "template_spec.inventory in semaphore_bootstrap_project_inventory_map"
     fail_msg: >-
       Template '{{ template_spec.name }}' references unknown inventory
       '{{ template_spec.inventory }}' in project '{{ project_spec.name }}'.
-      Available inventories: {{ project_inventory_map.keys() | list }}.
+      Available inventories: {{ semaphore_bootstrap_project_inventory_map.keys() | list }}.
 
 # Body is built as a single Jinja dict so Python-native types survive
 # into the JSON encoder. With YAML scalars the folded `>-` wrapper
@@ -43,24 +43,24 @@
 # when it receives a JSON string. See git log for the bug history.
 - name: Create template {{ template_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/templates"
     method: POST
     body_format: json
     body: >-
       {{
         {
-          'project_id': project_id | int,
-          'inventory_id': project_inventory_map[template_spec.inventory] | int,
-          'repository_id': repository_id | int,
-          'environment_id':
-            (project_environment_map[template_spec.environment] | int)
+          'semaphore_bootstrap_project_id': semaphore_bootstrap_project_id | int,
+          'semaphore_bootstrap_inventory_id': semaphore_bootstrap_project_inventory_map[template_spec.inventory] | int,
+          'semaphore_bootstrap_repository_id': semaphore_bootstrap_repository_id | int,
+          'semaphore_bootstrap_environment_id':
+            (semaphore_bootstrap_project_environment_map[template_spec.environment] | int)
             if (template_spec.environment is defined
-                and template_spec.environment in (project_environment_map | default({})))
+                and template_spec.environment in (semaphore_bootstrap_project_environment_map | default({})))
             else none,
           'vault_key_id':
-            (project_key_map[template_spec.vault_key] | int)
+            (semaphore_bootstrap_project_key_map[template_spec.vault_key] | int)
             if (template_spec.vault_key is defined
-                and template_spec.vault_key in project_key_map)
+                and template_spec.vault_key in semaphore_bootstrap_project_key_map)
             else none,
           'name': template_spec.name,
           'playbook': template_spec.playbook,
@@ -74,34 +74,34 @@
         }
       }}
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     status_code: [200, 201, 204]
-  when: not template_exists
+  when: not semaphore_bootstrap_template_exists
 
 # Existing templates may pre-date the vault_key_id wiring (or other field
 # changes). PUT the full desired body so re-running the bootstrap is
 # self-healing — Semaphore replaces the row wholesale.
 - name: Update template {{ template_spec.name }}
   ansible.builtin.uri:
-    url: "{{ semaphore_api_base }}/api/project/{{ project_id }}/templates/{{ template_id | int }}"
+    url: "{{ semaphore_bootstrap_api_base }}/api/project/{{ semaphore_bootstrap_project_id }}/templates/{{ semaphore_bootstrap_template_id | int }}"
     method: PUT
     body_format: json
     body: >-
       {{
         {
-          'id': template_id | int,
-          'project_id': project_id | int,
-          'inventory_id': project_inventory_map[template_spec.inventory] | int,
-          'repository_id': repository_id | int,
-          'environment_id':
-            (project_environment_map[template_spec.environment] | int)
+          'id': semaphore_bootstrap_template_id | int,
+          'semaphore_bootstrap_project_id': semaphore_bootstrap_project_id | int,
+          'semaphore_bootstrap_inventory_id': semaphore_bootstrap_project_inventory_map[template_spec.inventory] | int,
+          'semaphore_bootstrap_repository_id': semaphore_bootstrap_repository_id | int,
+          'semaphore_bootstrap_environment_id':
+            (semaphore_bootstrap_project_environment_map[template_spec.environment] | int)
             if (template_spec.environment is defined
-                and template_spec.environment in (project_environment_map | default({})))
+                and template_spec.environment in (semaphore_bootstrap_project_environment_map | default({})))
             else none,
           'vault_key_id':
-            (project_key_map[template_spec.vault_key] | int)
+            (semaphore_bootstrap_project_key_map[template_spec.vault_key] | int)
             if (template_spec.vault_key is defined
-                and template_spec.vault_key in project_key_map)
+                and template_spec.vault_key in semaphore_bootstrap_project_key_map)
             else none,
           'name': template_spec.name,
           'playbook': template_spec.playbook,
@@ -115,7 +115,7 @@
         }
       }}
     headers:
-      Cookie: "{{ semaphore_cookie }}"
+      Cookie: "{{ semaphore_bootstrap_cookie }}"
     status_code: [200, 204]
-  when: template_exists
+  when: semaphore_bootstrap_template_exists
   changed_when: false

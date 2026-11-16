@@ -1,13 +1,13 @@
 ---
 - name: Create node-exporter base directory
   ansible.builtin.file:
-    path: "{{ node_exporter_base_dir }}"
+    path: "{{ node_exporter_nas_base_dir }}"
     state: directory
     mode: '0755'
 
 - name: Create node-exporter textfile collector directory
   ansible.builtin.file:
-    path: "{{ node_exporter_textfile_dir }}"
+    path: "{{ node_exporter_nas_textfile_dir }}"
     state: directory
     owner: root
     group: root
@@ -16,11 +16,11 @@
 - name: Deploy node-exporter docker-compose.yml
   ansible.builtin.template:
     src: docker-compose.yml.j2
-    dest: "{{ node_exporter_base_dir }}/docker-compose.yml"
+    dest: "{{ node_exporter_nas_base_dir }}/docker-compose.yml"
     mode: '0644'
 
 - name: Start node-exporter
   community.docker.docker_compose_v2:
-    project_src: "{{ node_exporter_base_dir }}"
+    project_src: "{{ node_exporter_nas_base_dir }}"
     state: present
     remove_orphans: true
