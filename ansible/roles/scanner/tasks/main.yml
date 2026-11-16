@@ -68,6 +68,27 @@
     state: "{{ 'latest' if auto_upgrade | bool else 'present' }}"
     update_cache: true
 
+# ---- saned network daemon — disable to avoid port 6566 conflicts -----------
+# sane-utils ships saned.socket (systemd socket-activation) which holds
+# port 6566 at boot. inetd also ships a sane-port entry in /etc/inetd.conf.
+# Both competing for the same port produces "bind: Address already in use"
+# log spam every 10 minutes. This host uses scanbd (local USB button events)
+# and does not need a network-accessible SANE daemon.
+- name: Stop and disable saned.socket (network SANE not needed, scanbd handles locally)
+  ansible.builtin.systemd:
+    name: saned.socket
+    enabled: false
+    state: stopped
+  failed_when: false
+
+- name: Comment out sane-port in /etc/inetd.conf to stop inetd bind retries
+  ansible.builtin.replace:
+    path: /etc/inetd.conf
+    regexp: '^(sane-port\s+.*)'
+    replace: '# \1  # disabled by Ansible — use saned.socket if network SANE is needed'
+  failed_when: false
+  notify: Restart inetd
+
 # ---- User & group -----------------------------------------
 - name: Ensure scanner group exists
   ansible.builtin.group:
