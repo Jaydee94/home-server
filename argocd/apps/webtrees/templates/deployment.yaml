@@ -1,0 +1,89 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "common.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "common.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  # RWO volume and file-based cache: never run two pods at once.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "common.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "common.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "common.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: webtrees
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: DB_HOST
+              value: {{ include "webtrees.mariadb.fullname" . }}
+            - name: DB_PASS_FILE
+              value: /run/secrets/webtrees/db-password
+            - name: WT_PASS_FILE
+              value: /run/secrets/webtrees/wt-password
+            {{- range $key, $val := .Values.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+          # The image's own health check: webtrees' BadBotBlocker rejects
+          # requests without a cookie and a browser user agent, which rules
+          # out a plain httpGet probe (NathanVaughn/webtrees-docker#164).
+          startupProbe:
+            exec:
+              command: ["/docker-healthcheck.sh"]
+            periodSeconds: 10
+            timeoutSeconds: 10
+            # First start waits for MariaDB and runs the setup wizard.
+            failureThreshold: 60
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            exec:
+              command: ["/docker-healthcheck.sh"]
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            - name: secrets
+              mountPath: /run/secrets/webtrees
+              readOnly: true
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "common.fullname" . }}-data
+        - name: secrets
+          secret:
+            secretName: {{ include "webtrees.secretName" . }}
+            items:
+              - key: db-password
+                path: db-password
+              - key: wt-password
+                path: wt-password

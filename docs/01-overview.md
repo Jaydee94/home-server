@@ -63,6 +63,7 @@ UGREEN NAS 192.168.178.118 (SMB): Paperless-consume, Medien, Backup-Repo
 | `sealed-secrets` | Controller, der `SealedSecret`s entschlüsselt |
 | `semaphore` | Ansible-Web-UI ([Semaphore](08-semaphore.md)) |
 | `smartctl-exporter` | SMART-/NVMe-Metriken der Host-Disk |
+| `webtrees` | Stammbaum-Software mit MariaDB ([webtrees](27-webtrees.md)) |
 
 ## Anfragen und DNS
 

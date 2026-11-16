@@ -39,6 +39,7 @@ ingressTls:
     - seerr.homeserver
     - semaphore.homeserver
     - sonarr.homeserver
+    - webtrees.homeserver
   # Traefik's node IP, for https://<ip>/ without DNS.
   ipAddresses:
     - 192.168.178.127

@@ -24,7 +24,7 @@ Ein nächtliches [restic](https://restic.net)-Backup sichert alle Daten des Home
 
 Grenzen:
 
-- Die Volumes werden im laufenden Betrieb auf Dateiebene gesichert. SQLite-Datenbanken der Apps sind dadurch nur crash-konsistent. Für Remedy landet der Postgres-Dump aus dem Volume `remedy-postgres-backup` mit im Backup.
+- Die Volumes werden im laufenden Betrieb auf Dateiebene gesichert. SQLite-Datenbanken der Apps sind dadurch nur crash-konsistent. Für Remedy landet der Postgres-Dump aus dem Volume `remedy-postgres-backup` mit im Backup, für webtrees der MariaDB-Dump aus `webtrees-mariadb-backup`.
 - NAS und Server stehen im selben Haus. Das Backup schützt vor Plattendefekt und Fehlbedienung, nicht vor Brand oder Diebstahl.
 - Medien und Paperless-Daten auf dem NAS sind nicht Teil dieses Backups.
 

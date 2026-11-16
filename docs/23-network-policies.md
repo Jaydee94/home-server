@@ -9,7 +9,7 @@ Ein Teil der App-Namespaces nimmt eingehenden Traffic nur noch aus dem eigenen N
 
 ## Muster: Namespace-Isolation
 
-`media` und `paperless-ai` rendern die Policy über das Library-Chart, die anderen Apps haben eine eigene Kopie mit demselben Inhalt:
+`media`, `paperless-ai` und `webtrees` rendern die Policy über das Library-Chart, die anderen Apps haben eine eigene Kopie mit demselben Inhalt:
 
 ```text
 {{ include "common.networkpolicy.isolation" (dict "root" $ "name" "media" "namespaces" (list "monitoring" "homepage")) }}
@@ -36,7 +36,7 @@ Die Policies regeln nur `Ingress`. Ausgehender Traffic (DNS, Internet, Init-Cont
 
 | Namespace | Zusätzlich erlaubt | Grund |
 |---|---|---|
-| `gameserver-ui`, `headlamp`, `homepage`, `kubeseal-webgui`, `paperless-ai`, `semaphore` | keine | nur Traefik |
+| `gameserver-ui`, `headlamp`, `homepage`, `kubeseal-webgui`, `paperless-ai`, `semaphore`, `webtrees` | keine | nur Traefik |
 | `gotify` | `monitoring` | im Repo gibt es keinen aktuellen Aufrufer aus `monitoring` |
 | `media` | `monitoring`, `homepage` | vmagent scrapt `media-api-exporter`; Homepage-Widgets rufen Seerr, Sonarr, Radarr, Prowlarr und SABnzbd per ClusterIP-DNS auf |
 | `monitoring` | `homepage`, `gameserver-ui`, `remedy` | Homepage-Widget für Grafana; gameserver-ui und Remedy lesen vmsingle (`:8428`), Remedy zusätzlich den Alertmanager (`:9093`) |

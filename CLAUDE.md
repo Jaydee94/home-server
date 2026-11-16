@@ -55,6 +55,7 @@ ssh -i ~/.ssh/id_ed25519 jaydee@192.168.178.127 'sudo kubectl ...'
 | Mosquitto | mqtt://192.168.178.4:1883 |
 | Gameserver-UI / 7DTD | http://gameserver.homeserver, 100.x.x.x:26900 (Tailscale) |
 | RPS-Arena | http://rps-arena.homeserver, http://192.168.178.127:30808 |
+| webtrees | http://webtrees.homeserver |
 | Portainer / Paperless / OpenCode (NAS) | http://jays-ugreen:{9000,8000,4096} |
 
 ## Secrets

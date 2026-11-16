@@ -223,5 +223,9 @@ homepage:
               href: http://rps-arena.homeserver
               description: Rock-Paper-Scissors Browser-Game
               icon: mdi-hand-wave
+          - webtrees:
+              href: http://webtrees.homeserver
+              description: Stammbaum und Ahnenforschung
+              icon: mdi-family-tree
 
     bookmarks: []

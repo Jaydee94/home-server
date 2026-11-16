@@ -1,0 +1,24 @@
+---
+apiVersion: v2
+name: webtrees
+description: webtrees genealogy web application with a MariaDB database.
+type: application
+version: 0.1.0
+appVersion: "2.2.6"
+keywords:
+  - webtrees
+  - genealogy
+  - gedcom
+home: https://webtrees.net
+sources:
+  - https://github.com/fisharebest/webtrees
+  - https://github.com/NathanVaughn/webtrees-docker
+maintainers:
+  - name: home-server-admin
+dependencies:
+  # Shared templates (names/labels, Service, Ingress, ServiceAccount, PVC,
+  # NetworkPolicy). Resolved by `helm dependency build`, also by the ArgoCD
+  # repo-server. See argocd/lib/common/README.md.
+  - name: common
+    version: 0.1.0
+    repository: file://../../lib/common
