@@ -11,7 +11,7 @@ sealedSecret:
 
 # Broker-Image. Renovate pflegt den Tag über die Annotation.
 # renovate: datasource=docker depName=eclipse-mosquitto
-image: "docker.io/library/eclipse-mosquitto:2.1.2-alpine"
+image: "docker.io/library/eclipse-mosquitto:2.1.4-alpine"
 
 persistence:
   storageClass: local-path
