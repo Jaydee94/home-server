@@ -7,7 +7,7 @@ image:
   # every build on main; Renovate (helm-values manager) then opens a PR that
   # bumps the digest below. Do not drop the digest — without it nothing rolls
   # out any more (pullPolicy is IfNotPresent).
-  tag: "stable@sha256:146d035937553019357dbbe8d31eac72b24cbe07d751111cb47395686b0a4e07"
+  tag: "stable@sha256:ee7db238b5dbdf983d2c2d61fc967c5821c14c07cdcb77da537e28228b58cd1a"
   pullPolicy: IfNotPresent
 
 ingress:
