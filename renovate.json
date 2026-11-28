@@ -115,6 +115,13 @@
       "automerge": true
     },
     {
+      "description": "AUTOMERGE: pip requirements of the CI workflows (ansible-lint, yamllint, pyyaml, ansible), non-major only. CI-only, never reaches the cluster; a broken bump turns the required lint checks red and is not merged. Major bumps (e.g. ansible 15) stay manual.",
+      "matchManagers": ["pip_requirements"],
+      "matchFileNames": [".github/requirements-*.txt"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true
+    },
+    {
       "description": "AUTOMERGE: npm devDependencies of gameserver-ui, non-major only (major bumps of typescript/eslint/vitest need a human).",
       "matchManagers": ["npm"],
       "matchFileNames": ["apps/gameserver-ui/**"],
