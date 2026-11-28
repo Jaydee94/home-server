@@ -12,6 +12,7 @@
     "schedule": ["before 4am on monday"]
   },
   "platformAutomerge": false,
+  "automerge": true,
   "rebaseWhen": "auto",
   "minimumReleaseAgeBehaviour": "timestamp-optional",
   "customManagers": [
@@ -148,26 +149,6 @@
       "matchDatasources": ["docker", "helm"],
       "matchUpdateTypes": ["patch"],
       "automerge": true
-    },
-    {
-      "description": "NEVER automerge these packages, whatever the update type (placed last so it wins over the rules above): cluster/GitOps core, operators with CRDs and storage, databases, home-assistant, monitoring stack, networking, certificates, DNS, kubeseal-webgui.",
-      "matchPackageNames": [
-        "k3s-io/k3s", "/argo-cd/", "/argoproj/", "/kubevirt/", "/containerized-data-importer/",
-        "/postgres/", "/home-assistant/", "/victoria-?metrics/", "/sealed-secrets/", "/metallb/",
-        "/cert-manager/", "/jetstack/", "/pihole/", "/kubeseal-webgui/"
-      ],
-      "automerge": false
-    },
-    {
-      "description": "NEVER automerge anything in these app directories or in the Ansible group_vars (k3s and Helm versions), even if the package name above does not match (images vendored in these charts).",
-      "matchFileNames": [
-        "ansible/group_vars/all.yml",
-        "argocd/apps/kubevirt/**", "argocd/apps/home-assistant/**", "argocd/apps/monitoring/**",
-        "argocd/apps/sealed-secrets/**", "argocd/apps/metallb/**", "argocd/apps/cert-manager/**",
-        "argocd/apps/pihole/**", "argocd/apps/kubeseal-webgui/**",
-        "argocd/apps/argocd/**"
-      ],
-      "automerge": false
     },
     {
       "description": "typescript-6 is an alias for TypeScript 6 that only exists so typescript-eslint (peer typescript <6.1) keeps working next to TypeScript 7 (see apps/gameserver-ui/eslint-ts6-shim.mjs). Bumping it to 7 breaks `npm run lint` (happened with #643). Revisit when typescript-eslint supports TypeScript 7 — then drop the alias instead.",
