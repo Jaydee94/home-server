@@ -52,7 +52,7 @@ jobs:
           exit-code: "0"
       - name: Upload Trivy SARIF to the Security tab
         if: always()
-        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           sarif_file: trivy-results.sarif
       # Blocking part: any HIGH/CRITICAL misconfiguration or secret that is
@@ -240,7 +240,7 @@ jobs:
         run: echo "::warning::Trivy could not scan ${IMAGE} (image unpullable or scanner error) — no results uploaded"
       - name: Upload Trivy SARIF to the Security tab
         if: always() && hashFiles('trivy-image-results.sarif') != ''
-        uses: github/codeql-action/upload-sarif@1bd86f2fdb4b86187fa4059f16f31a3202acc9ea # v4.39.4
+        uses: github/codeql-action/upload-sarif@915412ff23e8b7659517e607487dbeae018f2934 # v4.39.5
         with:
           sarif_file: trivy-image-results.sarif
           # Stable per image name — not the matrix index, which shifts as
